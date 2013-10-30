@@ -1,4 +1,6 @@
-pro gmos_fit_spectra,time=time,verbose=verbose
+pro gmos_fit_spectra,gal,bin,time=time,verbose=verbose,$
+                     rows=rows,cols=cols,fibers=fibers,$
+                     onefit=onefit,keepnad=keepnad
 ;
 ; History
 ;  09jul08  DSNR  copied from LRIS routine to GMOS
@@ -6,191 +8,252 @@ pro gmos_fit_spectra,time=time,verbose=verbose
 ;
   
   starttime = systime(1)
-
-; Set rest-frame fit range
-  fitran = [6350d,7100d] ; KPNO
-  vdisp=100
-  fcninitpar='gmos_initparinfo'
-  fcnlinefit='manygauss_slow'
-  fcncontfit='gmos_fit_flat_continuum'
-  mc_refwave = 6562.8d
-  checkcomp_sigcut_init=5d
-;  checkcomp_sigcut_init=1d ; for corner spectra
-; Total number of velocity components.  Default is 1 component.
-  ncomp_init=2
-;  ncomp_init=1 ; for corner spectra
-
   if ~ keyword_set(time) then time=0
   if keyword_set(verbose) then quiet=0 else quiet=1
+  if keyword_set(fibers) then fibers=1 else fibers=0
 
-;;   startempfile = '/Users/drupke/src/idl/uhspecfit/stellar_models/'+$
-;;                  'gonzalezdelgado/SSPGeneva_z008+020+040.sav'
-  startempfile = '/Users/drupke/src/idl/uhspecfit/stellar_models/'+$
-                 'bruzualcharlot/bc03_tremonti.sav'
-; For GMOS data
-;;   rootdir = '/Users/drupke/winds/gmos/f10565/'
-;;   specpre = 'spec_'
-;;   errpre = 'err_'
-;;   outpre = 'f10565p2448_'
-;;   startrow=1
-;;   nrow=11
-;;   startcol=1
-;;   ncol=13
-;;   startrow=6
-;;   nrow=1
-;;   startcol=9
-;;   ncol=1
-; for corner spectra
-;;   startrow=101
-;;   nrow=2
-;;   startcol=101
-;;   ncol=2
-; For KPNO longslit spectra
-  rootdir = '/Users/drupke/winds/gmos/f10565/kpnolong/'
-  specpre = 'f10565p2448.02dec28.'
-  outpre = 'f10565p2448_'
-  startrow=1
-  nrow=9
-  startcol=1
-  ncol=1
+  fcnz = 'gmos_redshift_spec'
 
+; Get fit initialization
+  initdat = gmos_initfit_spectra(gal,bin=bin)
+  zinit = initdat.zinit
+  ncompinit = initdat.ncomp
+  infile = initdat.infile
+  outdir = initdat.outdir
+  fcninitpar = initdat.fcninitpar
+  argsinitpar = initdat.argsinitpar
+  fcnlinefit = initdat.fcnlinefit
+  fcncontfit = initdat.fcncontfit
+  argscontfit = initdat.argscontfit
+  startempfile = initdat.startempfile
+  fitran_rest = initdat.fitran_rest
+  vdisp = initdat.vdisp
+  checkcomp_sigcut_init=initdat.fluxsigthresh
+  siglim = initdat.siglim
+  sigguess = initdat.sigguess
+  argslinelist = initdat.argslinelist
+  
 ; Get linelist
-  linelist = gmos_initlinelist()
+  if keyword_set(argslinelist) then $
+     linelist = call_function('gmos_initlinelist',_extra=argslinelist) $
+  else linelist = gmos_initlinelist()
 
-  for i=startrow,startrow+nrow-1 do begin
+  if fibers then begin
+;    Read data
+     data = readfits(infile,header,ext=2,/silent)
+     var = readfits(infile,ext=3,/silent)
+     dq = readfits(infile,ext=4,/silent)
+     datasize = size(data)
+     nz    = datasize[1]
+     ncols = datasize[2]
+     nrows = 1
+;    Wavelength solution
+     wave = dindgen(nz)
+     crval = double(sxpar(header,'CRVAL1',/silent))
+     crpix = double(sxpar(header,'CRPIX1',/silent))
+     cdelt = double(sxpar(header,'CDELT1',/silent))
+     wave = crval + cdelt*(wave-crpix+1) 
+  endif else begin
+     data = readfits(infile,header,ext=1,/silent)
+     var = readfits(infile,ext=2,/silent)
+     dq = readfits(infile,ext=3,/silent)
+     datasize = size(data)
+     ncols = datasize[1]
+     nrows = datasize[2]
+     nz    = datasize[3]
+     wave = dindgen(nz)
+     crval = double(sxpar(header,'CRVAL3',/silent))
+     crpix = double(sxpar(header,'CRPIX3',/silent))
+;     cdelt = double(sxpar(header,'CDELT3',/silent))
+     cdelt = double(sxpar(header,'CD3_3',/silent))
+     wave = crval + cdelt*(wave-crpix+1) 
+  endelse
 
-     for j=startcol,startcol+ncol-1 do begin
+; Add continuum sigma tag to argsinitpar
+  if keyword_set(argsinitpar) then $
+     argsinitpar = jjadd_tag(argsinitpar,'cont_sig',0d) $
+  else $
+     argsinitpar = {cont_sig:0d}
 
-        ncomp = ncomp_init
-        checkcomp_sigcut = checkcomp_sigcut_init
-      
-        print,'Fitting spectrum ',i,', ',j,format='(A,I0,A,I0)'
+  if ~ keyword_set(cols) then cols=[1,ncols] $
+  else if n_elements(cols) eq 1 then cols = [cols,cols]
+  cols = fix(cols)
+  for i=cols[0]-1,cols[1]-1 do begin
 
-        zguess = 0.043d
-;       GMOS
-;;        lab = string(i,'_',j,format='(I03,A,I03)')
-;;         specfile = rootdir+'spec/'+specpre+lab+'.fits'
-;;         errfile = rootdir+'err/'+errpre+lab+'.fits'
-;;         outfile = rootdir+'specfit/'+outpre+lab+'.genx'
-;       KPNO
-        lab = string(i,format='(I0)')
-        specfile = rootdir+'red/'+specpre+lab+'.fits'
-        errfile = rootdir+'red/'+specpre+lab+'.err.fits'
-        outfile = rootdir+'specfit/'+outpre+lab+'.genx'
-        spec = readspec(specfile)
-        specerr  = readspec(errfile)
+     print,'Column ',i+1,' of ',ncols,format='(A,I0,A,I0)'
 
-        if (i eq 1 AND j eq 1) then append=0 else append=1
+     if ~ keyword_set(rows) then rows=[1,nrows] $
+     else if n_elements(rows) eq 1 then rows = [rows,rows]
+     rows = fix(rows)
+     for j=rows[0]-1,rows[1]-1 do begin
 
-fit:
-
-;       Estimated shifts in redshift space for components.  0d is
-;       default for a single component.
-        if ncomp eq 2 then mcomp=[0d,-5d/mc_refwave] $
-        else if ncomp eq 1 then mcomp=[0d] $
-        else mcomp=-1
-;       Initial set of redshifts
-        if ncomp gt 0 then zarr = zguess + mcomp else zarr = zguess
-
-        wave = spec[*,0]
-        flux = spec[*,1]
-        err = specerr[*,1]
-        
-;       Create de-redshifted wavelengths
-        waverest = wave / (1d + zarr[0])
-;       Remove NaI D line
-        nad_indx = where(waverest lt 5870 OR waverest gt 5900)
-;       Remove telluric line
-        tel_indx = where(wave gt 6855 AND wave lt 6945)
-        gd_indx = cmset_op(nad_indx,'AND',/not2,tel_indx)
-
-        waverest = waverest[gd_indx]
-        flux = flux[gd_indx]
-        err = err[gd_indx]
-
-;       First fit
-        structinit = fit_spectrum(waverest,flux,err,startempfile,/subtract,$
-                                  vdisp=vdisp,linelist=linelist,quiet=quiet,$
-                                  time=time,mcomp=mcomp,fitran=fitran,$
-                                  obj_id=lab,fcninitpar=fcninitpar,$
-                                  fcnlinefit=fcnlinefit,$
-                                  fcncontfit=fcncontfit,/disperse)
-
-;       Repeat fit with new z estimate and better estimate for line
-;       widths, if we're fitting emission lines.
-
-        if mcomp[0] ne -1 then begin
-
-;          Make sure components are ordered such that component with
-;          highest peak flux is the first ("reference") component
-           gmos_orderlines,structinit,zarr
-
-;          Update de-redshifted wavelengths and z array
-           gmos_updatez,structinit.param,waverest,zarr
-           mcomp = zarr - zarr[0]
-
-;          Update linelist so that maskwidths array works OK
-           newlinelist = {wave:structinit.linewave,label:structinit.linelabel}
-;          Estimate linewidths
-;          Mask at MASKSIG # of sigma away from line in either direction
-           masksig = 5d
-           linepars = sepfitpars(structinit.param,structinit.perror)
-           masklines = linepars.wave[*,0]
-           maskwidths = masksig*linepars.sigma[*,0]
-           for k=1,ncomp-1 do begin
-              masklines = [masklines,linepars.wave[*,k]]
-              maskwidths = [maskwidths,masksig*linepars.sigma[*,k]]
-           endfor
-
-           struct = fit_spectrum(waverest,flux,err,startempfile,$
-                                 vdisp=vdisp,/subtract,$
-                                 linelist=newlinelist,quiet=quiet,obj_id=lab,$
-                                 time=time,mcomp=mcomp,fitran=fitran,$
-                                 fcninitpar=fcninitpar,maskwidths=maskwidths,$
-                                 masklines=masklines,sigguess=linepars.sigma,$
-                                 peakguess=linepars.fluxpk,/disperse,$
-                                 fcnlinefit=fcnlinefit,fcncontfit=fcncontfit)
-
-           gmos_orderlines,struct,zarr
-
-;          Update z array and fitted line wavelengths, and add to structure
-           gmos_updatez,struct.param,waverest,zarr
-
-           goodcomp = gmos_checkcomp(struct,sigcut=checkcomp_sigcut)
-           ngood = n_elements(goodcomp)
-
-;;            if ngood lt ncomp OR goodcomp[0] eq -1 then begin
-;;               if goodcomp[0] ne -1 then begin
-;;                  ncomp = ngood
-;;                  zarr = zguess
-;;                  mcomp = zarr - zarr[0]
-;;                  checkcomp_sigcut = 1d
-;;               endif else begin
-;;                  ncomp = 0
-;;                  zarr = zguess
-;;                  mcomp = -1d
-;;               endelse
-;;               print,'Repeating the fit with ',ncomp,' component(s).',format='(A,I0,A)'
-;;               goto,fit
-;;            endif
-
-           if ngood lt ncomp then begin
-              ncomp--
-              if ncomp eq 1 then checkcomp_sigcut = 1d
-              print,'Repeating the fit with ',ncomp,' component(s).',format='(A,I0,A)'
-              goto,fit
-           endif
-
+        if fibers then begin
+           flux = data[*,i]
+;          absolute value takes care of a few deviant points
+           err = sqrt(abs(var[*,i]))
+           bad = dq[*,i]
         endif else begin
-
-           struct = structinit
-
+           print,'  Row ',j+1,' of ',nrows,format='(A,I0,A,I0)'
+           flux = data[i,j,*]
+           err = sqrt(abs(var[i,j,*]))
+           bad = dq[i,j,*]
         endelse
 
-;       Save result to binary file
-        struct = add_tag(struct,zarr,'z')
-        struct = add_tag(struct,fitran,'fitrange')
-        savegen,struct=struct,file=outfile
+;       Apply DQ plane
+        indx_bad = where(bad gt 0,ct)
+        if ct gt 0 then begin
+           flux[indx_bad] = 0d
+           err[indx_bad] = max(err)*100d
+        endif
+
+        checkcomp_sigcut = checkcomp_sigcut_init
+
+        nodata = where(flux ne 0d,ct)
+        if ct ne 0 then begin
+
+           ncomp = abs(ncompinit[i,j])
+           if ncompinit[i,j] lt 0 then forcecomp=1 else forcecomp=0
+           disperse = 0
+           dzstel = 0d
+
+fit:
+           
+;       Initialize redshift structure
+           if ncomp gt 0 then $
+              z = {star:zinit[i,j,0]+dzstel,$
+                   gas:dblarr(ncomp)+zinit[i,j,0:ncomp-1]} $
+           else $
+              z = {star:zinit[i,j,0]+dzstel,$
+                   gas:-1}
+
+;       Remove NaI D line for purposes of continuum fit by maximizing
+;       error
+           if ~keyword_set(keepnad) then begin
+              nadran_rest = [5850d,5900d]
+              nadran = gmos_redshift_spec(nadran_rest,z)
+              indx_nad = where(wave ge nadran[0] AND wave le nadran[1],ct)
+              if ct gt 0 then err[indx_nad]=max(err)
+           endif
+
+;       Remove strongest part of telluric feature
+           ; telran = [6865d,6885d]
+           ; indx_tel = where(wave ge telran[0] AND wave le telran[1],ct)
+           ; if ct gt 0 then err[indx_tel]=max(err)
+
+;       Redshift fit range
+           fitran = gmos_redshift_spec(fitran_rest,z)
+;       Add proper redshift structure to continuum fitting routine
+           if keyword_set(argscontfit) then begin
+              if tag_exist(argscontfit,'z') then begin
+                 argscontfit.z.star = z.star
+                 argscontfit.z.gas = z.gas[0]
+              endif
+           endif
+
+;          Reset sigguess
+           sigguess = initdat.sigguess
+
+           structinit = fit_spectrum(wave,flux,err,startempfile,z,ncomp,$
+                                     /subtract,obj_id=gal,$
+                                     linelist=linelist,quiet=quiet,$
+                                     time=time,fitran=fitran,$
+                                     fcninitpar=fcninitpar,$
+                                     argsinitpar=argsinitpar,$
+                                     disperse=disperse,$
+                                     fcncontfit=fcncontfit,$
+                                     argscontfit=argscontfit,$
+                                     fcnz=fcnz,vdisp=vdisp,$
+                                     fcnlinefit=fcnlinefit,$
+                                     sigguess=sigguess)
+           
+           if ~ quiet then print,'FIT STATUS: ',structinit.fitstatus
+           if structinit.fitstatus eq -16 then goto,nofit
+           
+           if ncomp gt 0 AND ~ keyword_set(onefit) then begin
+              
+              if ncomp gt 1 then gmos_orderlines,structinit
+              gmos_updatez,structinit.param,z
+              z.star = z.gas[0] + dzstel
+              linepars = sepfitpars(structinit.param,structinit.perror)
+              masklines = reform(linepars.wave[*,0:ncomp-1],$
+                                 n_elements(linepars.wave[*,0:ncomp-1]))
+              masksig=2d
+              maskwidths = masksig*reform(linepars.sigma[*,0:ncomp-1],$
+                                          n_elements(linepars.sigma[*,0:ncomp-1]))
+              fitran = gmos_redshift_spec(fitran_rest,z)
+              if keyword_set(argscontfit) then begin
+                 if tag_exist(argscontfit,'z') then begin
+                    argscontfit.z.star = z.star
+                    argscontfit.z.gas = z.gas[0]
+                 endif
+              endif
+              
+              struct = fit_spectrum(wave,flux,err,startempfile,z,ncomp,$
+                                    /subtract,obj_id=gal,$
+                                    linelist=linelist,quiet=quiet,$
+                                    time=time,fitran=fitran,$
+                                    fcninitpar=fcninitpar,$
+                                    argsinitpar=argsinitpar,$
+                                    maskwidths=maskwidths,$
+                                    masklines=masklines,$
+                                    sigguess=linepars.sigma,$
+                                    peakguess=linepars.fluxpk,$
+                                    disperse=disperse,$
+                                    fcncontfit=fcncontfit,$
+                                    argscontfit=argscontfit,$
+                                    fcnz=fcnz,vdisp=vdisp,$
+                                    fcnlinefit=fcnlinefit)
+           
+              if ~ quiet then print,'FIT STATUS: ',struct.fitstatus
+              if struct.fitstatus eq -16 then goto,nofit
+
+              gmos_updatez,struct.param,z
+
+              if ~ forcecomp then begin
+                 goodcomp = $
+                    gmos_checkcomp(struct,z,$
+                                   sigcut=checkcomp_sigcut,$
+                                   siglim=siglim)
+                 ngood = n_elements(goodcomp)
+                 if ngood lt ncomp then begin
+                    ncomp--
+                    if ncomp eq 1 then checkcomp_sigcut = 1d
+                    print,'    Repeating the fit with ',ncomp,$
+                          ' component(s).',format='(A,I0,A)'
+                    goto,fit
+                 endif
+              endif
+
+           endif else begin
+         
+              if ncomp gt 1 then begin
+                 gmos_orderlines,structinit
+                 gmos_updatez,structinit.param,z
+              endif
+              struct = structinit
+      
+           endelse
+
+           struct = jjadd_tag(struct,'z',z)
+           struct = jjadd_tag(struct,'fitrange',fitran,/array_tag)
+
+;; ;          Return error to original state
+;;            struct.spec_err = err_orig[struct.gd_indx]
+
+           if fibers then $
+              save,struct,file=string(outdir,gal,'_',i+1,'.xdr',$
+                                      format='(A,A,A,I04,A,I04,A)') $
+           else $
+              save,struct,file=string(outdir,gal,'_',i+1,'_',j+1,'.xdr',$
+                                      format='(A,A,A,I04,A,I04,A)')
+
+nofit:
+        
+        endif else begin
+
+           print,'  GMOS_FIT_SPECTRA: No data.'
+
+        endelse
 
      endfor
 

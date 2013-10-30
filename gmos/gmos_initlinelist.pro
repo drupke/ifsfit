@@ -1,30 +1,29 @@
-function gmos_initlinelist
+function gmos_initlinelist,addnad=addnad
 ;
 ; History
 ;   09jul08  DSNR  created
+;   10nov04  DSNR  wavelengths corrected to NIST values
 ;
 ; Wavelength sources:
 ;   1. Mappings III
 ;   2. NIST ASD ([SIII] 6312)
 ; 
 
-  nlines = 8
-  linelist = { label:strarr(nlines), wave:dblarr(nlines) }
+  label = ['[OI]6300','[OI]6364',$
+           '[NII]6548','Halpha','[NII]6583',$
+           '[SII]6716','[SII]6731']
 
-  linelist.label = ['HeI5876','[OI]6300','[OI]6364',$
-                    '[NII]6548','Halpha','[NII]6583',$
-                    '[SII]6716','[SII]6731']
+  wave = double([6300.30, 6363.78, $
+                 6548.05, 6562.80, 6583.45, $
+                 6716.44, 6730.82])
 
-;    GMOS
-;;   linelist.wave = double([5875.60, 6300.20, 6363.67, $
-;;                           6547.96, 6562.80, 6583.34, $
-;;                           6716.31, 6730.68])
-;    KPNO
-  linelist.wave = double([5877.289, 6302.049, 6365.536, $
-                          6549.86, 6564.60, 6585.27, $
-                          6718.29, 6732.67])
+  if keyword_set(addnad) then begin
+     label = ['NaD2','NaD1',label]
+     wave = [5889.95d,5895.92d,wave]
+  endif
 
-
+  linelist = {label:label, wave:wave}
 
   return,linelist
+
 end
