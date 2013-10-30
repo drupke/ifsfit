@@ -1,0 +1,112 @@
+;
+; History
+;  10jan20  DSNR  modified to plot Hb/[OIII] separately and
+;                 to show [OI] and [SII] lines
+;  13sep12  DSNR  re-written
+;
+; Plot emission line fits.
+;
+
+pro uhsf_pltlin,instr,pltpar,outfile,$
+                velsig=velsig
+
+  if ~ keyword_set(velsig) then velsig=0
+
+  set_plot,'Z'
+  device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
+  !P.charsize=1
+  !P.charthick=1
+  erase
+
+  defaultXtickint=!X.tickinterval
+  defaultXminor=!X.minor
+  !X.tickinterval=25
+  !X.minor=10
+
+  ncomp = instr.param[1]
+  colors = ['Magenta','Green','Orange','Teal']
+
+  wave = instr.wave
+  spectot = instr.spec
+  specstars = instr.spec - instr.specfit
+  speclines = instr.spec_nocnt
+  modtot = instr.specfit + (instr.spec - instr.spec_nocnt)
+  modstars = instr.spec - instr.spec_nocnt
+  modlines = instr.specfit
+
+  norm = max(modstars)
+  spectot /= norm
+  specstars /= norm
+  speclines /= norm
+  modtot /= norm
+  modstars /= norm
+  modlines /= norm
+
+  zbase = instr.zstar
+
+  nlin = n_elements(pltpar.label)
+  linlab = pltpar.label
+  linwav = pltpar.wave
+  off = pltpar.off
+  linoth = pltpar.linoth
+  for i=0,nlin-1 do begin
+
+     linwavtmp = linwav[i]
+     xran = (linwavtmp[0] + off[*,i]) * (1d + zbase)
+     ind = where(wave gt xran[0] AND wave lt xran[1],ct)
+
+     cgplot,[0],/nodata,/noerase,xsty=4,ysty=4,$
+            layout=[pltpar.nx,pltpar.ny,i+1],xmar=15,ymar=11
+     xwin = !X.window
+     ywin = !Y.window
+     dxwin = xwin[1]-xwin[0]
+     dywin = ywin[1]-ywin[0]
+
+     if ct gt 0 then begin
+        pos_fit = [xwin[0],ywin[0]+0.3*dywin,$
+                   xwin[1],ywin[1]]
+        ydat = spectot
+        ymod = modtot
+        yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
+        cgplot,wave,ydat,xran=xran,yran=yran,pos=pos_fit,$
+               xtickn=replicate(' ',60),ytit='Fit',/noerase,$
+               axiscol='White',col='White',/norm,/xsty,/ysty
+        cgoplot,wave,ymod,color='Red'
+        for j=1,ncomp do begin
+           flux = uhsf_cmplin(instr,linlab[i],j,velsig=velsig)
+           cgoplot,wave,yran[0]+flux/norm,color=colors[j-1],linesty=2
+           if linoth[0,i] ne '' then begin
+              for k=0,n_elements(linoth[*,i])-1 do begin
+                 if linoth[k,i] ne '' then begin
+                    flux = uhsf_cmplin(instr,linoth[k,i],j,velsig=velsig)
+                    cgoplot,wave,yran[0]+flux/norm,color=colors[j-1],linesty=2
+                 endif
+              endfor
+           endif
+
+        endfor
+        cgtext,xran[0]+(xran[1]-xran[0])*0.05d,$
+               yran[0]+(yran[1]-yran[0])*0.85d,$
+               linlab[i],charsize=1.5,charthick=2,/dat
+        pos_res = [xwin[0],ywin[0],$
+                   xwin[1],ywin[0]+0.3*dywin]
+        ydat = specstars
+        ymod = modstars
+        yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
+        cgplot,wave,ydat,xran=xran,yran=yran,/noerase,ytit='Resid.',$
+               axiscol='White',col='White',/norm,pos=pos_res,/xsty,/ysty
+        cgoplot,wave,ymod,color='Red'
+     endif
+
+  endfor
+
+  xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
+  cgtext,0.5,0.02,xtit,/norm,align=0.5,charsize=2,charthick=2
+  
+  tmpfile = outfile
+  img = cgsnapshot(filename=tmpfile,/jpeg,/nodialog,quality=100)
+
+  !X.tickinterval=defaultXtickint
+  !X.minor=defaultXminor
+  
+end
