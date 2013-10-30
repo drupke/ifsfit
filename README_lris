@@ -1,0 +1,89 @@
+History
+  09aug15  DSNR  created
+  10mar19  DSNR  small mods.
+
+INSTALLATION
+
+1. Set your IDL path properly to include this package.
+2. Install the latest version of MPFIT:
+   http://www.physics.wisc.edu/~craigm/idl/idl.html
+3. Install the Coyote library:
+   http://www.dfanning.com/documents/programs.html
+
+INITIALIZING FIT
+
+1. Modify the program LRIS_INITFIT_SPECTRA:
+   a. Set the paths properly at the beginning of the program.
+   b. Add the current mask to the program, following previous
+      examples.
+
+2. To fit multiple components, create the "comp" file as specified in
+   the initialization program.  The first line is ignored, and
+   subsequent lines contain a slit #, aperture #, and estimated shift
+   in Angstroms (at Halpha) for component 2.
+
+3. The "initfit" file, as specified in the initialization program,
+   contains other parameters that may be tweaked for specific
+   slit/aperture combinations.  See the included example file for
+   formatting details.  When the parameter should not be adjusted, set
+   it to 0 (zstel-zgas) or -1 (everything else).
+
+   zinit: Initial redshift guess, to allow for specifying different
+   	  initial redshift guesses for different apertures within a
+   	  slit.  (LRIS_INITFIT_SPECTRA specifies initial redshifts
+   	  only for whole slits at a time.)
+
+   zstel-gas: Difference between stellar redshift and redshift of
+   	      emission-line component with highest Halpha peak.
+   	      (Assumed to be 0 otherwise.)
+
+   vdisp: If this parameter is set, the stellar template is convolved
+   	  with a Gaussian of this sigma (in km/s) at the mean
+   	  wavelength of the data, prior to fitting the data.
+
+   masksig: Normally, the emission lines are masked (before stellar
+      	    fitting) above and below the central wavelength using a
+      	    sigma cut of 3.  A higher value may produce a better fit
+      	    in cases where the emission line equivalent width is
+      	    extremely high.
+
+RUNNING FIT
+
+1. At the command line, type
+
+   > LRIS_FIT_SPECTRA,'galaxy','mask'
+
+   Specify individual slit / aperture combinations using
+     slit=X OR slit=[X,Y]
+     ap=X   OR ap=[X,Y]
+   In the latter case, [X,Y] specifies lower and upper limits.
+
+   The /time switch allows you to time each continuum / line fit.
+
+   The /verbose switch prints lots of information about the fit,
+   including redshift information at each step.
+
+
+ANALYZING FIT
+
+1. At the command line, type
+
+   > LRIS_ANL_SPECTRA,'galaxy','mask'
+
+   As for LRIS_FIT_SPECTRA, individual slits / apertures can be
+   selected.
+
+   Blue / red flux correction is enabled by default ; turn it off with
+   the /nobcor switch.
+
+2. The plots / fit results show up in the directory specified in
+   LRIS_INITFIT_SPECTRA.
+
+
+NOTES
+
+1. LRIS_MANYGAUSS, the routine that evaluates the emission line
+Gaussians, assumes constant dispersion (in A/pix) and that there are
+no "holes" in the spectrum.  If you have a variable dispersion or gaps
+in coverage, either modify LRIS_MANYGAUSS to fit your needs or adapt
+MANYGAUSS_SLOW (which, as its name implies, is slower).

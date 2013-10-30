@@ -1,0 +1,31 @@
+obj_id: Name
+# Emission-line fit parameters
+redchisq: Reduced chi-squared
+niter: No. of iterations (second pass)
+fitstatus: MPFIT status flag
+# Continuum fit parameters
+nterms: No. of added polynomial terms
+method: Subtract or divide continuum
+ct_sig: Average RMS deviation between data/model
+ct_coeff: 
+ct_coeff, $
+;         Spectrum in various forms
+          wave         : gdlambda, $
+          spec         : gdflux, $
+          spec_err     : gderr, $
+
+          spec_nocnt   : gdflux_nocnt, $
+          specfit      : specfit, $
+          ct_indx      : ct_indx, $ ; where emission is not masked
+          gd_indx      : gd_indx, $ ; cuts on various criteria
+;         Line parameters
+          linewave     : linewave, $
+          linelabel    : linelabel, $
+          param        : param, $
+          perror       : perror, $
+          covar        : covar }
+
+return, outstr
+  
+end
+
