@@ -1,10 +1,45 @@
+; docformat = 'rst'
 ;
-; History
-;   09may26  DSNR  created
-;   09jun07  DSNR  added error propagation and rewrote
+;+
 ;
-function uhsf_sepfitpars,param,perror,waveran=waveran,fluxpkerr=fluxpkerr
-
+; Convert output of MPFIT, with best-fit line parameters in a single
+; array, into a structure with separate arrays for different line
+; parameters. Compute total line fluxes from the best-fit line
+; parameters.
+;
+; :Categories:
+;    UHSPECFIT
+;
+; :Returns:
+;    A structure with separate arrays for different line
+;    parameters. Each array has NxM elements, where N is the number of
+;    emission lines fit and M is the number of velocity
+;    components. Tags: flux, fluxerr, fluxpk, fluxpkerr, wave, and
+;    sigma.
+;
+; :Params:
+;    param: in, required, type=dblarr
+;      Best-fit parameter array output by MPFIT.
+;    perror: in, optional, type=dblarr
+;      Errors in best fit parameters, output by MPFIT.
+;
+; :Keywords:
+;    waveran: in, optional, type=dblarr(2)
+;      Set to upper and lower limits to return line parameters only
+;      for lines within the given wavelength range. Lines outside this
+;      range have fluxes set to 0.
+;      
+; :Author:
+;    David Rupke
+;
+; :History:
+;    ChangeHistory::
+;      2009may26, DSNR, created
+;      2009jun07, DSNR, added error propagation and rewrote
+;      2013nov01, DSNR, added documentation
+;-
+function uhsf_sepfitpars,param,perror,waveran=waveran
+  
   c = 299792.458d
 
   ppoff = param[0]
@@ -16,7 +51,7 @@ function uhsf_sepfitpars,param,perror,waveran=waveran,fluxpkerr=fluxpkerr
   sigind = fluxind+2
 
 ; Errors
-  if ~ keyword_set(fluxpkerr) then fluxpkerr = perror[fluxind]
+  fluxpkerr = perror[fluxind]
   sigerr = dblarr(nlines*ncomp)
 
 ; Gaussian fluxes
@@ -34,7 +69,7 @@ function uhsf_sepfitpars,param,perror,waveran=waveran,fluxpkerr=fluxpkerr
         fluxpkerr[inoflux] = 0d
      endif
   endif
-; Set fluxes to 0 in NaN or infinite errors
+; Set fluxes to 0 if NaN or infinite errors
   inans = where(finite(gflux.flux_err) eq 0,ctnan)
   if ctnan gt 0 then begin
      gflux.flux[inans] = 0d

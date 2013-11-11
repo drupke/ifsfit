@@ -20,7 +20,6 @@
 ;      Model fluxes from templates.
 ;
 ; :Keywords:
-;    None.
 ;
 ; :Author:
 ;    Jabran Zahid and David Rupke

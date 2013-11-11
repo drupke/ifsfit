@@ -23,7 +23,7 @@
 ;      Sigma, in velocity velocity, of Gaussian to use in convolution.
 ;
 ; :Keywords:
-;    velsig: in, optional, type=byte, default=0
+;    loglam: in, optional, type=byte, default=0
 ;      Set to do convolution in velocity, or log(lambda), space. 
 ;      
 ; :Author:
