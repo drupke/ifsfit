@@ -6,7 +6,7 @@
 ; wavelength grid.
 ;
 ; :Categories:
-;    UHSPECFIT
+;    IFSFIT
 ;
 ; :Returns:
 ;    The interpolated templates, of type dblarr(nwave_spec, ntemplates).
@@ -19,18 +19,39 @@
 ;    template: in, required, type=dblarr(nwave_temp\, ntemplates)
 ;      Model fluxes from templates.
 ;
-; :Keywords:
-;
 ; :Author:
-;    Jabran Zahid and David Rupke
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
 ;
 ; :History:
 ;    Change History::
-;      2009, HJZ, created
+;      2009, DSNR, copied base code from Harus Jabran Zahid
 ;      2013oct17, DSNR, documented
+;      2013nov13, DSNR, renamed, added license and copyright 
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
 ;
 ;-
-function uhsf_interptemp, spec_lam, temp_lam, template, $
+function ifsf_interptemp, spec_lam, temp_lam, template, $
                           temp_lam_rest=temp_lam_rest
 
   ss = size(template)

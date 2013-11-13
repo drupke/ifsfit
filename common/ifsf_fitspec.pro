@@ -11,7 +11,7 @@
 ;      fcninitpar: in, required, type=string
 ;        Name of function for initializing continuum.
 ;      argsaddpoly2temp: in, optional, type=structure
-;        Arguments for UHSF_ADDPOLY2TEMP call.
+;        Arguments for IFSF_ADDPOLY2TEMP call.
 ;      argscontfit: in, optional, type=structure
 ;        Arguments for continuum fit routine.
 ;      argsinitpar: in, optional, type=structure
@@ -24,7 +24,7 @@
 ;        Name of continuum fitting function. If not specified,
 ;        continuum is not fit.
 ;      fcnlinefit: in, optional, type=string
-;        Name of line fitting function. Default: UHSF_MANYGAUSS
+;        Name of line fitting function. Default: IFSF_MANYGAUSS
 ;      fcnoptstelsig: in, optional, type=string
 ;        Name of routine to optimize stellar dispersion.
 ;      fcnoptstelz: in, optional, type=string
@@ -66,7 +66,7 @@
 ;        vacuum wavelengths.
 ;
 ; :Categories:
-;    UHSPECFIT
+;    IFSFIT
 ;
 ; :Returns:
 ;    A structure that contains the fit and much else ...
@@ -104,26 +104,49 @@
 ;      detailed output.
 ; 
 ; :Author:
-;    Jabran Zahid and David Rupke
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
 ;
 ; :History:
 ;    ChangeHistory::
-;      2008oct22, HJZ, created
+;      2009, DSNR, copied base code from Harus Jabran Zahid
 ;      2009may, DSNR, tweaked for LRIS data
 ;      2009jun/jul, DSNR, rewritten
 ;      2010jan28, DSNR, fitting now done in observed frame, not rest frame
 ;      2010mar18, DSNR, added ct_coeff output to continuum fit
 ;      2013sep, DSNR, complete re-write
+;      2013nov13, DSNR, renamed, added license and copyright 
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
 ;
 ;-
-function uhsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
+function ifsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
                       linetie,ncomp,initstr,quiet=quiet
 
   c = 299792.458d               ; speed of light, km/s
 
   if keyword_set(quiet) then quiet=1b else quiet=0b
   if tag_exist(initstr,'fcnlinefit') then fcnlinefit=initstr.fcnlinefit $
-  else fcnlinefit='uhsf_manygauss'
+  else fcnlinefit='ifsf_manygauss'
   if tag_exist(initstr,'argslinefit') then argslinefit=initstr.argslinefit
   if tag_exist(initstr,'nomaskran') then nomaskran=1b else nomaskran=0b
   if tag_exist(initstr,'startempfile') then istemp = 1b else istemp=0b
@@ -216,18 +239,18 @@ function uhsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
   if istemp then begin
      new_temp = template.flux
 ;    Interpolate template to same grid as data
-     new_temp = uhsf_interptemp(gdlambda,templatelambdaz,new_temp)
+     new_temp = ifsf_interptemp(gdlambda,templatelambdaz,new_temp)
 ;    If requested, convolve template with Gaussian
      if tag_exist(initstr,'siginit_stars') then begin
         new_temp_undisp = new_temp
-        new_temp = uhsf_disptemp(new_temp, gdlambda, initstr.siginit_stars, $
+        new_temp = ifsf_disptemp(new_temp, gdlambda, initstr.siginit_stars, $
                                  loglam=loglam)
      endif
 ;    Add polynomials to templates
      if tag_exist(initstr,'argsaddpoly2temp') then new_temp = $
-        call_function('uhsf_addpoly2temp',new_temp,$
+        call_function('ifsf_addpoly2temp',new_temp,$
                       _extra=initstr.argsaddpoly2temp) $
-     else new_temp = call_function('uhsf_addpoly2temp',new_temp)
+     else new_temp = call_function('ifsf_addpoly2temp',new_temp)
   endif else begin
      new_temp = 0
   endelse
@@ -243,7 +266,7 @@ function uhsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
   else if n_elements(initstr.maskwidths) eq 1 then $
      maskwidths = replicate(initstr.maskwidths,max(ncomp)*nlines) $
   else maskwidths = initstr.maskwidths
-  ct_indx  = uhsf_masklin(gdlambda, masklines, maskwidths, $
+  ct_indx  = ifsf_masklin(gdlambda, masklines, maskwidths, $
                           nomaskran=nomaskran)
       
 
@@ -280,17 +303,17 @@ function uhsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
         if vacuum then airtovac,templatelambdaz
         new_temp = template.flux
 ;       Re-interpolate template to same grid as data
-        new_temp = uhsf_interptemp(gdlambda,templatelambdaz,new_temp)
+        new_temp = ifsf_interptemp(gdlambda,templatelambdaz,new_temp)
 ;       If requested, convolve template with Gaussian
         new_temp_undisp = new_temp
         if tag_exist(initstr,'siginit_stars') then new_temp = $
-           uhsf_disptemp(new_temp,gdlambda,$
+           ifsf_disptemp(new_temp,gdlambda,$
                          initstr.siginit_stars,loglam=loglam)
 ;       Add polynomials to templates
         if tag_exist(initstr,'argsaddpoly2temp') then new_temp = $
-           call_function('uhsf_addpoly2temp',new_temp,$
+           call_function('ifsf_addpoly2temp',new_temp,$
                          _extra=initstr.argsaddpoly2temp) $
-        else new_temp = call_function('uhsf_addpoly2temp',new_temp)
+        else new_temp = call_function('ifsf_addpoly2temp',new_temp)
 
 ;       Re-run continuum fit
         if tag_exist(initstr,'argscontfit') then continuum = $
@@ -356,7 +379,7 @@ function uhsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
 
 
   fit_time1 = systime(1)
-  if not quiet then print,'UHSF_FITSPEC: Continuum fit took ',$
+  if not quiet then print,'IFSF_FITSPEC: Continuum fit took ',$
                           fit_time1-fit_time0,$
                           ' s.',format='(A,D0.1,A)'
 
@@ -390,7 +413,7 @@ function uhsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
 
   testsize = size(parinit)
   if testsize[0] eq 0 then begin
-     print,'UHSF_FITSPEC: Bad initial parameter guesses. Aborting.'
+     print,'IFSF_FITSPEC: Bad initial parameter guesses. Aborting.'
      outstr = 0
      goto,finish
   endif
@@ -403,13 +426,13 @@ function uhsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
                    npegged=npegged,ftol=1D-6,functargs=argslinefit,$
                    errmsg=errmsg)
   if status eq 0 OR status eq -16 then begin
-     print,'UHSF_FITSPEC: Error in MPFIT. Aborting.'
+     print,'IFSF_FITSPEC: Error in MPFIT. Aborting.'
      outstr = 0
      goto,finish
   endif
   
   fit_time2 = systime(1)
-  if not quiet then print,'UHSF_FITSPEC: Line fit took ',$
+  if not quiet then print,'IFSF_FITSPEC: Line fit took ',$
                           fit_time2-fit_time1,' s.',$
                           format='(A,D0.1,A)'
 

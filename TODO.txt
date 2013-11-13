@@ -3,8 +3,8 @@
 
 SOFTWARE
 
-- Rename "common" and "gmos" routines (IFSF_*).
-- Finish documenting each routine (1 of 35 completed; last worked on 13nov13).
+- Rename and finish documenting each routine (8 of 35 completed; last
+  worked on 13nov13).
 - Read PPXF paper.
 - Deprecate old stellar fitting.
 - Incorporate PPXF into stellar fitting.

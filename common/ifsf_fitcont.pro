@@ -14,7 +14,7 @@
 ;      renormalize w/ poly. (select /nobvls, /ctinput, and /nopoly)
 ;
 ; :Categories:
-;    UHSPECFIT
+;    IFSFIT
 ;
 ; :Returns:
 ;    The best fit continuum spectrum (over all wavelengths, not just
@@ -52,9 +52,14 @@
 ;      re-fit [tag RAN, type=dblarr(2, X), where X is the number of
 ;      regions to refit] and array of polynomial orders to fit [tag
 ;      ORD, type=intarr(X)].
-;
+; 
 ; :Author:
-;    David Rupke
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
 ;
 ; :History:
 ;    Change History::
@@ -62,8 +67,27 @@
 ;      2009dec11, DSNR, fixed bug in call to ibackfit: invar->invvar
 ;      2010mar18, DSNR, added ct_coeff output
 ;      2013oct, DSNR, complete re-write of software
+;      2013nov13, DSNR, renamed, added license and copyright 
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
+;
 ;-
-function uhsf_fitcont,lambda,flux,weight,template_flux,index,$
+function ifsf_fitcont,lambda,flux,weight,template_flux,index,$
                       ct_coeff,ctinput=ctinput,dust=dust,$
                       fitord=fitord,nobvls=nobvls,$
                       nopoly=nopoly,quiet=quiet,refit=refit,$
@@ -72,9 +96,9 @@ function uhsf_fitcont,lambda,flux,weight,template_flux,index,$
   if keyword_set(nopoly) AND $
      keyword_set(nobvls) AND $
      ~ keyword_set(ctinput) then begin
-     print, 'UHSF_FITCONT: ERROR: Cannot select /nobvls and '+$
+     print, 'IFSF_FITCONT: ERROR: Cannot select /nobvls and '+$
             '/nopoly w/o /ctinput.'
-     print, 'UHSF_FITCONT: Returning no continuum.'
+     print, 'IFSF_FITCONT: Returning no continuum.'
      ct_coeff = 0
      return,dblarr(n_elements(lambda))
   endif
