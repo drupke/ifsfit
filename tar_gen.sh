@@ -1,1 +1,0 @@
-tar zcvf uhspecfit_gen.tgz README_generic example* common lib lris ssw stellar_models/gonzalezdelgado/SSPGeneva_z020.sav stellar_models/gonzalezdelgado/gd_template.pro stellar_models/gonzalezdelgado/README stellar_models/bruzualcharlot/ --exclude .svn

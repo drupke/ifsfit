@@ -1,1 +1,0 @@
-tar zcvf uhspecfit_all.tgz README_generic README_lris example* common lib gmos lris nirifs slitspec sp1 stellar_models/gonzalezdelgado/SSPGeneva_z020.sav stellar_models/gonzalezdelgado/gd_template.pro stellar_models/gonzalezdelgado/README stellar_models/bruzualcharlot/

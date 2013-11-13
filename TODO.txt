@@ -1,0 +1,20 @@
+- = to do
++ = done
+
+SOFTWARE
+
+- Rename "common" and "gmos" routines (IFSF_*).
+- Finish documenting each routine (1 of 35 completed; last worked on 13nov13).
+- Read PPXF paper.
+- Deprecate old stellar fitting.
+- Incorporate PPXF into stellar fitting.
+- Get software working again ...
+  - Cut off edges of fit range after convolution of template?
+- Write routine to do second-pass fitting.
+- Update README.txt.
+
+TESTING
+
+- Test with F05189.
+  - Force third Hbeta component?
+  - Write a routine to optimize # of components?
