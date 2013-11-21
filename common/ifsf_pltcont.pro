@@ -5,7 +5,7 @@
 ; Plot continuum fit and output to JPG.
 ;
 ; :Categories:
-;    UHSPECFIT
+;    IFSFIT
 ;
 ; :Returns:
 ;    None.
@@ -21,15 +21,38 @@
 ;      Set to get postscript, instead of default jpg, output.
 ; 
 ; :Author:
-;    David Rupke
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
 ;
 ; :History:
-;    Change History::
+;    ChangeHistory::
 ;      2009, DSNR, created
 ;      2013oct09, DSNR, documented
+;      2013nov21, DSNR, renamed, added license and copyright 
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro uhsf_pltcont,instr,outfile,ps=ps
+pro ifsf_pltcont,instr,outfile,ps=ps
 
   if keyword_set(ps) then dops=1 else dops=0
 

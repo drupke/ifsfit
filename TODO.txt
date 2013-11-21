@@ -11,6 +11,7 @@ SOFTWARE
 - Get software working again ...
   - Cut off edges of fit range after convolution of template?
 - Write routine to do second-pass fitting.
+- Get rid of instances of readcol300 (--> readcol).
 - Update README.txt.
 
 TESTING

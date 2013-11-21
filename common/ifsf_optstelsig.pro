@@ -5,7 +5,7 @@
 ; Find best-fit Gaussian sigma with which to convolve stellar templates.
 ;
 ; :Categories:
-;    UHSPECFIT
+;    IFSFIT
 ;
 ; :Returns:
 ;    bestsig: out, type=double
@@ -31,20 +31,43 @@
 ;    sigfitvals: in, required, type=dblarr
 ;      Sigma values to try for dispersion.
 ;    initstr: in, required, type=structure
-;      Structure input to UHSF_FITSPEC.
+;      Structure input to IFSF_FITSPEC.
 ;
 ; :Keywords:
 ;    quiet: in, optional, type=byte, default=0
 ; 
 ; :Author:
-;    David Rupke
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
 ;
 ; :History:
 ;    ChangeHistory::
 ;      2013oct09, DSNR, created
+;      2013nov21, DSNR, renamed, added license and copyright 
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro uhsf_optstelsig,lambda,flux,weight,ct_indx,ct_coeff,$
+pro ifsf_optstelsig,lambda,flux,weight,ct_indx,ct_coeff,$
                     template,sigfitvals,initstr,$
                     bestsig,bestcont,besttemp,$
                     quiet=quiet
@@ -60,15 +83,15 @@ pro uhsf_optstelsig,lambda,flux,weight,ct_indx,ct_coeff,$
 
 ;    Convolve template with Gaussian
      if initstr.sigfitvals[i] gt 0 then temp_tmp = $
-        uhsf_disptemp(template,lambda,sigfitvals[i],$
+        ifsf_disptemp(template,lambda,sigfitvals[i],$
                       loglam=loglam) $
      else temp_tmp = template
 ;    Add polynomials if requested
      if tag_exist(initstr,'argsaddpoly2temp') then temp_tmp = $
-        call_function('uhsf_addpoly2temp',temp_tmp,$
+        call_function('ifsf_addpoly2temp',temp_tmp,$
                       _extra=initstr.argsaddpoly2temp) $
      else temp_tmp = $
-        call_function('uhsf_addpoly2temp',temp_tmp)
+        call_function('ifsf_addpoly2temp',temp_tmp)
 ;    Compute cont_tmp without re-fitting
      if tag_exist(initstr,'argscontfit') then cont_tmp = $
         call_function(initstr.fcncontfit,lambda,flux,weight,$
@@ -91,7 +114,7 @@ pro uhsf_optstelsig,lambda,flux,weight,ct_indx,ct_coeff,$
   endfor
 
   if not quiet then $
-     print,'UHSF_OPTSTELSIG: Using sigma = ',string(bestsig,'(I0)'),$
+     print,'IFSF_OPTSTELSIG: Using sigma = ',string(bestsig,'(I0)'),$
            ' km/s to disperse stellar template.'
   
 end

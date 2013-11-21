@@ -1,16 +1,66 @@
+; docformat = 'rst'
 ;
-; History
-;  10jan20  DSNR  modified to plot Hb/[OIII] separately and
-;                 to show [OI] and [SII] lines
-;  13sep12  DSNR  re-written
+;+
 ;
-; Plot emission line fits.
+; Plot emission line fit and output to JPG.
 ;
-
-pro uhsf_pltlin,instr,pltpar,outfile,$
-                velsig=velsig
-
-  if ~ keyword_set(velsig) then velsig=0
+; :Categories:
+;    IFSFIT
+;
+; :Returns:
+;    None.
+;
+; :Params:
+;    instr: in, required, type=structure
+;      Contains results of fit.
+;    pltpar: in, required, type=structure
+;      Contains parameters to control plot. Tags:
+;      label: type=strarr(Nlines), line labels for plot
+;      wave: type=dblarr(Nlines), rest wavelengths of lines
+;      linoth: type=dblarr(Notherlines,Ncomp), wavelengths of other
+;              lines to plot
+;      nx: type=int, # of plot columns
+;      ny: type=int, # of plot rows
+;      
+;    outfile: in, required, type=string
+;      Full path and name of output plot.
+;
+; :Keywords:
+; 
+; :Author:
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
+;
+; :History:
+;    ChangeHistory::
+;      2009, DSNR, created
+;      13sep12, DSNR, re-written
+;      2013oct, DSNR, documented
+;      2013nov21, DSNR, renamed, added license and copyright 
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
+;
+;-
+pro ifsf_pltlin,instr,pltpar,outfile
 
   set_plot,'Z'
   device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
@@ -73,17 +123,16 @@ pro uhsf_pltlin,instr,pltpar,outfile,$
                axiscol='White',col='White',/norm,/xsty,/ysty
         cgoplot,wave,ymod,color='Red'
         for j=1,ncomp do begin
-           flux = uhsf_cmplin(instr,linlab[i],j,velsig=velsig)
+           flux = ifsf_cmplin(instr,linlab[i],j,/velsig)
            cgoplot,wave,yran[0]+flux/norm,color=colors[j-1],linesty=2
            if linoth[0,i] ne '' then begin
               for k=0,n_elements(linoth[*,i])-1 do begin
                  if linoth[k,i] ne '' then begin
-                    flux = uhsf_cmplin(instr,linoth[k,i],j,velsig=velsig)
+                    flux = ifsf_cmplin(instr,linoth[k,i],j,/velsig)
                     cgoplot,wave,yran[0]+flux/norm,color=colors[j-1],linesty=2
                  endif
               endfor
            endif
-
         endfor
         cgtext,xran[0]+(xran[1]-xran[0])*0.05d,$
                yran[0]+(yran[1]-yran[0])*0.85d,$
