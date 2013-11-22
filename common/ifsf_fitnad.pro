@@ -1,9 +1,52 @@
-pro gmos_fit_nad,gal,bin,sigfix=sigfix,taumax=taumax,sigmax=sigmax
-
+; docformat = 'rst'
 ;
-; History
-;  10jul21  DSNR  created
+;+
 ;
+; Fit Na D absorption line.
+;
+; :Categories:
+;    IFSFIT
+;
+; :Returns:    
+;
+; :Params:
+;    gal: in, required, type=string
+;      Galaxy label in file naming.
+;
+; :Keywords:
+; 
+; :Author:
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
+;
+; :History:
+;    ChangeHistory::
+;      2010jul21, DSNR, created
+;      2013nov22, DSNR, renamed, added license and copyright 
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
+;
+;-
+pro ifsf_fitnad,gal,bin,sigfix=sigfix,taumax=taumax,sigmax=sigmax
 
   if ~keyword_set(taumax) then taumax=5d
 
@@ -103,6 +146,55 @@ pro gmos_fit_nad,gal,bin,sigfix=sigfix,taumax=taumax,sigmax=sigmax
   xdr = spectot+'.xdr'
 
   restore,file=xdr
+
+;
+; Redshift wavelength ranges
+;
+  outran_rest    = [5810d,5960d]
+; Get # of components
+  if n_elements(instr.param) gt 1 then ncomp = instr.param[1] $
+  else ncomp = 0
+  gas=1
+  icomp=0
+  doz=instr.z
+; Pick median redshift
+  if ncomp eq 0 then gas=0
+  if ncomp eq 2 then doz.gas=mean(instr.z.gas)
+  if ncomp eq 3 then begin
+     zsort = sort(instr.z.gas)
+     doz.gas=(instr.z.gas[zsort[1]])
+  endif
+  if keyword_set(restcomp) then doz.gas=instr.z.gas[restcomp-1]
+; Do redshifting
+  outran    = gmos_redshift_spec(outran_rest,doz,gas=gas,icomp=icomp)
+  
+; Compute continuum
+  wave = instr.wave
+  specstars = instr.spec - instr.specfit
+  errstars = instr.spec_err
+  specresid = specstars
+  errresid = errstars
+
+;; ; Compute equivalent width
+;;   iweq2 = value_locate(waveout,cfit1ran[1])
+;;   iweq3 = value_locate(waveout,cfit2ran[0])
+;;   fluxoutnad = 1d -fluxout[iweq2:iweq3]
+;;   erroutnad = errout[iweq2:iweq3]
+
+;; ; Filter out emission lines using 2-sigma cut
+;;   iem = where(fluxoutnad lt -erroutnad*2d,ctem)
+;;   if ctem gt 0 then fluxoutnad[iem] = 0d
+;;   weq = total(fluxoutnad*(waveout[iweq2:iweq3]-waveout[iweq2-1:iweq3-1]))
+;;   weq_e = sqrt(total(errout[iweq2:iweq3]^2*(waveout[iweq2:iweq3]-waveout[iweq2-1:iweq3-1])))
+;;   weq = [weq,weq_e]
+
+;; ; Print spectrum to file
+
+;;   openw,lun,outfile,/get_lun
+;;   printf,lun,ctout
+;;   for i=0,ctout-1 do $
+;;      printf,lun,waveout[i],fluxout[i],errout[i]
+;;   free_lun,lun
 
 ; Get emission-line parameters
   nem = nemcomp[refx-1,refy-1]
@@ -328,32 +420,33 @@ fit:
         if nabs eq 2 then parfile_nearest += '.2comp'
         parfile_nearest+='.dat'
 
-        gmos_readnadpars,parfile_nearest,abspars,empars,opars
+        nadpars = ifsf_readnadpar(parfile_nearest)
         
         openw,lun,parin,/get_lun
         printf,lun,nabs,nem,fitran[0],fitran[1],$
                format='(I8,I8,D8.1,D8.1)'
         fparin = '(D8.2,D8.2,D8.2,I8)'
-        printf,lun,0.01,abspars[0,0],1.0,1,format=fparin
-        if abspars[1,0] gt 4.9 then $
+        printf,lun,0.01,nadpars.abs[0,0],1.0,1,format=fparin
+        if nadpars.abs[1,0] gt 4.9 then $
            printf,lun,0.01,1.0,taumax,1,format=fparin $
         else $
-           printf,lun,0.01,abspars[1,0],taumax,1,format=fparin
-        printf,lun,abspars[2,0]-10d,abspars[2,0],abspars[2,0]+10d,1,$
+           printf,lun,0.01,nadpars.abs[1,0],taumax,1,format=fparin
+        printf,lun,nadpars.abs[2,0]-10d,nadpars.abs[2,0],$
+               nadpars.abs[2,0]+10d,1,$
                format=fparin
         if keyword_set(sigfix) then $
            printf,lun,60,sigfix*sqrt(2d),bmax,0,format=fparin $
         else $
-           printf,lun,60,abspars[3,0],bmax,1,format=fparin
+           printf,lun,60,nadpars.abs[3,0],bmax,1,format=fparin
         if nabs eq 2 then begin
-           printf,lun,0.01,abspars[0,1],1.0,1,format=fparin
-           if abspars[1,1] gt 4.9 then $
+           printf,lun,0.01,nadpars.abs[0,1],1.0,1,format=fparin
+           if nadpars.abs[1,1] gt 4.9 then $
               printf,lun,0.01,1.0,taumax,1,format=fparin $
            else $
-              printf,lun,0.01,abspars[1,1],taumax,1,format=fparin
-           printf,lun,abspars[2,1]-10d,abspars[2,1],abspars[2,1]+10d,1,$
+              printf,lun,0.01,nadpars.abs[1,1],taumax,1,format=fparin
+           printf,lun,nadpars.abs[2,1]-10d,nadpars.abs[2,1],nadpars.abs[2,1]+10d,1,$
                   format=fparin
-           printf,lun,60,abspars[3,1],bmax,1,format=fparin
+           printf,lun,60,nadpars.abs[3,1],bmax,1,format=fparin
         endif
         if nem eq 1 then begin
            printf,lun,0,0.1,2,1,format=fparin

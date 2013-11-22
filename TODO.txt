@@ -3,9 +3,9 @@
 
 SOFTWARE
 
-- Rename and finish documenting each routine (8 of 35 completed; last
-  worked on 13nov13).
-- Read PPXF paper.
++ Read PPXF paper.
+- Rename and finish documenting each routine (22 of 36 completed; last
+  worked on 13nov22).
 - Deprecate old stellar fitting.
 - Incorporate PPXF into stellar fitting.
 - Get software working again ...
@@ -13,6 +13,7 @@ SOFTWARE
 - Write routine to do second-pass fitting.
 - Get rid of instances of readcol300 (--> readcol).
 - Update README.txt.
+- Update Na D fitting.
 
 TESTING
 

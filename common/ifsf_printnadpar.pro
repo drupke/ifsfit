@@ -80,11 +80,12 @@ pro ifsf_printnadpar,gal,cols,rows,fitdir,outfile,z
      specin = spectot+'_nad_spec.dat'
      parout = spectot+'_nad_parout.dat'
 ;    Get best fit parameters
-     ifsf_readnadpar,parout,abspars,empars,opars
+     nadpars = ifsf_readnadpar(parout)
 ;    Compute equivalent width
      dumy = ifsf_cmpnadfull(specin,parout,z,weq=weq)
-     printf,lun,cols[i],rows[i],1,abspars[2,0]/nad1_rest-1d,$
-            abspars[3,0]*2d*sqrt(alog(2d)),abspars[1,0],abspars[0,0],$
+     printf,lun,cols[i],rows[i],1,nadpars.abs[2,0]/nad1_rest-1d,$
+            nadpars.abs[3,0]*2d*sqrt(alog(2d)),$
+            nadpars.abs[1,0],nadpars.abs[0,0],$
             weq,format='(3I4,D10.6,D10.2,D10.4,D10.4,D10.4)'
      
   endfor

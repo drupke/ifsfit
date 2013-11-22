@@ -3,7 +3,9 @@
 ;+
 ;
 ; Take the data used for the Na D fit and the best-fit parameters and
-; compute the best-fit spectrum at the same wavelengths.
+; compute the best-fit spectrum at the same wavelengths. Optionally
+; compute equivalent width from fitted profile (including absorption
+; only).
 ;
 ; :Categories:
 ;    IFSFIT
@@ -62,14 +64,15 @@ function ifsf_cmpnadfull,datfile,parfile,z,weq=weq
   readcol300,datfile,specwave,specflux,specerr,/silent,/skip,$
              format='(D,D,D)'
 
-  ifsf_readnadpar,parfile,abspars,empars,opars
+  nadpars = ifsf_readnadpar(parfile)
 
   modflux = dblarr(n_elements(specflux))+1d
   modabs = dblarr(n_elements(specflux))+1d
-  for i=0,opars.nabs-1 do modabs *= ifsf_cmpnad(specwave,abspars[*,i])
-  for i=0,opars.nem-1 do begin
-     arg = ((specwave-empars[1,i])/(empars[1,i]*empars[2,i]/299792d))^2d
-     modflux += empars[0,i]*exp(-arg)
+  for i=0,nadpars.nabs-1 do modabs *= ifsf_cmpnad(specwave,nadpars.abs[*,i])
+  for i=0,nadpars.nem-1 do begin
+     arg = ((specwave-nadpars.em[1,i])/$
+            (nadpars.em[1,i]*nadpars.em[2,i]/299792d))^2d
+     modflux += nadpars.em[0,i]*exp(-arg)
   endfor
   modflux *= modabs
 

@@ -90,12 +90,12 @@ pro ifsf_pltnaddat,instr,outfile,wavenorm,fluxnorm,parnorm
   modstars /= norm
   modresid /= norm
 
-  cfit1ran = gmos_redshift_spec(cfit1ran_rest,instr.z)
-  cfit2ran = gmos_redshift_spec(cfit2ran_rest,instr.z)
-  xran1 = gmos_redshift_spec(xran_rest,instr.z)
-  nad1 = gmos_redshift_spec(nad1_rest,instr.z)
-  nad2 = gmos_redshift_spec(nad2_rest,instr.z)
-  he = gmos_redshift_spec(he_rest,instr.z)
+  cfit1ran = (1d + instr.z)*cfit1ran_rest
+  cfit2ran = (1d + instr.z)*cfit2ran_rest
+  xran1 = (1d + instr.z)*xran_rest
+  nad1 = (1d + instr.z)*nad1_rest
+  nad2 = (1d + instr.z)*nad2_rest
+  he = (1d + instr.z)*he_rest
   i1 = where(wave gt xran1[0] AND wave lt xran1[1],ct1)
   
   maxthresh=0.2
