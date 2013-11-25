@@ -5,63 +5,92 @@
 ; This procedure is the core routine to fit the continuum and emission
 ; lines of a spectrum.
 ;
-; As input, it requires a structure of initializaiton parameters. The
-; tags for this structure can be found in ...
+; As input, it requires a structure of initialization parameters. The
+; tags for this structure can be found in INITTAGS.txt.
 ;
 ;
 ; :Categories:
-;    UHSPECFIT/GMOS
+;    IFSFIT
 ;
 ; :Returns:
 ;    IDL save file (.xdr)
 ;
 ; :Params:
-;    gal: in, required, type=string
-;    bin: in, required, type=double
+;    initproc: in, required, type=string
+;      Name of procedure to initialize the fit.
 ;
 ; :Keywords:
-;    rows: in, optional, type=dblarr
-;    cols: in, optional, type=dblarr
-;    fibers: in, optional, type=byte
-;    sky: in, optional, type=byte
+;    cols: in, optional, type=intarr, default=all
+;      Columns to fit, in 1-offset format. Either a scalar or a
+;      two-element vector listing the first and last columns to fit.
+;    rows: in, optional, type=intarr, default=all
+;      Rows to fit, in 1-offset format. Either a scalar or a
+;      two-element vector listing the first and last rows to fit.
+;    oned: in, optional, type=byte
+;      Data is assumed to be in a 2d array; choose this switch to
+;      input data as a 1d array.
 ;    verbose: in, optional, type=byte
+;      Print error and progress messages. Propagates to most/all
+;      subroutines.
 ; 
 ; :Author:
-;    David Rupke
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
 ;
 ; :History:
-;    Change History::
+;    ChangeHistory::
 ;      2009jul08, DSNR, copied from LRIS routine to GMOS
 ;      2010may27, DSNR, started re-write for new data
 ;      2013oct04, DSNR, started re-write for new data
+;      2013nov25, DSNR, renamed, added copyright and license; changed
+;                       required parameters from 'gal' and 'bin' to
+;                       'initproc', and optional parameter 'fibers' to
+;                       'oned', to make it more general
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
 ;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro uhsf_gm_fitspec,gal,bin,cols=cols,rows=rows,fibers=fibers,$
-                    sky=sky,verbose=verbose
+pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
+         verbose=verbose
   
   starttime = systime(1)
   time = 0
   if keyword_set(verbose) then quiet=0 else quiet=1
-  if keyword_set(fibers) then fibers=1 else fibers=0
+  if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  if keyword_set(sky) then initdat = $
-     call_function('uhsf_gm_init_'+gal,bin,/sky) $
-  else initdat = $
-     call_function('uhsf_gm_init_'+gal,bin)
+  initdat = call_function(initproc)
   
 ; Get linelist
   if tag_exist(initdat,'argslinelist') then linelist = $
-     call_function('uhsf_gm_linelist',_extra=initdat.argslinelist) $
-  else linelist = uhsf_gm_linelist()
+     call_function('ifsf_linelist',_extra=initdat.argslinelist) $
+  else linelist = ifsf_gm_linelist()
   nlines = n_elements(linelist.label)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
-  if fibers then begin
+  if oned then begin
      data = readfits(initdat.infile,header,ext=2,/silent)
      var = readfits(initdat.infile,ext=3,/silent)
      dq = readfits(initdat.infile,ext=4,/silent)
@@ -107,7 +136,7 @@ pro uhsf_gm_fitspec,gal,bin,cols=cols,rows=rows,fibers=fibers,$
      rows = fix(rows)
      for j=rows[0]-1,rows[1]-1 do begin
 
-        if fibers then begin
+        if oned then begin
            flux = data[*,i]
 ;          absolute value takes care of a few deviant points
            err = sqrt(abs(var[*,i]))
@@ -155,17 +184,17 @@ fit:
 
            linetie = reform(initdat.linetie[i,j,*],nlines)
 
-           structinit = uhsf_fitspec(wave,flux,err,z,linelist,linewavez,$
+           structinit = ifsf_fitspec(wave,flux,err,z,linelist,linewavez,$
                                      linetie,ncomp,initdat,quiet=quiet)
 
            testsize = size(structinit)
            if testsize[0] eq 0 then begin
-              print,'UHSF_GM_FITSPEC: Aborting.'
+              print,'IFSF: Aborting.'
               goto,nofit
            endif
            if not quiet then print,'FIT STATUS: ',structinit.fitstatus
            if structinit.fitstatus eq -16 then begin
-              print,'UHSF_GM_FITSPEC: Aborting.'
+              print,'IFSF: Aborting.'
               goto,nofit
            endif
 
@@ -175,7 +204,7 @@ fit:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
 ;          Set emission line mask parameters
-           linepars = uhsf_sepfitpars(structinit.param,structinit.perror)
+           linepars = ifsf_sepfitpars(structinit.param,structinit.perror)
            nlines_tot = nlines*max(ncomp)
            linewavez = linepars.wave
            masksig = 2d
@@ -200,17 +229,17 @@ fit:
            if tag_exist(initdat_use,'sigfitvals') then initdat_use = $
               rem_tag(initdat_use,'sigfitvals')
 
-           struct = uhsf_fitspec(wave,flux,err,z,linelist,linewavez,$
+           struct = ifsf_fitspec(wave,flux,err,z,linelist,linewavez,$
                                  linetie,ncomp,initdat_use,quiet=quiet)
            
            testsize = size(struct)
            if testsize[0] eq 0 then begin
-              print,'UHSF_GM_FITSPEC: Aborting.'
+              print,'IFSF: Aborting.'
               goto,nofit
            endif
            if not quiet then print,'FIT STATUS: ',struct.fitstatus
            if struct.fitstatus eq -16 then begin
-              print,'UHSF_GM_FITSPEC: Aborting.'
+              print,'IFSF: Aborting.'
               goto,nofit
            endif
 
@@ -220,12 +249,14 @@ fit:
 
            struct = jjadd_tag(struct,'zstar',z.star)
 
-           if fibers then $
-              save,struct,file=string(initdat.outdir,gal,'_',i+1,'.xdr',$
-                                      format='(A,A,A,I04,A,I04,A)') $
+           if oned then $
+              save,struct,file=$
+                   string(initdat.outdir,initdat.gal,'_',i+1,'.xdr',$
+                          format='(A,A,A,I04,A,I04,A)') $
            else $
-              save,struct,file=string(initdat.outdir,gal,'_',i+1,'_',j+1,$
-                                      '.xdr',format='(A,A,A,I04,A,I04,A)')
+              save,struct,file=$
+                   string(initdat.outdir,initdat.gal,'_',i+1,'_',j+1,$
+                          '.xdr',format='(A,A,A,I04,A,I04,A)')
 
 nofit:
         

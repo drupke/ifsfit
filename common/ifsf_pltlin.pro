@@ -78,11 +78,11 @@ pro ifsf_pltlin,instr,pltpar,outfile
 
   wave = instr.wave
   spectot = instr.spec
-  specstars = instr.spec - instr.specfit
-  speclines = instr.spec_nocnt
-  modtot = instr.specfit + (instr.spec - instr.spec_nocnt)
-  modstars = instr.spec - instr.spec_nocnt
-  modlines = instr.specfit
+  specstars = instr.cont_dat
+  speclines = instr.emlin_dat
+  modstars = instr.cont_fit
+  modlines = instr.emlin_fit
+  modtot = modstars + modlines
 
   norm = max(modstars)
   spectot /= norm

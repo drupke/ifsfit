@@ -74,21 +74,18 @@ pro ifsf_pltnaddat,instr,outfile,wavenorm,fluxnorm,parnorm
 
   wave = instr.wave
   spectot = instr.spec
-  specstars = instr.spec - instr.specfit
-  speclines = instr.spec_nocnt
-  modtot = instr.specfit + (instr.spec - instr.spec_nocnt)
-  modstars = instr.spec - instr.spec_nocnt
-  modresid = modstars
-  specresid = specstars
+  specstars = instr.cont_dat
+  speclines = instr.emlin_dat
+  modstars = instr.cont_fit
+  modlines = instr.emlin_fit
+  modtot = modstars + modlines
   
   norm = max(modstars)
   spectot /= norm
   specstars /= norm
   speclines /= norm
-  specresid /= norm
   modtot /= norm
   modstars /= norm
-  modresid /= norm
 
   cfit1ran = (1d + instr.z)*cfit1ran_rest
   cfit2ran = (1d + instr.z)*cfit2ran_rest
@@ -104,8 +101,8 @@ pro ifsf_pltnaddat,instr,outfile,wavenorm,fluxnorm,parnorm
   nbottom = 20
   nbottom--
 
-  ydat = specresid
-  ymod = modresid
+  ydat = specstars
+  ymod = modstars
   yran = [min([ydat[i1],ymod[i1]]),max([ydat[i1],ymod[i1]])]
   ydi = ydat[i1]
   ymodi = ymod[i1]
@@ -121,7 +118,7 @@ pro ifsf_pltnaddat,instr,outfile,wavenorm,fluxnorm,parnorm
   if (yran[0] lt 0) then yran[0]=0
   yran[0] = 0d
 
-  cgplot,wave,specresid,xran=xran1,yran=yran,/xsty,/ysty,$
+  cgplot,wave,specstars,xran=xran1,yran=yran,/xsty,/ysty,$
          backg='Black',color='White',layout=[1,2,1]
   cgoplot,wave,poly(wave,parnorm)/norm,color='Red'
   cgoplot,[nad1,nad1],yran,color='Green',linesty=2

@@ -6,25 +6,34 @@
 ; lines fits to a spectrum.
 ;
 ; As input, it requires a structure of initializaiton parameters. The
-; tags for this structure can be found in ...
+; tags for this structure can be found in INITTAGS.txt.
 ;
 ;
 ; :Categories:
-;    UHSPECFIT/GMOS
+;    IFSFIT
 ;
 ; :Returns:
 ;    IDL save file (.xdr)
 ;
 ; :Params:
-;    gal: in, required, type=string
-;    bin: in, required, type=double
+;    initproc: in, required, type=string
+;      Name of procedure to initialize the fit.
 ;
 ; :Keywords:
-;    rows: in, optional, type=dblarr
-;    cols: in, optional, type=dblarr
+;    cols: in, optional, type=intarr, default=all
+;      Columns to fit, in 1-offset format. Either a scalar or a
+;      two-element vector listing the first and last columns to fit.
+;    rows: in, optional, type=intarr, default=all
+;      Rows to fit, in 1-offset format. Either a scalar or a
+;      two-element vector listing the first and last rows to fit.
 ;    noplots: in, optional, type=byte
-;    sky: in, optional, type=byte
+;      Disable plotting.
+;    oned: in, optional, type=byte
+;      Data is assumed to be in a 2d array; choose this switch to
+;      input data as a 1d array.
 ;    verbose: in, optional, type=byte
+;      Print error and progress messages. Propagates to most/all
+;      subroutines.
 ; 
 ; :Author:
 ;    David Rupke
@@ -34,29 +43,29 @@
 ;      2009may13, DSNR, created
 ;      2013oct04, DSNR, started re-write for new data
 ;      2013oct09, DSNR, documented
-;
+;      2013nov25, DSNR, renamed, added copyright and license; changed
+;                       required parameters from 'gal' and 'bin' to
+;                       'initproc', and optional parameter 'fibers' to
+;                       'oned', to make it more general
 ;
 ;-
-pro uhsf_gm_anlspec,gal,bin,cols=cols,rows=rows,$
-                    fibers=fibers,noplots=noplots,$
-                    sky=sky,verbose=verbose
+pro ifsfa,initproc,cols=cols,rows=rows,$
+          oned=oned,noplots=noplots,$
+          verbose=verbose
 
   fwhmtosig = 2d*sqrt(2d*alog(2d))
-  if keyword_set(fibers) then fibers=1 else fibers=0
+  if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  if keyword_set(sky) then initdat = $
-     call_function('uhsf_gm_init_'+gal,bin,/sky) $
-  else initdat = $
-     call_function('uhsf_gm_init_'+gal,bin)
+  initdat=call_function(initproc)
   
 ; Get linelist
   if tag_exist(initdat,'argslinelist') then linelist = $
-     call_function('uhsf_gm_linelist',_extra=initdat.argslinelist) $
-  else linelist = uhsf_gm_linelist()
+     call_function('ifsf_linelist',_extra=initdat.argslinelist) $
+  else linelist = ifsf_linelist()
   nlines = n_elements(linelist.label)
 
-  if fibers then begin
+  if oned then begin
 ;    Read data
      data = readfits(initdat.infile,header,ext=2,/silent)
      var = readfits(initdat.infile,ext=3,/silent)
@@ -78,7 +87,7 @@ pro uhsf_gm_anlspec,gal,bin,cols=cols,rows=rows,$
 ; Initialize output files
   if not tag_exist(initdat,'outlines') then outlines = linelist.label $
   else outlines = initdat.outlines
-  uhsf_printlinpar,[''],[0],[0],initdat.outdir+gal+'.lines.dat',-1,-1,/init,$
+  ifsf_printlinpar,[''],[0],[0],initdat.outdir+gal+'.lines.dat',-1,-1,/init,$
                    whichlines=outlines
   openw,fitunit,initdat.outdir+gal+'.fit.dat',/get_lun
   printf,fitunit,'#Col','Row','Cmp','Rchi2','Niter','FWHM','z',$
@@ -100,7 +109,7 @@ pro uhsf_gm_anlspec,gal,bin,cols=cols,rows=rows,$
      for j=rows[0]-1,rows[1]-1 do begin
 
 ;       Load raw data
-        if fibers then begin
+        if oned then begin
            flux = data[*,i]
            err = sqrt(abs(var[*,i]))
            lab = string(i+1,format='(I04)')
@@ -121,7 +130,7 @@ pro uhsf_gm_anlspec,gal,bin,cols=cols,rows=rows,$
            outfile = initdat.outdir+gal+'_'+lab
            if file_test(infile) then restore,file=infile $
            else begin
-              print,'UHSF_GM_ANLSPEC: Spectrum ',i+1,', ',j+1,$
+              print,'IFSFA: Spectrum ',i+1,', ',j+1,$
                     ' does not exist.',$
                     format='(A0,I4,A0,I4,A0)'
               goto,nofit
@@ -133,21 +142,21 @@ pro uhsf_gm_anlspec,gal,bin,cols=cols,rows=rows,$
 ;; ;          # of components
 ;;            if n_elements(struct.param) gt 1 then begin
 ;;               ncomp = reform(initdat.ncomp[i,j,*],nlines)
-;;               linepars = uhsf_sepfitpars(struct.param,struct.perror)
+;;               linepars = ifsf_sepfitpars(struct.param,struct.perror)
 ;;            endif
 
-           if not fibers then begin
+           if not oned then begin
               if ~ keyword_set(noplots) then begin
                  if tag_exist(initdat,'fcnpltcont') then $
                     fcnpltcont=initdat.fcnpltcont else $
-                       fcnpltcont='uhsf_pltcont'
+                       fcnpltcont='ifsf_pltcont'
                  call_procedure,fcnpltcont,struct,outfile+'_cnt'
               endif
               if n_elements(struct.param) gt 1 AND $
                  ~ keyword_set(noplots) then begin
                  if tag_exist(initdat,'fcnpltlin') then $
                     fcnpltlin=initdat.fcnpltlin else $
-                       fcnpltlin='uhsf_pltlin'
+                       fcnpltlin='ifsf_pltlin'
                  if tag_exist(initdat,'argspltlin1') then $
                     call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
                                    outfile+'_lin1',/velsig

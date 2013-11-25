@@ -120,6 +120,7 @@
 ;      2010mar18, DSNR, added ct_coeff output to continuum fit
 ;      2013sep, DSNR, complete re-write
 ;      2013nov13, DSNR, renamed, added license and copyright 
+;      2013nov25, DSNR, changed structure tags of output spectra for clarity
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -449,13 +450,14 @@ function ifsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
            ct_coeff: ct_coeff, $
 ;          Spectrum in various forms
            wave: gdlambda, $
-           spec: gdflux, $ ; data
+           spec: gdflux, $      ; data
            spec_err: gderr, $
-           spec_nocnt: gdflux_nocnt, $ ; data - continuum fit
-           cont: continuum, $    ; fit to continuum only
-           specfit: specfit, $      ; fit to lines only
-           ct_indx: ct_indx, $      ; where emission is not masked
-           gd_indx: gd_indx, $      ; cuts on various criteria
+           cont_dat: continuum-specfit, $ ; cont. data (all data - em. line fit)
+           cont_fit: continuum, $         ; cont. fit
+           emlin_dat: gdflux_nocnt, $ ; em. line data (all data - cont. fit)
+           emlin_fit: specfit, $      ; em. line fit
+           ct_indx: ct_indx, $        ; where emission is not masked
+           gd_indx: gd_indx, $        ; cuts on various criteria
 ;          Line fit parameters
            redchisq: chisq/dof, $
            niter: niter, $
