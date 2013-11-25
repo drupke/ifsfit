@@ -2,129 +2,58 @@
 ;
 ;+
 ;
-; This function initializes the fitting parameters.
+; This function initializes the fitting parameters for F05189-2524,
+; 2011 GMOS data.
 ;
 ; :Categories:
-;    UHSPECFIT/GMOS
+;    IFSF
 ;
 ; :Returns:
-; A structure with the following required tags::
-;
-;   fcninitpar: in, required, type=string
-;     Name of function for initializing continuum.
-;   infile: in, required, type=string
-;     Filename of input data cube.
-;   linetie: in, required, type=strarr(dx,dy,nlines)
-;     Name of emission line to which each emission line is tied
-;     (in redshift and linewidth).
-;   ncomp: in, required, type=dblarr(ncols,nrows,nlines)
-;     For each spaxel and emission line, # of components to fit.
-;   outdir: in, required, type=string
-;     Directory for output save (.xdr) file
-;   zinit_stars: in, required, type=double
-;     Redshift used to shift any stellar templates to observed
-;     frame.
-;   zinit_gas: in, required, type=dblarr(ncols,nrows,nlines,ncomp)
-;     Initial redshift guesses for each spaxel, emission line, and
-;     component.
-; 
-; Also possibly included are the following optional tags::
-;
-;   argsaddpoly2temp: in, optional, type=structure
-;     Arguments for UHSF_ADDPOLY2TEMP call.
-;   argscontfit: in, optional, type=structure
-;     Arguments for continuum fit routine.
-;   argsinitpar: in, optional, type=structure
-;     Arguments for parameter initialization routine.
-;   argslinefit: in, optional, type=structure
-;     Arguments for line fitting routine
-;   argslinelist: in, optional, type=structure
-;     Arguments for line selection routine
-;   argsoptstelz: in, optional, type=structure
-;     Arguments for stellar redshift optimization.
-;   argspltlin1: in, optional, type=structure
-;     Arguments for first line plot
-;   argspltlin2: in, optional, type=structure
-;     Arguments for first line plot
-;   dividecont: in, optional, type=byte
-;     Set this param to divide the data by the continuum
-;     fit. Default is to subtract.
-;   fcncontfit: in, optional, type=string
-;     Name of continuum fitting function. If not specified,
-;     continuum is not fit.
-;   fcnlinefit: in, optional, type=string
-;     Name of line fitting function. Default: UHSF_MANYGAUSS
-;   fcnoptstelsig: in, optional, type=string
-;     Name of routine to optimize stellar dispersion.
-;   fcnoptstelz: in, optional, type=string
-;     Name of routine to optimize stellar redshift. If not specified,
-;     redshift is not optimized.
-;   fcnpltcont: in, optional, type=string
-;     Name of continuum plotting function. Default: UHSF_PLTCONT
-;   fcnpltlin: in, optional, type=string
-;     Name of line plotting function. Default: UHSF_PLTLIN
-;   fitran: in, optional, type=dblarr(2)
-;     Range of fitting, in observed frame. If not set, default is
-;     entire range of data / template intersection.
-;   keepnad: in, optional, type=string
-;     Set to not remove NaD region from fit.
-;   loglam: in, optional, type=byte
-;     Set if data has constant log(lambda) dispersion.
-;   maskwidths: in, optional, type=dblarr
-;     Width, in km/s, of regions to mask from continuum fit. If not
-;     set, routine defaults to +/- 500 km/s. If parameter has one
-;     value, then this half-width is applied to all emission
-;     lines. If it has multiple values, it should have exactly the
-;     same number of elements as lines that are being fit.
-;   nomaskran: in, optional, type=dblarr(2)
-;     Wavelength region *not* to mask.
-;   outlines: in, optional, type=strarr
-;     Labels of emission lines for which to print line fluxes to output.
-;   peakinit: in, optional, type=dblarr(nlines,ncomp)
-;     Initial peak flux guesses.
-;   siginit_gas: in, optional, type=dblarr(nlines,ncomp)
-;     Initial line width guesses, in sigma and km/s.
-;   siginit_stars: in, optional, type=double
-;     Initial sigma value, in km/s, for a Gaussian kernel for
-;     convolving with stellar template. Convolution only performed
-;     if this param is set.
-;   sigfitvals: in, optional, type=dblarr
-;     If this param is set, routine cross-correlates data with
-;     continua convolved with each sigma value in this array, and
-;     chooses the sigma with the highest correlation coeff.
-;   startempfile: in, optional, type=structure
-;     File containing IDL save file (usually ending in .xdr) of
-;     stellar templates. Tags:
-;       lambda: in, required, type=dblarr(nwave)
-;       flux: in, required, type=dblarr(nwave,ntemplates)
-;   vacuum: in, optional, type=byte
-;     Set this param to shift stellar templates from air to
-;     vacuum wavelengths.
+;    A structure with tags specified in INITTAGS.txt.
 ;
 ; :Params:
-;    bin: in, required, type=integer
 ; 
 ; :Author:
-;    David Rupke
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
 ;
 ; :History:
-;    Change History::
+;    ChangeHistory::
 ;      2013sep, DSNR, complete re-write
+;      2013nov25, DSNR, renamed, added copyright and license; moved
+;                       description of tags to INITTAGS.txt file.
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
+;
 ;-
-function uhsf_gm_init_f05189,bin
+function ifsf_f05189
 
   gal = 'f05189'
-  bin = double(bin)
+  bin = 2d
 
-  if bin eq 2 then begin
-     dx = 28
-     dy = 27
-     cx = 14d
-     cy = 14d 
-  endif else begin 
-     print,'UHSF_GM_INIT: Bin = ',string(bin,format='(I0)'),' not allowed.'
-     return,0
-  endelse
+  dx = 28
+  dy = 27
+  cx = 14d
+  cy = 14d 
 
   outstr = 'rb'+string(bin,format='(I0)')
 
@@ -135,7 +64,7 @@ function uhsf_gm_init_f05189,bin
 ; Input file
   infile='/Users/drupke/winds/gmos/cubes/'+gal+'/'+gal+outstr+'.fits'
   if ~ file_test(infile) then begin
-     print,"UHSF_GM_INIT: Data cube not found."
+     print,"ERROR: Data cube not found."
      return,0
   endif
 

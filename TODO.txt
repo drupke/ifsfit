@@ -4,8 +4,9 @@
 SOFTWARE
 
 + Read PPXF paper.
-- Rename and finish documenting each routine (22 of 36 completed; last
-  worked on 13nov22).
++ Rename and finish documenting each routine (32 of 32 completed; last
+  worked on 2013nov25).
+- Propagate new treatment of line list (as hash).
 - Deprecate old stellar fitting.
 - Incorporate PPXF into stellar fitting.
 - Get software working again ...
@@ -14,6 +15,7 @@ SOFTWARE
 - Get rid of instances of readcol300 (--> readcol).
 - Update README.txt.
 - Update Na D fitting.
+- Get sky routine working.
 
 TESTING
 
