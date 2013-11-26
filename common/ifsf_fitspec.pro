@@ -82,15 +82,13 @@
 ;      Structure of initial guesses for redshifts. Only required tag
 ;      is STAR (in, type=double; redshift used to shift template to
 ;      observed frame).
-;    linelist: in, required, type=structure
-;      Structure of rest wavelengths and labels for emission
-;      lines. The tags of this structure are wave: in
-;      [type=dblarr(nlines); line rest wavelengths] and label
-;      [type=strarr(nlines); line names].
+;    linelabel: in, required, type=strarr(nlines)
+;      Emission line labels.
+;    linewave: in, required, type=dblarr(nlines)
+;      Emission line rest frame wavelengths.
 ;    linewavez: in, required, type=dblarr(nlines\,ncomp)
-;      Observed-frame expected wavelengths, one value for
-;      each line and each velocity component.
-;    linetie: in, required, type=strarr(nlines)
+;      Emission line observed frame wavelengths.
+;    linetie: in, required, type=hash(linelabels,tielabels)
 ;      Name of emission line to which each emission line is tied
 ;      (in redshift and linewidth).
 ;    ncomp: in, required, type=???arr(nlines)
@@ -140,7 +138,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
+function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
                       linetie,ncomp,initstr,quiet=quiet
 
   c = 299792.458d               ; speed of light, km/s
@@ -163,9 +161,7 @@ function ifsf_fitspec,lambda,flux,err,z,linelist,linewavez,$
   endif
 
 ;  Initialize emission line list
-  linewave = linelist.wave
-  linelabel = linelist.label
-  nlines = n_elements(linewave)
+  nlines = n_elements(linelabel)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Pick out regions to fit

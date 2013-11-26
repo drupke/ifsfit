@@ -10,9 +10,13 @@ Required structure tags from initialization procedure:
     Name of function for initializing continuum.
   infile: in, required, type=string
     Filename of input data cube.
-  linetie: in, required, type=strarr(dx,dy,nlines)
+  lines: in, required, type=dblarr(nlines)
+    Names of emission lines to fit.
+  linetie: in, required, type=hash(lines,dx,dy)
     Name of emission line to which each emission line is tied
     (in redshift and linewidth).
+  maxncomp: in, required, type=double
+    Maximum number of components to fit.
   ncomp: in, required, type=dblarr(ncols,nrows,nlines)
     For each spaxel and emission line, # of components to fit.
   outdir: in, required, type=string

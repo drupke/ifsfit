@@ -8,7 +8,6 @@
 ; As input, it requires a structure of initialization parameters. The
 ; tags for this structure can be found in INITTAGS.txt.
 ;
-;
 ; :Categories:
 ;    IFSFIT
 ;
@@ -50,6 +49,8 @@
 ;                       required parameters from 'gal' and 'bin' to
 ;                       'initproc', and optional parameter 'fibers' to
 ;                       'oned', to make it more general
+;      2013nov26, DSNR, added code to turn input hashes into arrays
+;                       for each spaxel
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -82,9 +83,9 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
   
 ; Get linelist
   if tag_exist(initdat,'argslinelist') then linelist = $
-     call_function('ifsf_linelist',_extra=initdat.argslinelist) $
-  else linelist = ifsf_gm_linelist()
-  nlines = n_elements(linelist.label)
+     call_function('ifsf_linelist',initdat.lines,_extra=initdat.argslinelist) $
+  else linelist = ifsf_linelist(initdat.lines)
+  nlines = linelist.count()
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
@@ -157,18 +158,28 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 
         nodata = where(flux ne 0d,ct)
         if ct ne 0 then begin
-           
-           ncomp = reform(abs(initdat.ncomp[i,j,*]),nlines)
 
-fit:
+; Turn hashes into spaxel-specific arrays
+
+           ncomp = dblarr(nlines)
+           linewave = dblarr(nlines)
+           linetie = dblarr(nlines)
+           zinit_gas = dblarr(nlines,initdat.maxncomp)
+           for k=0,n_elements(initdat.lines)-1 do begin
+              ncomp[k] = initdat.ncomp[initdat.lines[k],i,j]
+              linewave[k] = linelist[initdat.lines[k]]
+              linetie[k] = initdat.linetie[initdat.lines[k]]
+              zinit_gas[k,*] = initdat.zinit_gas[lines[k],i,j,*]
+           endfor
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; First fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
 ;          Initialize redshift structure
-           z = {star:initdat.zinit_stars[i,j],$
-                gas:initdat.zinit_gas[i,j,*,*]}
+           z = {star: initdat.zinit_stars[i,j],$
+                gas: zinit_gas}
            
 ;          Remove NaI D line for purposes of continuum fit by maximizing
 ;          error. 
@@ -180,11 +191,9 @@ fit:
            endif
 
 ;          Initialize starting wavelengths
-           linewavez = rebin(linelist.wave,nlines,max(ncomp)) * (1d + z.gas)
-
-           linetie = reform(initdat.linetie[i,j,*],nlines)
-
-           structinit = ifsf_fitspec(wave,flux,err,z,linelist,linewavez,$
+           linewavez = rebin(linewave,nlines,initdat.maxncomp) * (1d + z.gas)
+           
+           structinit = ifsf_fitspec(wave,flux,err,z,lines,linewave,linewavez,$
                                      linetie,ncomp,initdat,quiet=quiet)
 
            testsize = size(structinit)
@@ -205,7 +214,7 @@ fit:
            
 ;          Set emission line mask parameters
            linepars = ifsf_sepfitpars(structinit.param,structinit.perror)
-           nlines_tot = nlines*max(ncomp)
+           nlines_tot = nlines*initdat.maxncomp
            linewavez = linepars.wave
            masksig = 2d
            newmaskwidths = masksig*reform(linepars.sigma,nlines_tot)
@@ -229,7 +238,7 @@ fit:
            if tag_exist(initdat_use,'sigfitvals') then initdat_use = $
               rem_tag(initdat_use,'sigfitvals')
 
-           struct = ifsf_fitspec(wave,flux,err,z,linelist,linewavez,$
+           struct = ifsf_fitspec(wave,flux,err,z,lines,linewave,linewavez,$
                                  linetie,ncomp,initdat_use,quiet=quiet)
            
            testsize = size(struct)
