@@ -15,7 +15,7 @@
 ;      Wavelengths in linear space.
 ;    lambda_log: in, required, type=dblarr(nlam_log)
 ;      Wavelengths in ln(lambda) space.
-;    temp: in, required, type=dblarr(nlam,ntemp)
+;    temp: in, required, type=dblarr(nlam\,ntemp)
 ;      Continuum templates.
 ;    tempweights: in, required, type=dblarr(ntemp)
 ;      Best-fit weights for continuum templates.

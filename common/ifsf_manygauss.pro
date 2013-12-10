@@ -1,7 +1,6 @@
 ; docformat = 'rst'
 ;
 ;+
-;
 ; This function is input to MPFIT, which uses it to compute the
 ; emission line spectrum of multiple Gaussian emission lines
 ; simultaneously. This routine assumes constant dispersion (in A/pix),
@@ -55,7 +54,6 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-
 function ifsf_manygauss, wave, param
 
   c = 299792.458d

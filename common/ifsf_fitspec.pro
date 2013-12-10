@@ -91,7 +91,7 @@
 ;      Emission line rest frame wavelengths.
 ;    linewavez: in, required, type=dblarr(nlines\,ncomp)
 ;      Emission line observed frame wavelengths.
-;    linetie: in, required, type=hash(linelabels,tielabels)
+;    linetie: in, required, type=hash(linelabels\,tielabels)
 ;      Name of emission line to which each emission line is tied
 ;      (in redshift and linewidth).
 ;    ncomp: in, required, type=???arr(nlines)

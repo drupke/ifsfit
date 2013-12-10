@@ -14,9 +14,9 @@
 ; :Params:
 ;    lines: in, required, type=dblarr(Nlines)
 ;      Names of lines.
-;    fluxes: in, required, type=dblarr(Nlines,Ncomp)
+;    fluxes: in, required, type=dblarr(Nlines\,Ncomp)
 ;      Fluxes of lines.
-;    fluxerrors: in, required, type=dblarr(Nlines,Ncomp)
+;    fluxerrors: in, required, type=dblarr(Nlines\,Ncomp)
 ;      Flux errors.
 ;    outfile: in, required, type=string
 ;      Full path and name of output file.

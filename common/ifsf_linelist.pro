@@ -17,7 +17,7 @@
 ;    Hash of wavelengths for specified input lines.
 ;
 ; :Params:
-;    lines: in, required, type=strarr
+;    inlines: in, required, type=strarr
 ;      Line labels for which to retrieve wavelengths.
 ;
 ; :Keywords:
