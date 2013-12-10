@@ -85,7 +85,7 @@ function ifsf_linelist,inlines
   lines['[FeX]6375'] = 6374.51d
   
   outlines = hash()
-  for i=0, inlines-1 do begin
+  for i=0, n_elements(inlines)-1 do begin
      imatch = where(inlines[i] eq lines->keys(),ctmatch)
      if ctmatch eq 1 then outlines[inlines[i]] = lines[inlines[i]] $
      else print,'IFSF_LINELIST: ERROR: ',inlines[i],$

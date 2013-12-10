@@ -82,9 +82,7 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
   initdat = call_function(initproc)
   
 ; Get linelist
-  if tag_exist(initdat,'argslinelist') then linelist = $
-     call_function('ifsf_linelist',initdat.lines,_extra=initdat.argslinelist) $
-  else linelist = ifsf_linelist(initdat.lines)
+  linelist = ifsf_linelist(initdat.lines)
   nlines = linelist.count()
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -193,7 +193,6 @@ function ifsf_f05189
 ; Optional pars
          argscontfit: {refit: refit},$
          argsinitpar: {siglim: siglim_gas},$
-         argslinelist: {felines: 1},$
          argsoptstelz: {lrange: [5200,5550]},$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
