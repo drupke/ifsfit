@@ -7,67 +7,7 @@
 ;
 ; The function requires an initialization structure with one required
 ; and a bunch of optional tags. They are as follows::
-;
-;      fcninitpar: in, required, type=string
-;        Name of function for initializing continuum.
-;      argsaddpoly2temp: in, optional, type=structure
-;        Arguments for IFSF_ADDPOLY2TEMP call.
-;      argscontfit: in, optional, type=structure
-;        Arguments for continuum fit routine.
-;      argsinitpar: in, optional, type=structure
-;        Arguments for parameter initialization routine.
-;      argslinefit: in, optional, type=structure
-;        Arguments for line fitting routine
-;      argsoptstelz: in, optional, type=structure
-;        Arguments for stellar redshift optimization.
-;      fcncontfit: in, optional, type=string
-;        Name of continuum fitting function. If not specified, no
-;        continuum is fit. If this equals 'ppxf,' then PPXF is used to
-;        fit the stellar velocity, velocity dispersion, and template
-;        weights. PPXF requires a template to be chosen and an initial
-;        guess for sigma (siginit_stars) to be specified.
-;      fcnlinefit: in, optional, type=string
-;        Name of line fitting function. Default: IFSF_MANYGAUSS
-;      fcnoptstelsig: in, optional, type=string
-;        Name of routine to optimize stellar dispersion.
-;      fcnoptstelz: in, optional, type=string
-;        Name of routine to optimize stellar redshift.
-;      fitran: in, optional, type=dblarr(2)
-;        Range of fitting, in observed frame. If not set, default is
-;        entire range of data / template intersection.
-;      loglam: in, optional, type=byte
-;        Set if data has constant log(lambda) dispersion.
-;      maskwidths: in, optional, type=dblarr(nlines*ncomp)
-;        Width, in km/s, of regions to mask from continuum fit. If not
-;        set, routine defaults to +/- 500 km/s. If parameter has one
-;        value, then this half-width is applied to all emission
-;        lines. If it has multiple values, it should have exactly the
-;        same number of elements as lines that are being fit.
-;      nomaskran: in, optional, type=dblarr(2)
-;        Wavelength region *not* to mask.
-;      peakinit: in, optional, type=dblarr(nlines,ncomp)
-;        Initial peak flux guesses.
-;      siginit_gas: in, optional, type=dblarr(nlines,ncomp)
-;        Initial line width guesses, in sigma and km/s.
-;      siginit_stars: in, optional, type=double
-;        Initial sigma value, in km/s, for a Gaussian kernel for
-;        convolving with stellar template. Convolution only performed
-;        if this param is set.
-;      sigfitvals: in, optional, type=dblarr
-;        If this param is set, routine cross-correlates data with
-;        continua convolved with each sigma value in this array, and
-;        chooses the sigma with the highest correlation coeff.
-;      startempfile: in, optional, type=structure
-;        File containing IDL save file (usually ending in .xdr) of
-;        stellar templates. Tags are lambda [type=dblarr(nwave)] and
-;        flux [type=dblarr(nwave,ntemplates)].
-;      dividecont: in, optional, type=byte
-;        Set this param to divide the data by the continuum
-;        fit. Default is to subtract.
-;      vacuum: in, optional, type=byte
-;        Set this param to shift stellar templates from air to
-;        vacuum wavelengths.
-;
+;;
 ; :Categories:
 ;    IFSFIT
 ;
@@ -85,19 +25,18 @@
 ;      Structure of initial guesses for redshifts. Only required tag
 ;      is STAR (in, type=double; redshift used to shift template to
 ;      observed frame).
-;    linelabel: in, required, type=strarr(nlines)
-;      Emission line labels.
 ;    linewave: in, required, type=dblarr(nlines)
 ;      Emission line rest frame wavelengths.
 ;    linewavez: in, required, type=dblarr(nlines\,ncomp)
 ;      Emission line observed frame wavelengths.
-;    linetie: in, required, type=hash(linelabels\,tielabels)
+;    linetie: in, required, type=hash(lines\,tielabels)
 ;      Name of emission line to which each emission line is tied
 ;      (in redshift and linewidth).
 ;    ncomp: in, required, type=???arr(nlines)
 ;      Number of components fit to each line.
-;    initstr: in, required, type=structure
-;      Structure of initialization parameters.;
+;    initdat: in, required, type=structure
+;      Structure of initialization parameters, with tags specified in
+;      INITTAGS.txt.
 ;
 ; :Keywords:
 ;    quiet: in, optional, type=byte
@@ -124,6 +63,11 @@
 ;      2013nov25, DSNR, changed structure tags of output spectra for clarity
 ;      2013dec09, DSNR, removed stellar z and sig optimization;
 ;                       added PPXF option
+;      2013dec10, DSNR, removed docs of initdat tags, since it's
+;                       repeated in INITTAGS.txt; removed linelabel
+;                       parameter, since it's in initdat; changed
+;                       'initstr' parameter to 'initdat', for
+;                       consistency with IFSF; testing and bug fixes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -143,30 +87,31 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
-                      linetie,ncomp,initstr,quiet=quiet
+function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
+                      linetie,ncomp,initdat,quiet=quiet
 
   c = 299792.458d               ; speed of light, km/s
 
   if keyword_set(quiet) then quiet=1b else quiet=0b
-  if tag_exist(initstr,'fcnlinefit') then fcnlinefit=initstr.fcnlinefit $
+  if tag_exist(initdat,'fcnlinefit') then fcnlinefit=initdat.fcnlinefit $
   else fcnlinefit='ifsf_manygauss'
-  if tag_exist(initstr,'argslinefit') then argslinefit=initstr.argslinefit
-  if tag_exist(initstr,'nomaskran') then nomaskran=1b else nomaskran=0b
-  if tag_exist(initstr,'startempfile') then istemp = 1b else istemp=0b
-  if tag_exist(initstr,'loglam') then loglam=1b else loglam=0b
-  if tag_exist(initstr,'vacuum') then vacuum=1b else vacuum=0b
+  if tag_exist(initdat,'argslinefit') then argslinefit=initdat.argslinefit
+  if tag_exist(initdat,'nomaskran') then nomaskran=1b else nomaskran=0b
+  if tag_exist(initdat,'startempfile') then istemp = 1b else istemp=0b
+  if tag_exist(initdat,'loglam') then loglam=1b else loglam=0b
+  if tag_exist(initdat,'vacuum') then vacuum=1b else vacuum=0b
 
   if istemp then begin
 ;    Get stellar templates
-     restore,initstr.startempfile
+     restore,initdat.startempfile
 ;    Redshift stellar templates
-     templatelambdaz = template.lambda * (1d + z.star)
+     templatelambdaz = $
+        reform(template.lambda,n_elements(template.lambda)) * (1d + z.star)
      if vacuum then airtovac,templatelambdaz
   endif
 
 ;  Initialize emission line list
-  nlines = n_elements(linelabel)
+  nlines = n_elements(initdat.lines)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Pick out regions to fit
@@ -181,10 +126,10 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
      if ctbt gt 0 then gd_indx = cmset_op(gd_indx,'AND',/NOT2,bt_indx)
   endif
 ; Find where spectrum is outside fit range
-  if tag_exist(initstr,'fitran') then begin
-     fitran = initstr.fitran
-     or_indx = where(lambda lt initstr.fitran[0] OR $
-                     lambda gt initstr.fitran[1],ctor)
+  if tag_exist(initdat,'fitran') then begin
+     fitran = initdat.fitran
+     or_indx = where(lambda lt initdat.fitran[0] OR $
+                     lambda gt initdat.fitran[1],ctor)
      if ctor gt 0 then $
         gd_indx = cmset_op(gd_indx,'AND',/NOT2,or_indx)
   endif else begin
@@ -239,16 +184,16 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
 ; Fit continuum
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if tag_exist(initstr,'fcncontfit') then begin
+  if tag_exist(initdat,'fcncontfit') then begin
      
 ;    Mask emission lines
-     masklines = reform(linewavez,max(ncomp)*nlines)
+     masklines = reform(linewavez,initdat.maxncomp*nlines)
 ;    Estimated sigma for masking emission lines and initiating fit
-     if not tag_exist(initstr,'maskwidths') then $
-        maskwidths = replicate(500,max(ncomp)*nlines) $
-     else if n_elements(initstr.maskwidths) eq 1 then $
-        maskwidths = replicate(initstr.maskwidths,max(ncomp)*nlines) $
-     else maskwidths = initstr.maskwidths
+     if not tag_exist(initdat,'maskwidths') then $
+        maskwidths = replicate(500,initdat.maxncomp*nlines) $
+     else if n_elements(initdat.maskwidths) eq 1 then $
+        maskwidths = replicate(initdat.maskwidths,initdat.maxncomp*nlines) $
+     else maskwidths = initdat.maskwidths
      ct_indx  = ifsf_masklin(exp(gdlambda), masklines, maskwidths, $
                              nomaskran=nomaskran)
 
@@ -256,7 +201,7 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
 ; Option 1: Input function
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-     if initstr.fcncontfit ne 'ppxf' then begin
+     if initdat.fcncontfit ne 'ppxf' then begin
         
 ;       Prepare templates
         if istemp then begin
@@ -264,26 +209,26 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
 ;          Interpolate template to same grid as data
            new_temp = ifsf_interptemp(gdlambda,templatelambdaz,new_temp)
 ;          If requested, convolve template with Gaussian
-           if tag_exist(initstr,'siginit_stars') then begin
+           if tag_exist(initdat,'siginit_stars') then begin
               new_temp_undisp = new_temp
               new_temp = ifsf_disptemp(new_temp,gdlambda,$
-                                       initstr.siginit_stars,loglam=loglam)
+                                       initdat.siginit_stars,loglam=loglam)
            endif
 ;          Add polynomials to templates
-           if tag_exist(initstr,'argsaddpoly2temp') then new_temp = $
+           if tag_exist(initdat,'argsaddpoly2temp') then new_temp = $
               call_function('ifsf_addpoly2temp',new_temp,$
-                            _extra=initstr.argsaddpoly2temp) $
+                            _extra=initdat.argsaddpoly2temp) $
            else new_temp = call_function('ifsf_addpoly2temp',new_temp)
         endif else begin
            new_temp = 0
         endelse
 
-        if tag_exist(initstr,'argscontfit') then continuum = $
-           call_function(initstr.fcncontfit,gdlambda,gdflux,$
+        if tag_exist(initdat,'argscontfit') then continuum = $
+           call_function(initdat.fcncontfit,gdlambda,gdflux,$
                          gdweight,new_temp,ct_indx,ct_coeff,$
-                         quiet=quiet,_extra=initstr.argscontfit) $
+                         quiet=quiet,_extra=initdat.argscontfit) $
         else continuum = $
-           call_function(initstr.fcncontfit,gdlambda,gdflux,$
+           call_function(initdat.fcncontfit,gdlambda,gdflux,$
                          gdweight,new_temp,ct_indx,ct_coeff,quiet=quiet)
         
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -291,7 +236,7 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
      
      endif else if (istemp AND $
-                    tag_exist(initstr,'siginit_stars')) then begin
+                    tag_exist(initdat,'siginit_stars')) then begin
 
 ;       Log rebin galaxy spectrum
         log_rebin,[gdlambda[0],gdlambda[1]],gdflux,gdflux_log,gdlambda_log,$
@@ -301,19 +246,23 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
         
 ;       Interpolate template to same grid as data
         temp = ifsf_interptemp(gdlambda,templatelambdaz,template.flux)
-        temp_log = ifsf_interptemp(gdlambda_log,templatelambdaz,template.flux)
+        temp_log = ifsf_interptemp(gdlambda_log,alog(templatelambdaz),$
+                                   template.flux)
 
 ;       Mask emission lines in log space
-        ct_indx_log  = ifsf_masklin(exp(gdlambda_log), masklines, maskwidths, $
-                                    nomaskran=nomaskran)
+        ct_indx_log = $
+           ifsf_masklin(exp(gdlambda_log), masklines, maskwidths, $
+                        nomaskran=nomaskran)
 
 ;       Check polynomial degree
-        if tag_exist(initstr.argsaddpoly2temp,'nterms') then $
-           polyterms = initstr.argsaddpoly2temp.nterms $
-        else polyterms = 4
+        polyterms = 4
+        if tag_exist(initdat,'argsaddpoly2temp') then $
+           if tag_exist(initdat.argsaddpoly2temp,'nterms') then $
+              polyterms = initdat.argsaddpoly2temp.nterms
 
-        ppxf,temp_log,gdflux_log,gderr_log,velscale,[0,siginit_stars],$
-             sol=sol,goodpixels=ct_indx,bestfit=continuum_log,moments=2,$
+        ppxf,temp_log,gdflux_log,gderr_log,velscale,$
+             [0,initdat.siginit_stars],sol,$
+             goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
              degree=polyterms,polyweights=polyweights,quiet=quiet,$
              weights=ct_coeff
      
@@ -322,7 +271,7 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
 
      endif
         
-     if tag_exist(initstr,'dividecont') then begin
+     if tag_exist(initdat,'dividecont') then begin
         gdflux_nocnt = gdflux / continuum - 1
         gdweight_nocnt = gdweight * continuum^2
         gderr_nocnt = gderr / continuum
@@ -359,25 +308,25 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
 ; Initial guesses for emission line peak fluxes (above continuum)
 ; If initial guess is negative, set to 0 to prevent MPFITFUN from choking 
 ;   (since we limit peak to be >= 0).
-  if not tag_exist(initstr,'peakinit') then begin
-     peakinit = dblarr(nlines,max(ncomp))
-     for i=0,max(ncomp)-1 do $
+  if not tag_exist(initdat,'peakinit') then begin
+     peakinit = dblarr(nlines,initdat.maxncomp)
+     for i=0,initdat.maxncomp-1 do $
         peakinit[*,i] = interpol(gdflux_nocnt, gdlambda, linewavez[*,i])
      neg = where(peakinit lt 0, ct)
      if ct gt 0 then peakinit[neg] = 0
-  endif else peakinit = initstr.peakinit
+  endif else peakinit = initdat.peakinit
 ; Initial guesses for emission line widths
-  if not tag_exist(initstr,'siginit_gas') then $
-     siginit_gas = dblarr(nlines,max(ncomp))+100d $
-  else siginit_gas = initstr.siginit_gas
+  if not tag_exist(initdat,'siginit_gas') then $
+     siginit_gas = dblarr(nlines,initdat.maxncomp)+100d $
+  else siginit_gas = initdat.siginit_gas
 
 ; Fill out parameter structure with initial guesses and constraints
-  if tag_exist(initstr,'argsinitpar') then parinit = $
-     call_function(initstr.fcninitpar,linelabel,linewave,linewavez,$
+  if tag_exist(initdat,'argsinitpar') then parinit = $
+     call_function(initdat.fcninitpar,initdat.lines,linewave,linewavez,$
                    linetie,peakinit,siginit_gas,ncomp,$
-                   _extra=initstr.argsinitpar) $
+                   _extra=initdat.argsinitpar) $
   else parinit = $
-     call_function(initstr.fcninitpar,linelabel,linewave,linewavez,$
+     call_function(initdat.fcninitpar,initdat.lines,linewave,linewavez,$
                    linetie,peakinit,siginit_gas,ncomp)
 
   testsize = size(parinit)
@@ -431,7 +380,7 @@ function ifsf_fitspec,lambda,flux,err,z,linelabel,linewave,linewavez,$
            niter: niter, $
            fitstatus: status, $
            linewave: linewave, $
-           linelabel: linelabel, $
+           linelabel: initdat.lines, $
            param: param, $
            perror: perror, $
            covar: covar $

@@ -51,6 +51,7 @@
 ;                       'oned', to make it more general
 ;      2013nov26, DSNR, added code to turn input hashes into arrays
 ;                       for each spaxel
+;      2013dec10, DSNR, testing with PPXF and bug fixes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -161,13 +162,13 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 
            ncomp = dblarr(nlines)
            linewave = dblarr(nlines)
-           linetie = dblarr(nlines)
+           linetie = strarr(nlines)
            zinit_gas = dblarr(nlines,initdat.maxncomp)
            for k=0,n_elements(initdat.lines)-1 do begin
-              ncomp[k] = initdat.ncomp[initdat.lines[k],i,j]
-              linewave[k] = linelist[initdat.lines[k]]
-              linetie[k] = initdat.linetie[initdat.lines[k]]
-              zinit_gas[k,*] = initdat.zinit_gas[lines[k],i,j,*]
+              ncomp[k] = (initdat.ncomp)[initdat.lines[k],i,j]
+              linewave[k] = (linelist)[initdat.lines[k]]
+              linetie[k] = (initdat.linetie)[initdat.lines[k]]
+              zinit_gas[k,*] = (initdat.zinit_gas)[initdat.lines[k],i,j,*]
            endfor
 
 
@@ -191,8 +192,9 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 ;          Initialize starting wavelengths
            linewavez = rebin(linewave,nlines,initdat.maxncomp) * (1d + z.gas)
            
-           structinit = ifsf_fitspec(wave,flux,err,z,lines,linewave,linewavez,$
-                                     linetie,ncomp,initdat,quiet=quiet)
+           structinit = ifsf_fitspec(wave,flux,err,z,$
+                                     linewave,linewavez,linetie,$
+                                     ncomp,initdat,quiet=quiet)
 
            testsize = size(structinit)
            if testsize[0] eq 0 then begin
@@ -236,7 +238,7 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
            if tag_exist(initdat_use,'sigfitvals') then initdat_use = $
               rem_tag(initdat_use,'sigfitvals')
 
-           struct = ifsf_fitspec(wave,flux,err,z,lines,linewave,linewavez,$
+           struct = ifsf_fitspec(wave,flux,err,z,linewave,linewavez,$
                                  linetie,ncomp,initdat_use,quiet=quiet)
            
            testsize = size(struct)

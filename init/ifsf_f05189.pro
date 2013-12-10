@@ -28,6 +28,7 @@
 ;                       description of tags to INITTAGS.txt file.
 ;      2013nov26, DSNR, changed line arrays to hashes to prevent
 ;                       bookkeeping errors
+;      2013dec10, DSNR, testing and bug fixes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -193,18 +194,17 @@ function ifsf_f05189
 ; Optional pars
          argscontfit: {refit: refit},$
          argsinitpar: {siglim: siglim_gas},$
-         argsoptstelz: {lrange: [5200,5550]},$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
-         fcncontfit: 'ifsf_fitcont',$
-         fcnoptstelsig: 'ifsf_optstelsig',$
-         fcnoptstelz: 'ifsf_optstelz',$
+         fcncontfit: 'ppxf',$
+         ;; fcncontfit: 'ifsf_fitcont',$
+         ;; fcnoptstelsig: 'ifsf_optstelsig',$
+         ;; fcnoptstelz: 'ifsf_optstelz',$
          nomaskran: [5075,5100],$
          siglim_gas: siglim_gas,$
          siginit_gas: siginit_gas,$
          siginit_stars: 100d,$
 ;        first # is max sig, second is step size
-         sigfitvals: dindgen(fix(500d/25d)+1)*25d,$
          startempfile: '/Users/drupke/Documents/stellar_models/'+$
          'gonzalezdelgado/SSPGeneva_z020.sav' $
          }

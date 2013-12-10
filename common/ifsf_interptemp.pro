@@ -58,10 +58,10 @@ function ifsf_interptemp, spec_lam, temp_lam, template, $
   new_temp = fltarr(n_elements(spec_lam), ss[2])
 
   if min(temp_lam) gt min(spec_lam) then $
-     print, '  INTERPOL_TEMPLATE: WARNING: Extrapolating template from ',$
+     print, 'IFSF_INTERPTEMP: WARNING -- Extrapolating template from ',$
             min(temp_lam),' to ',min(spec_lam),'.',format='(A,I0,A,I0,A)'
   if max(temp_lam) lt max(spec_lam) then $
-     print, '  INTERPOL_TEMPLATE: WARNING: Extrapolating template from ',$
+     print, 'IFSF_INTERPTEMP: WARNING -- Extrapolating template from ',$
             max(temp_lam),' to ',max(spec_lam),'.',format='(A,I0,A,I0,A)'
 
   for i = 0, ss[2] - 1 do new_temp[*, i] = $
