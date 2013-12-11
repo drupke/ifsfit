@@ -68,6 +68,8 @@
 ;                       parameter, since it's in initdat; changed
 ;                       'initstr' parameter to 'initdat', for
 ;                       consistency with IFSF; testing and bug fixes
+;      2013dec11, DSNR, added MASK_HALFWIDTH variable; changed value
+;                       from 500 to 1000 km/s
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -90,13 +92,14 @@
 function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
                       linetie,ncomp,initdat,quiet=quiet
 
-  c = 299792.458d               ; speed of light, km/s
+  c = 299792.458d        ; speed of light, km/s
+  mask_halfwidth = 1000d ; default half-width in km/s for emission line masking
 
   if keyword_set(quiet) then quiet=1b else quiet=0b
   if tag_exist(initdat,'fcnlinefit') then fcnlinefit=initdat.fcnlinefit $
   else fcnlinefit='ifsf_manygauss'
   if tag_exist(initdat,'argslinefit') then argslinefit=initdat.argslinefit
-  if tag_exist(initdat,'nomaskran') then nomaskran=1b else nomaskran=0b
+  if tag_exist(initdat,'nomaskran') then nomaskran=initdat.nomaskran else nomaskran=0b
   if tag_exist(initdat,'startempfile') then istemp = 1b else istemp=0b
   if tag_exist(initdat,'loglam') then loglam=1b else loglam=0b
   if tag_exist(initdat,'vacuum') then vacuum=1b else vacuum=0b
@@ -190,11 +193,11 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
      masklines = reform(linewavez,initdat.maxncomp*nlines)
 ;    Estimated sigma for masking emission lines and initiating fit
      if not tag_exist(initdat,'maskwidths') then $
-        maskwidths = replicate(500,initdat.maxncomp*nlines) $
+        maskwidths = replicate(mask_halfwidth,initdat.maxncomp*nlines) $
      else if n_elements(initdat.maskwidths) eq 1 then $
         maskwidths = replicate(initdat.maskwidths,initdat.maxncomp*nlines) $
      else maskwidths = initdat.maskwidths
-     ct_indx  = ifsf_masklin(exp(gdlambda), masklines, maskwidths, $
+     ct_indx  = ifsf_masklin(gdlambda, masklines, maskwidths, $
                              nomaskran=nomaskran)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -239,9 +242,9 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
                     tag_exist(initdat,'siginit_stars')) then begin
 
 ;       Log rebin galaxy spectrum
-        log_rebin,[gdlambda[0],gdlambda[1]],gdflux,gdflux_log,gdlambda_log,$
-                  velscale=velscale
-        log_rebin,[gdlambda[0],gdlambda[1]],gderr^2d,gderrsq_log
+        log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],gdflux,$
+                  gdflux_log,gdlambda_log,velscale=velscale
+        log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],gderr^2d,gderrsq_log
         gderr_log = sqrt(gderrsq_log)
         
 ;       Interpolate template to same grid as data
@@ -263,11 +266,11 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
         ppxf,temp_log,gdflux_log,gderr_log,velscale,$
              [0,initdat.siginit_stars],sol,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
-             degree=polyterms,polyweights=polyweights,quiet=quiet,$
+             degree=polydeg,polyweights=polyweights,quiet=quiet,$
              weights=ct_coeff
      
         continuum = ifsf_cmpcontppxf(gdlambda,gdlambda_log,temp,ct_coeff,$
-                                     polyterms,polyweights)
+                                     polydeg,polyweights)
 
      endif
         

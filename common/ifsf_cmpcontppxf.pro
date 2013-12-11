@@ -37,6 +37,7 @@
 ; :History:
 ;    ChangeHistory::
 ;      2013dec09, DSNR, created
+;      2013dec11, DSNR, testing and bug fix
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -64,7 +65,7 @@ function ifsf_cmpcontppxf,lambda,lambda_log,temp,tempweights,$
   apoly_log = 0d
   for j=0,polydeg do apoly_log += legendre(x,j)*polyweights[j]
 ; Interpolate polynomial to linear space
-  apoly = interpol(apoly_log,lambda_log,lambda)
+  apoly = interpol(apoly_log,lambda_log,ALOG(lambda))
 ; Compute template combination in linear space
   spec = temp # tempweights
 
