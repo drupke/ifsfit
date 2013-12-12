@@ -29,7 +29,7 @@
 ;      Emission line rest frame wavelengths.
 ;    linewavez: in, required, type=dblarr(nlines\,ncomp)
 ;      Emission line observed frame wavelengths.
-;    linetie: in, required, type=hash(lines\,tielabels)
+;    linetie: in, required, type=strarr(nlines)
 ;      Name of emission line to which each emission line is tied
 ;      (in redshift and linewidth).
 ;    ncomp: in, required, type=???arr(nlines)
@@ -70,7 +70,8 @@
 ;                       consistency with IFSF; testing and bug fixes
 ;      2013dec11, DSNR, added MASK_HALFWIDTH variable; changed value
 ;                       from 500 to 1000 km/s
-;    
+;      2013dec12, DSNR, added SIGINIT_GAS_DEFAULT variable
+;      
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
 ;
@@ -94,6 +95,7 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
 
   c = 299792.458d        ; speed of light, km/s
   mask_halfwidth = 1000d ; default half-width in km/s for emission line masking
+  siginit_gas_default = 100d ; default sigma for initial guess for emission line widths
 
   if keyword_set(quiet) then quiet=1b else quiet=0b
   if tag_exist(initdat,'fcnlinefit') then fcnlinefit=initdat.fcnlinefit $
@@ -320,17 +322,17 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
   endif else peakinit = initdat.peakinit
 ; Initial guesses for emission line widths
   if not tag_exist(initdat,'siginit_gas') then $
-     siginit_gas = dblarr(nlines,initdat.maxncomp)+100d $
+     siginit_gas = dblarr(nlines,initdat.maxncomp)+siginit_gas_default $
   else siginit_gas = initdat.siginit_gas
 
 ; Fill out parameter structure with initial guesses and constraints
   if tag_exist(initdat,'argsinitpar') then parinit = $
      call_function(initdat.fcninitpar,initdat.lines,linewave,linewavez,$
-                   linetie,peakinit,siginit_gas,ncomp,$
+                   linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp,$
                    _extra=initdat.argsinitpar) $
   else parinit = $
      call_function(initdat.fcninitpar,initdat.lines,linewave,linewavez,$
-                   linetie,peakinit,siginit_gas,ncomp)
+                   linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp)
 
   testsize = size(parinit)
   if testsize[0] eq 0 then begin

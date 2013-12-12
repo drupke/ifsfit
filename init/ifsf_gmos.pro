@@ -1,13 +1,77 @@
-function uhsf_gm_initpar,linename,linelambda,linelambdaz,linetie,$
-                         initflux,initsig,ncomp,$
-                         siglim=siglim,sigfix=sigfix,zfix=zfix
-
+; docformat = 'rst'
 ;
-; 09jun01  DSNR  created
-; 09jun08  DSNR  added multiple components
-; 10may27  DSNR  re-written to fit in observed frame
-; 13sep13  DSNR  re-written to allow more than one common redshift
+;+
 ;
+; Initialize parameters for fitting. Specific to GMOS instrument.
+;
+; :Categories:
+;    IFSFIT/INIT
+;
+; :Returns:
+;    
+;
+; :Params:
+;    linename: in, required, type=strarr(Nlines)
+;      Names of emission lines to fit.
+;    linewave: in, required, type=dblarr(Nlines)
+;      Emission line rest frame wavelengths.
+;    linewavez: in, required, type=dblarr(Nlines\,maxncomp)
+;      Emission line observed frame wavelengths.
+;    linetie: in, required, type=strarr(Nlines)
+;      Name of emission line to which each emission line is tied
+;      (in redshift and linewidth).
+;    initflux: in, required, type=dblarr(Nlines\,maxncomp)
+;      Initial guess for peak flux in each component.
+;    initsig: in, required, type=dblarr(Nlines\,maxncomp)
+;      Initial guess for emission lines widths.
+;    maxncomp: in, required, type=double
+;      Maximum no. of emission line components.
+;    ncomp: in, required, type=dblarr(Nlines)
+;      Number of velocity components.
+;      
+; :Keywords:
+;    siglim: in, optional, type=dblarr(2)
+;      Lower and upper sigma limits in km/s.
+;    sigfix: in, optional, type=dblarr()
+;    zfix: in, optional, type=dblarr()
+; 
+; :Author:
+;    David S. N. Rupke::
+;      Rhodes College
+;      Department of Physics
+;      2000 N. Parkway
+;      Memphis, TN 38104
+;      drupke@gmail.com
+;
+; :History:
+;    ChangeHistory::
+;      2009jun01, DSNR, created
+;      2009jun08, DSNR, added multiple components
+;      2010may27, DSNR, re-written to fit in observed frame
+;      2013sep13, DSNR, re-written to allow more than one common redshift
+;      2013dec12, DSNR, documented, renamed, added license and copyright 
+;    
+; :Copyright:
+;    Copyright (C) 2013 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
+;
+;-
+function ifsf_gmos,linename,linelambda,linelambdaz,linetie,
+                   initflux,initsig,maxncomp,ncomp,$
+                   siglim=siglim,sigfix=sigfix,zfix=zfix
 
   c = 299792.458d
 
@@ -17,8 +81,6 @@ function uhsf_gm_initpar,linename,linelambda,linelambdaz,linetie,$
 
 ; Number of emission lines to fit
   nline = N_ELEMENTS(linename)
-
-  maxncomp = max(ncomp)
   
 ; Number of initial parameters before Gaussian parameters begin
   lratlim = 4

@@ -14,7 +14,7 @@ Required structure tags from initialization procedure:
     Name of function for initializing continuum.
   infile: in, required, type=string
     Filename of input data cube.
-  lines: in, required, type=dblarr(nlines)
+  lines: in, required, type=strarr(nlines)
     Names of emission lines to fit.
   linetie: in, required, type=hash(lines)
     Name of emission line to which each emission line is tied
@@ -28,7 +28,7 @@ Required structure tags from initialization procedure:
   zinit_stars: in, required, type=dblarr(ncols,nrows)
     Redshift used to shift any stellar templates to observed
     frame.
-  zinit_gas: in, required, type=hash(lines,ncols,nrows,ncomp)
+  zinit_gas: in, required, type=hash(lines,ncols,nrows,maxncomp)
     Initial redshift guesses for each spaxel, emission line, and
     component.
 
@@ -80,9 +80,9 @@ Optional structure tags from initialization procedure:
     Wavelength region *not* to mask.
   outlines: in, optional, type=strarr
     Labels of emission lines for which to print line fluxes to output.
-  peakinit: in, optional, type=dblarr(nlines,ncomp)
+  peakinit: in, optional, type=dblarr(nlines,maxncomp)
     Initial peak flux guesses.
-  siginit_gas: in, optional, type=hash(lines,ncomp)
+  siginit_gas: in, optional, type=hash(lines,maxncomp)
     Initial line width guesses, in sigma and km/s.
   siginit_stars: in, optional, type=double
     Initial sigma value, in km/s, for a Gaussian kernel for
