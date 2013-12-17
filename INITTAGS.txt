@@ -70,17 +70,14 @@ Optional structure tags from initialization procedure:
     Set to not remove NaD region from fit.
   loglam: in, optional, type=byte
     Set if data has constant log(lambda) dispersion.
-  maskwidths: in, optional, type=dblarr
-    Width, in km/s, of regions to mask from continuum fit. If not
-    set, routine defaults to +/- 500 km/s. If parameter has one
-    value, then this half-width is applied to all emission
-    lines. If it has multiple values, it should have exactly the
-    same number of elements as lines that are being fit.
+  maskwidths: in, optional, type=hash(lines,maxncomp)
+    Widths, in km/s, of regions to mask from continuum fit. If not
+    set, routine defaults to +/- 500 km/s.
   nomaskran: in, optional, type=dblarr(2)
     Wavelength region *not* to mask.
   outlines: in, optional, type=strarr
     Labels of emission lines for which to print line fluxes to output.
-  peakinit: in, optional, type=dblarr(nlines,maxncomp)
+  peakinit: in, optional, type=hash(lines,maxncomp)
     Initial peak flux guesses.
   siginit_gas: in, optional, type=hash(lines,maxncomp)
     Initial line width guesses, in sigma and km/s.

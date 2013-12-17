@@ -52,6 +52,10 @@
 ;      2013nov26, DSNR, added code to turn input hashes into arrays
 ;                       for each spaxel
 ;      2013dec10, DSNR, testing with PPXF and bug fixes
+;      2013dec17, DSNR, inserted new IFSF_READCUBE function in place of code 
+;                       block to read data cube; started propagation of hashes
+;                       through code and implementation of new calling sequence
+;                       rubric for IFSF_FITSPEC
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -90,62 +94,34 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 ; Read data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
-  if oned then begin
-     data = readfits(initdat.infile,header,ext=2,/silent)
-     var = readfits(initdat.infile,ext=3,/silent)
-     dq = readfits(initdat.infile,ext=4,/silent)
-     datasize = size(data)
-     nz    = datasize[1]
-     ncols = datasize[2]
-     nrows = 1
-;    Wavelength solution
-     wave = dindgen(nz)
-     crval = double(sxpar(header,'CRVAL1',/silent))
-     crpix = double(sxpar(header,'CRPIX1',/silent))
-     cdelt = double(sxpar(header,'CDELT1',/silent))
-     wave = crval + cdelt*(wave-crpix+1) 
-  endif else begin
-     data = readfits(initdat.infile,header,ext=1,/silent)
-     var = readfits(initdat.infile,ext=2,/silent)
-     dq = readfits(initdat.infile,ext=3,/silent)
-     datasize = size(data)
-     ncols = datasize[1]
-     nrows = datasize[2]
-     nz    = datasize[3]
-     wave = dindgen(nz)
-     crval = double(sxpar(header,'CRVAL3',/silent))
-     crpix = double(sxpar(header,'CRPIX3',/silent))
-;     cdelt = double(sxpar(header,'CDELT3',/silent))
-     cdelt = double(sxpar(header,'CD3_3',/silent))
-     wave = crval + cdelt*(wave-crpix+1) 
-  endelse
+  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if ~ keyword_set(cols) then cols=[1,ncols] $
+  if ~ keyword_set(cols) then cols=[1,cube.ncols] $
   else if n_elements(cols) eq 1 then cols = [cols,cols]
   cols = fix(cols)
   for i=cols[0]-1,cols[1]-1 do begin
 
-     print,'Column ',i+1,' of ',ncols,format='(A,I0,A,I0)'
+     print,'Column ',i+1,' of ',cube.ncols,format='(A,I0,A,I0)'
 
-     if ~ keyword_set(rows) then rows=[1,nrows] $
+     if ~ keyword_set(rows) then rows=[1,cube.nrows] $
      else if n_elements(rows) eq 1 then rows = [rows,rows]
      rows = fix(rows)
      for j=rows[0]-1,rows[1]-1 do begin
 
         if oned then begin
-           flux = data[*,i]
+           flux = cube.dat[*,i]
 ;          absolute value takes care of a few deviant points
-           err = sqrt(abs(var[*,i]))
-           bad = dq[*,i]
+           err = sqrt(abs(cube.var[*,i]))
+           bad = cube.dq[*,i]
         endif else begin
-           print,'  Row ',j+1,' of ',nrows,format='(A,I0,A,I0)'
-           flux = reform(data[i,j,*],nz)
-           err = reform(sqrt(abs(var[i,j,*])),nz)
-           bad = reform(dq[i,j,*],nz)
+           print,'  Row ',j+1,' of ',cube.nrows,format='(A,I0,A,I0)'
+           flux = reform(cube.dat[i,j,*],cube.nz)
+           err = reform(sqrt(abs(cube.var[i,j,*])),cube.nz)
+           bad = reform(cube.dq[i,j,*],cube.nz)
         endelse
 
 ;       Apply DQ plane
@@ -158,20 +134,15 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
         nodata = where(flux ne 0d,ct)
         if ct ne 0 then begin
 
-; Turn hashes into spaxel-specific arrays
-
+;          Turn (ordered) hashes into spaxel-specific arrays
            ncomp = dblarr(nlines)
-           linewave = dblarr(nlines)
-           linetie = strarr(nlines)
            zinit_gas = dblarr(nlines,initdat.maxncomp)
-           for k=0,n_elements(initdat.lines)-1 do begin
-              ncomp[k] = (initdat.ncomp)[initdat.lines[k],i,j]
-              linewave[k] = (linelist)[initdat.lines[k]]
-              linetie[k] = (initdat.linetie)[initdat.lines[k]]
-              zinit_gas[k,*] = (initdat.zinit_gas)[initdat.lines[k],i,j,*]
+           foreach key,initdat.lines do begin
+              ncomp[k] = (initdat.ncomp)[key,i,j]
+              zinit_gas[k,*] = (initdat.zinit_gas)[key,i,j,*]
            endfor
 
-
+             
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; First fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -185,16 +156,16 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
            if not tag_exist(initdat,'keepnad') then begin
               nadran_rest = [5850d,5900d]
               nadran = (1d + z.star) * nadran_rest
-              indx_nad = where(wave ge nadran[0] AND wave le nadran[1],ct)
+              indx_nad = where(cube.wave ge nadran[0] AND $
+                               cube.wave le nadran[1],ct)
               if ct gt 0 then err[indx_nad]=max(err)
            endif
 
 ;          Initialize starting wavelengths
            linewavez = rebin(linewave,nlines,initdat.maxncomp) * (1d + z.gas)
            
-           structinit = ifsf_fitspec(wave,flux,err,z,$
-                                     linewave,linewavez,linetie,$
-                                     ncomp,initdat,quiet=quiet)
+           structinit = ifsf_fitspec(cube.wave,flux,err,z,linewave,linewavez,$
+                                     ncomp,zinit_gas,initdat,quiet=quiet)
 
            testsize = size(structinit)
            if testsize[0] eq 0 then begin
@@ -231,14 +202,8 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
               jjadd_tag(initdat_use,'peakinit',linepars.fluxpk,/array_tag)
            if structinit.sig_stars gt 0 then $
               initdat_use.siginit_stars = structinit.sig_stars
-           if tag_exist(initdat_use,'fcnoptstelz') then initdat_use = $
-              rem_tag(initdat_use,'fcnoptstelz')
-           if tag_exist(initdat_use,'fcnoptstelsig') then initdat_use = $
-              rem_tag(initdat_use,'fcnoptstelsig')
-           if tag_exist(initdat_use,'sigfitvals') then initdat_use = $
-              rem_tag(initdat_use,'sigfitvals')
 
-           struct = ifsf_fitspec(wave,flux,err,z,linewave,linewavez,$
+           struct = ifsf_fitspec(cube.wave,flux,err,z,linewave,linewavez,$
                                  linetie,ncomp,initdat_use,quiet=quiet)
            
            testsize = size(struct)

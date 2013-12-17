@@ -29,6 +29,9 @@
 ;      2013nov26, DSNR, changed line arrays to hashes to prevent
 ;                       bookkeeping errors
 ;      2013dec10, DSNR, testing and bug fixes
+;      2013dec17, DSNR, renamed variables dx, dy, cx, cy;
+;                       moved from unordered to ordered hashes; 
+;                       turn hashes into structures before passing to IFSF
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -52,12 +55,10 @@ function ifsf_f05189
 
   gal = 'f05189'
   bin = 2d
-
-  dx = 28
-  dy = 27
-  cx = 14d
-  cy = 14d 
-
+  ncols = 28
+  nrows = 27
+  centcol = 14d
+  centrow = 14d
   outstr = 'rb'+string(bin,format='(I0)')
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -82,17 +83,18 @@ function ifsf_f05189
 ; Max no. of components.
   maxncomp = 3
 
-; Initialize line ties, n_comps, and z_inits.
-  linetie = hash(lines,strarr(nlines)+'Halpha')
-  ncomp = hash()
-  zinit_gas = hash()
-  siginit_gas = hash() ; note that this is technically optional, put here for convenience
+; Initialize line ties, n_comps, z_inits, and sig_inits.
+  linetie = orderedhash(lines,'Halpha')
+  ncomp = orderedhash(lines)
+  zinit_gas = orderedhash(lines)
+  siginit_gas = orderedhash(lines)
+; note that siginit_gas is technically optional, put here for convenience
   foreach i,lines do begin
-     ncomp[i] = dblarr(dx,dy)+maxncomp
-     zinit_gas[i] = dblarr(dx,dy,maxncomp) + 0.0425d
+     ncomp[i] = dblarr(ncols,nrows)+maxncomp
+     zinit_gas[i] = dblarr(ncols,nrows,maxncomp) + 0.0425d
      siginit_gas[i] = dblarr(maxncomp) + 150d
   endforeach
-  zinit_stars=dblarr(dx,dy) + 0.043d
+  zinit_stars=dblarr(ncols,nrows) + 0.043d
 ; iron lines
   tmplines = ['[FeVII]5159','[FeVII]5721','[FeVII]6087','[FeX]6375']
   foreach i,tmplines do begin

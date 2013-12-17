@@ -69,7 +69,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_gmos,linename,linelambda,linelambdaz,linetie,
+function ifsf_gmos,linename,linelambda,linelambdaz,linetie,$
                    initflux,initsig,maxncomp,ncomp,$
                    siglim=siglim,sigfix=sigfix,zfix=zfix
 
@@ -329,8 +329,8 @@ function ifsf_gmos,linename,linelambda,linelambdaz,linetie,
                  (parinfo.limited[1] AND $
                   parinfo.value gt parinfo.limits[1]),ct)
   if ct gt 0 then begin
-     print,'UHSF_GM_INITPAR: Initial values are outside limits.'
-     print,'UHSF_GM_INITPAR: Offending parameters:'
+     print,'IFSF_GMOS: Initial values are outside limits.'
+     print,'Offending parameters:'
      print,'Index','Value','Lower limit','Upper limit',$
            format='(A7,3A15)'
      for i=0,ct-1 do begin

@@ -6,8 +6,20 @@
 ; lines of a spectrum.
 ;
 ; The function requires an initialization structure with one required
-; and a bunch of optional tags. They are as follows::
-;;
+; and a bunch of optional tags, specified in INITTAGS.txt.
+; 
+; Criteria for calling a parameter as an independent parameter in the function
+; call rather than calling a parameter as part of initdat structure: Parameter 
+; must be absent from allowable initdat tags defined in initialization procedure 
+; (i.e., no adding new structure tags in IFSF if they are not definable in the 
+; initialization procedure). If they are definable in the initialization 
+; procedure but have not been, they can be added in to initdat in IFSF. 
+; (This ultimately would be better handled by objects or hashes, probably.) If 
+; they are defined in the initialization procedure but need to be redefined 
+; with a different dimensionality (e.g., we want a different # of components 
+; in each spaxel, but IFSF_FITSPEC doesn't recognize spaxels), then they 
+; should be separate parameters. 
+;
 ; :Categories:
 ;    IFSFIT
 ;
@@ -71,7 +83,9 @@
 ;      2013dec11, DSNR, added MASK_HALFWIDTH variable; changed value
 ;                       from 500 to 1000 km/s
 ;      2013dec12, DSNR, added SIGINIT_GAS_DEFAULT variable
-;      
+;      2013dec17, DSNR, started propagation of hashes through code and 
+;                       implementation of new calling sequence rubric
+;   
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
 ;
@@ -91,7 +105,7 @@
 ;
 ;-
 function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
-                      linetie,ncomp,initdat,quiet=quiet
+                      ncomp,initdat,quiet=quiet
 
   c = 299792.458d        ; speed of light, km/s
   mask_halfwidth = 1000d ; default half-width in km/s for emission line masking

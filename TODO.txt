@@ -9,7 +9,14 @@ SOFTWARE
 + Propagate new treatment of line list (as hash).
 + Deprecate old stellar fitting.
 + Incorporate PPXF into stellar fitting.
-- Get software working again ...
+- Get software working again.
+  + New rubric for dealing with IFSF_FITSPEC calling parameters and
+    contents of initdat structure
+  - New rubric for initialization routine: should be as bare-bones as
+    possible; common tasks should be handled as much as possible by
+    IFSF.
+  - hashes: propagate through code and only turn into structures when
+    necessary
   - Cut off edges of fit range after convolution of template?
 - Write routine to do second-pass fitting.
 - Get rid of instances of readcol300 (--> readcol).
