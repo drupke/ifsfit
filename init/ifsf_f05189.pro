@@ -199,9 +199,6 @@ function ifsf_f05189
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
          fcncontfit: 'ppxf',$
-         ;; fcncontfit: 'ifsf_fitcont',$
-         ;; fcnoptstelsig: 'ifsf_optstelsig',$
-         ;; fcnoptstelz: 'ifsf_optstelz',$
          nomaskran: [5075,5100],$
          siglim_gas: siglim_gas,$
          siginit_gas: siginit_gas,$

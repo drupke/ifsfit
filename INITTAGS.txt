@@ -4,7 +4,10 @@
 #   2013dec10, DSNR, updated for PPXF implementation; removed stellar
 #                    z and sigma optimization tags, since PPXF does
 #                    this
-#
+#   2013dec19, DSNR, changed MASKWIDTHS and PEAKINIT to hashes for
+#                    consistency with other tags that initialize
+#                    things according to which emission lines they
+#                    apply to #
 
 Tags are in alphabetical order.
 

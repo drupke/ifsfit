@@ -56,6 +56,8 @@
 ;                       block to read data cube; started propagation of hashes
 ;                       through code and implementation of new calling sequence
 ;                       rubric for IFSF_FITSPEC
+;      2013dec19, DSNR, more progress on propagating use of hashes
+;                       through code, through first fit
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -133,13 +135,14 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 
         nodata = where(flux ne 0d,ct)
         if ct ne 0 then begin
-
-;          Turn (ordered) hashes into spaxel-specific arrays
-           ncomp = dblarr(nlines)
-           zinit_gas = dblarr(nlines,initdat.maxncomp)
+           
+;          Extract # of components and initial redshift guesses
+;          specific to this spaxel, and write as hashes.
+           ncomp = orderedhash(lines)
+           zinit_gas = orderedhash(lines)
            foreach key,initdat.lines do begin
-              ncomp[k] = (initdat.ncomp)[key,i,j]
-              zinit_gas[k,*] = (initdat.zinit_gas)[key,i,j,*]
+              ncomp[key] = (initdat.ncomp)[key,i,j]
+              zinit_gas[key] = (initdat.zinit_gas)[key,i,j,*]
            endfor
 
              
@@ -162,11 +165,12 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
            endif
 
 ;          Initialize starting wavelengths
-           linewavez = rebin(linewave,nlines,initdat.maxncomp) * (1d + z.gas)
-           
-           structinit = ifsf_fitspec(cube.wave,flux,err,z,linewave,linewavez,$
+           linewavez = orderedhash(lines)
+           foreach key,linelist->keys() do $
+              linewavez[key] = linelist[key]*(1d + (z.gas)[key])
+           structinit = ifsf_fitspec(cube.wave,flux,err,z,linelist,linewavez,$
                                      ncomp,zinit_gas,initdat,quiet=quiet)
-
+           
            testsize = size(structinit)
            if testsize[0] eq 0 then begin
               print,'IFSF: Aborting.'
@@ -177,7 +181,6 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
               print,'IFSF: Aborting.'
               goto,nofit
            endif
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Second fit
