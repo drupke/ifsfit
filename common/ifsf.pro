@@ -58,6 +58,7 @@
 ;                       rubric for IFSF_FITSPEC
 ;      2013dec19, DSNR, more progress on propagating use of hashes
 ;                       through code, through first fit
+;      2013jan13, DSNR, finished propagating use of hashes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -91,6 +92,8 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 ; Get linelist
   linelist = ifsf_linelist(initdat.lines)
   nlines = linelist.count()
+
+  masksig_secondfit_def = 2d
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
@@ -138,12 +141,12 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
            
 ;          Extract # of components and initial redshift guesses
 ;          specific to this spaxel, and write as hashes.
-           ncomp = orderedhash(lines)
-           zinit_gas = orderedhash(lines)
-           foreach key,initdat.lines do begin
-              ncomp[key] = (initdat.ncomp)[key,i,j]
-              zinit_gas[key] = (initdat.zinit_gas)[key,i,j,*]
-           endfor
+           ncomp = orderedhash(initdat.lines)
+           zinit_gas = orderedhash(initdat.lines)
+           foreach line,initdat.lines do begin
+              ncomp[line] = (initdat.ncomp)[line,i,j]
+              zinit_gas[line] = (initdat.zinit_gas)[line,i,j,*]
+           endforeach
 
              
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -165,10 +168,10 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
            endif
 
 ;          Initialize starting wavelengths
-           linewavez = orderedhash(lines)
-           foreach key,linelist->keys() do $
-              linewavez[key] = linelist[key]*(1d + (z.gas)[key])
-           structinit = ifsf_fitspec(cube.wave,flux,err,z,linelist,linewavez,$
+           linelistz = orderedhash(initdat.lines)
+           foreach line,initdat.lines do $
+              linelistz[line] = linelist[line]*(1d + (z.gas)[line])
+           structinit = ifsf_fitspec(cube.wave,flux,err,z,linelist,linelistz,$
                                      ncomp,zinit_gas,initdat,quiet=quiet)
            
            testsize = size(structinit)
@@ -187,28 +190,20 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
 ;          Set emission line mask parameters
-           linepars = ifsf_sepfitpars(structinit.param,structinit.perror)
-           nlines_tot = nlines*initdat.maxncomp
-           linewavez = linepars.wave
-           masksig = 2d
-           newmaskwidths = masksig*reform(linepars.sigma,nlines_tot)
+           linepars = ifsf_sepfitpars(structinit.param,structinit.perror,$
+                                      structinit.parinfo)
+           linelistz = linepars.wave
+           if tag_exist(initdat,'masksig_secondfit') then $
+              masksig_secondfit = initdat.masksig_secondfit $
+           else masksig_secondfit = masksig_secondfit_def           
+           maskwidths = orderedhash(initdat.lines)
+           foreach line,initdat.lines do $
+              maskwidths[line] = masksig_secondfit*linepars.sigma[line]
 
-;          Put fit initialization parameters into structure
-           initdat_use = initdat
-           if tag_exist(initdat,'maskwidths') then initdat_use.maskwidths = $
-              newmaskwidths $
-           else initdat_use = $
-              jjadd_tag(initdat_use,'maskwidths',newmaskwidths,/array_tag)
-           if tag_exist(initdat,'peakinit') then initdat_use.peakinit = $
-              linepars.fluxpk $
-           else initdat_use = $
-              jjadd_tag(initdat_use,'peakinit',linepars.fluxpk,/array_tag)
-           if structinit.sig_stars gt 0 then $
-              initdat_use.siginit_stars = structinit.sig_stars
-
-           struct = ifsf_fitspec(cube.wave,flux,err,z,linewave,linewavez,$
-                                 linetie,ncomp,initdat_use,quiet=quiet)
-           
+           struct = ifsf_fitspec(cube.wave,flux,err,z,linelist,linelistz,$
+                                 ncomp,initdat,quiet=quiet,$
+                                 maskwidths=maskwidths,$
+                                 peakinit=linepars.fluxpk)           
            testsize = size(struct)
            if testsize[0] eq 0 then begin
               print,'IFSF: Aborting.'
@@ -224,15 +219,13 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 ; Save result to a file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-           struct = jjadd_tag(struct,'zstar',z.star)
-
            if oned then $
               save,struct,file=$
-                   string(initdat.outdir,initdat.gal,'_',i+1,'.xdr',$
+                   string(initdat.outdir,initdat.label,'_',i+1,'.xdr',$
                           format='(A,A,A,I04,A,I04,A)') $
            else $
               save,struct,file=$
-                   string(initdat.outdir,initdat.gal,'_',i+1,'_',j+1,$
+                   string(initdat.outdir,initdat.label,'_',i+1,'_',j+1,$
                           '.xdr',format='(A,A,A,I04,A,I04,A)')
 
 nofit:

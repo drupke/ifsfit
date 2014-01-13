@@ -9,6 +9,13 @@
 #                    things according to which emission lines they
 #                    apply to #
 
+This file describes the parameters that are contained in the INITDAT
+structure. This structure is created in the initialization procedure
+and passed to IFSF and IFSFA, and contains parameters that apply to
+the dataset as a whole (e.g., the lines to be fit or an array
+containing the initial redshift guesses for all spaxels). IFSF passes
+INITDAT to IFSF_FITSPEC without changing it.
+
 Tags are in alphabetical order.
 
 Required structure tags from initialization procedure:
@@ -16,7 +23,9 @@ Required structure tags from initialization procedure:
   fcninitpar: in, required, type=string
     Name of function for initializing continuum.
   infile: in, required, type=string
-    Filename of input data cube.
+    Filename (including path) of input data cube.
+  label: in, required, type=string
+    Common label for output files.
   lines: in, required, type=strarr(nlines)
     Names of emission lines to fit.
   linetie: in, required, type=hash(lines)
@@ -27,7 +36,7 @@ Required structure tags from initialization procedure:
   ncomp: in, required, type=hash(lines,ncols,nrows)
     For each spaxel and emission line, # of components to fit.
   outdir: in, required, type=string
-    Directory for output save (.xdr) file
+    Directory for output .xdr file and analysis files (plots, lists).
   zinit_stars: in, required, type=dblarr(ncols,nrows)
     Redshift used to shift any stellar templates to observed
     frame.
@@ -75,7 +84,13 @@ Optional structure tags from initialization procedure:
     Set if data has constant log(lambda) dispersion.
   maskwidths: in, optional, type=hash(lines,maxncomp)
     Widths, in km/s, of regions to mask from continuum fit. If not
-    set, routine defaults to +/- 500 km/s.
+    set, routine defaults to a value specified in IFSF_FITSPEC
+    for all lines and components.
+  masksig_secondfit: in, optional, type=double
+    During second call to IFSF_FITSPEC, best-fit emission line sigmas
+    are multiplied by this value and set to 'maskwidths' parameter. If
+    not set, routine defaults to a value specified in IFSF for all
+    lines and components.
   nomaskran: in, optional, type=dblarr(2)
     Wavelength region *not* to mask.
   outlines: in, optional, type=strarr
@@ -83,7 +98,9 @@ Optional structure tags from initialization procedure:
   peakinit: in, optional, type=hash(lines,maxncomp)
     Initial peak flux guesses.
   siginit_gas: in, optional, type=hash(lines,maxncomp)
-    Initial line width guesses, in sigma and km/s.
+    Initial line width guesses, in sigma and km/s.  If not
+    set, routine defaults to a value specified in IFSF_FITSPEC
+    for all lines and components.
   siginit_stars: in, optional, type=double
     Initial sigma value, in km/s, for a Gaussian kernel for
     convolving with stellar template. Convolution only performed

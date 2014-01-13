@@ -32,6 +32,8 @@
 ;      2013dec17, DSNR, renamed variables dx, dy, cx, cy;
 ;                       moved from unordered to ordered hashes; 
 ;                       turn hashes into structures before passing to IFSF
+;      2013jan13, DSNR, updated to pass hashes for many parameters into IFSF, 
+;                       instead of structures
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -186,6 +188,7 @@ function ifsf_f05189
          fcninitpar: 'ifsf_gmos',$
          fitran: [4600,7100],$
          infile: infile,$
+         label: gal,$
          lines: lines,$
          linetie: linetie,$
          maxncomp: maxncomp,$

@@ -62,11 +62,16 @@ function ifsf_masklin, lambda, linelambda, halfwidth, nomaskran=nomaskran
 
   indgd = indgen(n_elements(lambda))
 
-  for i=0,n_elements(linelambda)-1 do begin
-     ind_indgd = where(lambda[indgd] lt linelambda[i]*(1d - halfwidth[i]/c) OR $
-                       lambda[indgd] gt linelambda[i]*(1d + halfwidth[i]/c),ct)
-     if ct gt 0 then indgd = indgd[ind_indgd]
-  endfor
+  foreach line,linelambda do begin
+    for i=0,n_elements(linelambda[line])-1 do begin
+      ind_indgd = $
+        where(lambda[indgd] lt linelambda[line,i]*$
+                               (1d - halfwidth[line,i]/c) OR $
+              lambda[indgd] gt linelambda[line,i]*$
+                               (1d + halfwidth[line,i]/c),ct)
+      if ct gt 0 then indgd = indgd[ind_indgd]
+    endfor
+  endforeach
 
   if keyword_set(nomaskran) then begin
      for j=0,n_elements(nomaskran)/2 - 1 do begin

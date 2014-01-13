@@ -2,7 +2,7 @@
 ;
 ;+
 ;
-; Write emission line parameters to a text file.
+; Write fit parameters to a text file.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -11,22 +11,14 @@
 ;    None.
 ;
 ; :Params:
-;    outlines: in, required, type=strarr(nlines)
-;      Names of lines for which to print line fluxes.
 ;    lun: in/out, required, type=integer
-;      Logical unit for output file. If outfile is set, the lun is output to 
+;      Logical unit for output file. If outfile is set, the lun is output to
 ;      this file. If outfile is not set, the lun to which to write the data is
 ;      contained in this parameter.
 ;    col: in, optional, type=integer
 ;      IFS column of spectrum. Only used if outfile is not set.
 ;    row: in, optional, type=integer
 ;      IFS row of spectrum. Only used if outfile is not set.
-;    maxncomp: in, optional, type=integer
-;      Maximum number of components among all emission lines being fit. Only 
-;      used if outfile is not set.
-;    linepars: in, optional, type=structure
-;      Output of IFSF_SEPFITPARS, containing line parameters. Only used if 
-;      outfile is not set.
 ;      
 ; :Keywords:
 ;    outfile: in, optional, type=string
@@ -44,12 +36,8 @@
 ;
 ; :History:
 ;    ChangeHistory::
-;      2009may, DSNR, created
-;      2009jun07, DSNR, rewritten
-;      2013nov21, DSNR, documented, renamed, added license and copyright 
-;      2013jan13, DSNR, re-written to use hashes, to open file only once, and to
-;                       print central wavelength and sigma as well as flux
-;    
+;      2013jan13, DSNR, copied from IFSF_PRINTLINPAR and modified
+;      
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
 ;
@@ -68,31 +56,21 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_printlinpar,outlines,lun,col,row,maxncomp,linepars,outfile=outfile
+pro ifsf_printfitpar,lun,col,row,outfile=outfile,linepars
 
 ;  Initialize file
    if keyword_set(outfile) then begin
 
       openw,lun,outfile,/get_lun
-      linestr = ''
-      foreach line,outlines do $
-         linestr += string(line,'Flux Error','Wave (A)','Sigma (km/s)',$
-                    format='(4A12)')
-      printf,lun,'#Col','Row','Cmp',linestr,format='(A-4,2A4,A0)'
+      printf,lun,'#Col','Row','Cmp','Rchi2','Niter',$
+             format='(A-4,2A4,2A6)'
 
-;  Print fluxes
+;  Print data
    endif else begin
     
-;     Cycle through components
-      for i=0,maxncomp-1 do begin
-         linestr=''
-         foreach line,outlines do begin
-            linestr += string(linepars.flux[line,i],$
-                              linepars.fluxerr[line,i],$
-                              format='(E12.4,E12.4)')
-         endforeach
-         printf,lun,col,row,i+1,linestr,format='(3I4,A0)'
-      endfor
+     printf,lun,i+1,j+1,1,struct.redchisq,struct.niter,$
+            format='(I4,I4,I4,D6.2,I6)'
+
 
    endelse
 

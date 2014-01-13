@@ -7,18 +7,7 @@
 ;
 ; The function requires an initialization structure with one required
 ; and a bunch of optional tags, specified in INITTAGS.txt.
-; 
-; Criteria for calling a parameter as an independent parameter in the function
-; call rather than calling a parameter as part of initdat structure: Parameter 
-; must be absent from allowable initdat tags defined in initialization procedure 
-; (i.e., no adding new structure tags in IFSF if they are not definable in the 
-; initialization procedure). If they are definable in the initialization 
-; procedure but have not been, they can be added in to initdat in IFSF. 
-; (This ultimately would be better handled by objects or hashes, probably.) If 
-; they are defined in the initialization procedure but need to be redefined 
-; with a different dimensionality (e.g., we want a different # of components 
-; in each spaxel, but IFSF_FITSPEC doesn't recognize spaxels), then they 
-; should be separate parameters. 
+;
 ;
 ; :Categories:
 ;    IFSFIT
@@ -37,20 +26,25 @@
 ;      Structure of initial guesses for redshifts. Only required tag
 ;      is STAR (in, type=double; redshift used to shift template to
 ;      observed frame).
-;    linewave: in, required, type=dblarr(nlines)
+;    linelist: in, required, type=hash(lines)
 ;      Emission line rest frame wavelengths.
-;    linewavez: in, required, type=dblarr(nlines\,ncomp)
+;    linelistz: in, required, type=hash(lines\,ncomp)
 ;      Emission line observed frame wavelengths.
-;    linetie: in, required, type=strarr(nlines)
-;      Name of emission line to which each emission line is tied
-;      (in redshift and linewidth).
-;    ncomp: in, required, type=???arr(nlines)
+;    ncomp: in, required, type=hash(lines)
 ;      Number of components fit to each line.
 ;    initdat: in, required, type=structure
 ;      Structure of initialization parameters, with tags specified in
 ;      INITTAGS.txt.
 ;
 ; :Keywords:
+;    maskwidths: in, optional, type=hash(lines\,maxncomp)
+;      Widths, in km/s, of regions to mask from continuum fit. If not
+;      set, routine defaults to +/- 500 km/s. Can also be set in INITDAT. 
+;      Routine prioritizes the keyword definition.
+;    peakinit: in, optional, type=hash(lines\,maxncomp)
+;      Initial guesses for peak emission-line flux densities. If not
+;      set, routine guesses from spectrum. Can also be set in INITDAT.
+;      Routine prioritizes the keyword definition.
 ;    quiet: in, optional, type=byte
 ;      Use to prevent detailed output to screen. Default is to print
 ;      detailed output.
@@ -85,7 +79,8 @@
 ;      2013dec12, DSNR, added SIGINIT_GAS_DEFAULT variable
 ;      2013dec17, DSNR, started propagation of hashes through code and 
 ;                       implementation of new calling sequence rubric
-;   
+;      2013jan13, DSNR, propagated use of hashes
+;         
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
 ;
@@ -104,18 +99,22 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
-                      ncomp,initdat,quiet=quiet
+function ifsf_fitspec,lambda,flux,err,z,linelist,linelistz,$
+                      ncomp,initdat,maskwidths=maskwidths,$
+                      peakinit=peakinit,quiet=quiet
 
   c = 299792.458d        ; speed of light, km/s
-  mask_halfwidth = 1000d ; default half-width in km/s for emission line masking
-  siginit_gas_default = 100d ; default sigma for initial guess for emission line widths
+  maskwidths_def = 1000d ; default half-width in km/s for emission line masking
+  siginit_gas_def = 100d ; default sigma for initial guess 
+                         ; for emission line widths
+  nlines = n_elements(initdat.lines)
 
   if keyword_set(quiet) then quiet=1b else quiet=0b
   if tag_exist(initdat,'fcnlinefit') then fcnlinefit=initdat.fcnlinefit $
   else fcnlinefit='ifsf_manygauss'
   if tag_exist(initdat,'argslinefit') then argslinefit=initdat.argslinefit
-  if tag_exist(initdat,'nomaskran') then nomaskran=initdat.nomaskran else nomaskran=0b
+  if tag_exist(initdat,'nomaskran') then nomaskran=initdat.nomaskran $
+  else nomaskran=0b
   if tag_exist(initdat,'startempfile') then istemp = 1b else istemp=0b
   if tag_exist(initdat,'loglam') then loglam=1b else loglam=0b
   if tag_exist(initdat,'vacuum') then vacuum=1b else vacuum=0b
@@ -128,9 +127,6 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
         reform(template.lambda,n_elements(template.lambda)) * (1d + z.star)
      if vacuum then airtovac,templatelambdaz
   endif
-
-;  Initialize emission line list
-  nlines = n_elements(initdat.lines)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Pick out regions to fit
@@ -206,14 +202,15 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
   if tag_exist(initdat,'fcncontfit') then begin
      
 ;    Mask emission lines
-     masklines = reform(linewavez,initdat.maxncomp*nlines)
-;    Estimated sigma for masking emission lines and initiating fit
-     if not tag_exist(initdat,'maskwidths') then $
-        maskwidths = replicate(mask_halfwidth,initdat.maxncomp*nlines) $
-     else if n_elements(initdat.maskwidths) eq 1 then $
-        maskwidths = replicate(initdat.maskwidths,initdat.maxncomp*nlines) $
-     else maskwidths = initdat.maskwidths
-     ct_indx  = ifsf_masklin(gdlambda, masklines, maskwidths, $
+     if not keyword_set(maskwidths) then $
+        if tag_exist(initdat,'maskwidths') then $
+           maskwidths = initdat.maskwidths $
+        else begin
+           maskwidths = orderedhash(initdat.lines)
+           foreach line,initdat.lines do $
+              maskwidths[line] = dblarr(maxncomp)+maskwidths_def
+        endelse
+     ct_indx  = ifsf_masklin(gdlambda, linelistz, maskwidths, $
                              nomaskran=nomaskran)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -260,7 +257,8 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
 ;       Log rebin galaxy spectrum
         log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],gdflux,$
                   gdflux_log,gdlambda_log,velscale=velscale
-        log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],gderr^2d,gderrsq_log
+        log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],gderr^2d,$
+                  gderrsq_log
         gderr_log = sqrt(gderrsq_log)
         
 ;       Interpolate template to same grid as data
@@ -270,7 +268,7 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
 
 ;       Mask emission lines in log space
         ct_indx_log = $
-           ifsf_masklin(exp(gdlambda_log), masklines, maskwidths, $
+           ifsf_masklin(exp(gdlambda_log), linelistz, maskwidths, $
                         nomaskran=nomaskran)
 
 ;       Check polynomial degree
@@ -295,20 +293,17 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
         gdweight_nocnt = gdweight * continuum^2
         gderr_nocnt = gderr / continuum
         method   = 'CONTINUUM DIVIDED'
-        cont_sig = stdev(gdflux_nocnt[ct_indx])
      endif else begin
         gdflux_nocnt = gdflux - continuum
         gdweight_nocnt = gdweight
         gderr_nocnt = gderr
         method   = 'CONTINUUM SUBTRACTED'
-        cont_sig = stdev(gdflux_nocnt[ct_indx])
      endelse
 
   endif else begin
   
      gdflux_nocnt = gdflux
      gderr_nocnt = gderr
-     cont_sig = 0d
      method   = 'NO CONTINUUM FIT'
      ct_coeff = 0d
      ct_indx = 0d
@@ -327,25 +322,31 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
 ; Initial guesses for emission line peak fluxes (above continuum)
 ; If initial guess is negative, set to 0 to prevent MPFITFUN from choking 
 ;   (since we limit peak to be >= 0).
-  if not tag_exist(initdat,'peakinit') then begin
-     peakinit = dblarr(nlines,initdat.maxncomp)
-     for i=0,initdat.maxncomp-1 do $
-        peakinit[*,i] = interpol(gdflux_nocnt, gdlambda, linewavez[*,i])
-     neg = where(peakinit lt 0, ct)
-     if ct gt 0 then peakinit[neg] = 0
-  endif else peakinit = initdat.peakinit
+  if not keyword_set(peakinit) then $
+     if tag_exist(initdat,'peakinit') then $
+        peakinit = initdat.peakinit $
+     else begin
+        peakinit = orderedhash(initdat.lines)
+        foreach line,initdat.lines do begin
+           peakinit[line] = interpol(gdflux_nocnt, gdlambda, linelistz[line])
+           neg = where(peakinit[line] lt 0, ct)
+           if ct gt 0 then peakinit[line,neg] = 0
+        endforeach
+     endelse   
 ; Initial guesses for emission line widths
-  if not tag_exist(initdat,'siginit_gas') then $
-     siginit_gas = dblarr(nlines,initdat.maxncomp)+siginit_gas_default $
-  else siginit_gas = initdat.siginit_gas
+  if not tag_exist(initdat,'siginit_gas') then begin
+     siginit_gas = orderedhash(initdat.lines)
+     foreach line,initdat.lines do $
+        siginit_gas[line] = dblarr(maxncomp)+siginit_gas_def
+  endif else siginit_gas = initdat.siginit_gas
 
 ; Fill out parameter structure with initial guesses and constraints
   if tag_exist(initdat,'argsinitpar') then parinit = $
-     call_function(initdat.fcninitpar,initdat.lines,linewave,linewavez,$
+     call_function(initdat.fcninitpar,linelist,linelistz,$
                    linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp,$
                    _extra=initdat.argsinitpar) $
   else parinit = $
-     call_function(initdat.fcninitpar,initdat.lines,linewave,linewavez,$
+     call_function(initdat.fcninitpar,linelist,linelistz,$
                    linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp)
 
   testsize = size(parinit)
@@ -380,9 +381,7 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
   outstr = {$
            fitran: fitran, $
 ;          Continuum fit parameters
-           method: method, $
-           sig_stars: bestsig_stars, $
-           ct_sig: cont_sig, $
+           ct_method: method, $
            ct_coeff: ct_coeff, $
 ;          Spectrum in various forms
            wave: gdlambda, $
@@ -398,8 +397,9 @@ function ifsf_fitspec,lambda,flux,err,z,linewave,linewavez,$
            redchisq: chisq/dof, $
            niter: niter, $
            fitstatus: status, $
-           linewave: linewave, $
+           linelist: linelist, $
            linelabel: initdat.lines, $
+           parinfo: parinfo, $
            param: param, $
            perror: perror, $
            covar: covar $
