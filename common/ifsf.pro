@@ -28,6 +28,8 @@
 ;    oned: in, optional, type=byte
 ;      Data is assumed to be in a 2d array; choose this switch to
 ;      input data as a 1d array.
+;    onefit: in, optional, type=byte
+;      Option to skip second fit; primarily for testing.
 ;    verbose: in, optional, type=byte
 ;      Print error and progress messages. Propagates to most/all
 ;      subroutines.
@@ -58,7 +60,8 @@
 ;                       rubric for IFSF_FITSPEC
 ;      2013dec19, DSNR, more progress on propagating use of hashes
 ;                       through code, through first fit
-;      2013jan13, DSNR, finished propagating use of hashes
+;      2014jan13, DSNR, finished propagating use of hashes
+;      2014jan16, DSNR, updated treatment of redshifts; bugfixes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -78,7 +81,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
+pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
          verbose=verbose
   
   starttime = systime(1)
@@ -142,26 +145,22 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 ;          Extract # of components and initial redshift guesses
 ;          specific to this spaxel, and write as hashes.
            ncomp = orderedhash(initdat.lines)
-           zinit_gas = orderedhash(initdat.lines)
-           foreach line,initdat.lines do begin
+           foreach line,initdat.lines do $
               ncomp[line] = (initdat.ncomp)[line,i,j]
-              zinit_gas[line] = (initdat.zinit_gas)[line,i,j,*]
-           endforeach
 
              
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; First fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
-;          Initialize redshift structure
-           z = {star: initdat.zinit_stars[i,j],$
-                gas: zinit_gas}
+;          Initialize stellar redshift for this spaxel
+           zstar = initdat.zinit_stars[i,j]
            
 ;          Remove NaI D line for purposes of continuum fit by maximizing
 ;          error. 
            if not tag_exist(initdat,'keepnad') then begin
               nadran_rest = [5850d,5900d]
-              nadran = (1d + z.star) * nadran_rest
+              nadran = (1d + zstar) * nadran_rest
               indx_nad = where(cube.wave ge nadran[0] AND $
                                cube.wave le nadran[1],ct)
               if ct gt 0 then err[indx_nad]=max(err)
@@ -170,9 +169,12 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 ;          Initialize starting wavelengths
            linelistz = orderedhash(initdat.lines)
            foreach line,initdat.lines do $
-              linelistz[line] = linelist[line]*(1d + (z.gas)[line])
-           structinit = ifsf_fitspec(cube.wave,flux,err,z,linelist,linelistz,$
-                                     ncomp,zinit_gas,initdat,quiet=quiet)
+              linelistz[line] = $
+                 reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
+                        initdat.maxncomp)
+                 
+           structinit = ifsf_fitspec(cube.wave,flux,err,zstar,linelist,$
+                                     linelistz,ncomp,initdat,quiet=quiet)
            
            testsize = size(structinit)
            if testsize[0] eq 0 then begin
@@ -189,31 +191,37 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 ; Second fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
-;          Set emission line mask parameters
-           linepars = ifsf_sepfitpars(structinit.param,structinit.perror,$
-                                      structinit.parinfo)
-           linelistz = linepars.wave
-           if tag_exist(initdat,'masksig_secondfit') then $
-              masksig_secondfit = initdat.masksig_secondfit $
-           else masksig_secondfit = masksig_secondfit_def           
-           maskwidths = orderedhash(initdat.lines)
-           foreach line,initdat.lines do $
-              maskwidths[line] = masksig_secondfit*linepars.sigma[line]
+           if not keyword_set(onefit) then begin
 
-           struct = ifsf_fitspec(cube.wave,flux,err,z,linelist,linelistz,$
-                                 ncomp,initdat,quiet=quiet,$
-                                 maskwidths=maskwidths,$
-                                 peakinit=linepars.fluxpk)           
-           testsize = size(struct)
-           if testsize[0] eq 0 then begin
-              print,'IFSF: Aborting.'
-              goto,nofit
-           endif
-           if not quiet then print,'FIT STATUS: ',struct.fitstatus
-           if struct.fitstatus eq -16 then begin
-              print,'IFSF: Aborting.'
-              goto,nofit
-           endif
+           
+;             Set emission line mask parameters
+              linepars = ifsf_sepfitpars(linelist,structinit.param,$
+                                         structinit.perror,structinit.parinfo)
+              linelistz = linepars.wave
+              if tag_exist(initdat,'masksig_secondfit') then $
+                 masksig_secondfit = initdat.masksig_secondfit $
+              else masksig_secondfit = masksig_secondfit_def           
+              maskwidths = orderedhash(initdat.lines)
+              foreach line,initdat.lines do $
+                 maskwidths[line] = masksig_secondfit*linepars.sigma[line]
+
+              struct = ifsf_fitspec(cube.wave,flux,err,structinit.zstar,$
+                                    linelist,$
+                                    linelistz,ncomp,initdat,quiet=quiet,$
+                                    maskwidths=maskwidths,$
+                                    peakinit=linepars.fluxpk)           
+              testsize = size(struct)
+              if testsize[0] eq 0 then begin
+                 print,'IFSF: Aborting.'
+                 goto,nofit
+              endif
+              if not quiet then print,'FIT STATUS: ',struct.fitstatus
+              if struct.fitstatus eq -16 then begin
+                 print,'IFSF: Aborting.'
+                 goto,nofit
+              endif
+
+           endif else struct = structinit
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Save result to a file

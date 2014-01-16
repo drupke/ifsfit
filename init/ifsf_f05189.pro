@@ -34,6 +34,7 @@
 ;                       turn hashes into structures before passing to IFSF
 ;      2013jan13, DSNR, updated to pass hashes for many parameters into IFSF, 
 ;                       instead of structures
+;      2014jan16, DSNR, fixed one wrong wavelength label
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -76,7 +77,7 @@ function ifsf_f05189
 
 ; Lines to fit.
   lines = ['Halpha','Hbeta','HeI6678','HeI7065','HeII4686',$
-           '[OI]6300','[OI]6364','[OIII]4959','[OIII]5006',$
+           '[OI]6300','[OI]6364','[OIII]4959','[OIII]5007',$
            '[NI]5198','[NI]5200','[NII]6548','[NII]6583',$
            '[SII]6716','[SII]6731','[FeVII]5159','[FeVII]5721',$
            '[FeVII]6087','[FeX]6375']
@@ -101,6 +102,7 @@ function ifsf_f05189
   tmplines = ['[FeVII]5159','[FeVII]5721','[FeVII]6087','[FeX]6375']
   foreach i,tmplines do begin
      linetie[i] = '[FeVII]6087'
+     ncomp[i,13,17] = 0
      ncomp[i,*,*] = 1
      ncomp[i,13,13] = 2
      zinit_gas[i,13,13,0] = 0.038d
@@ -112,6 +114,7 @@ function ifsf_f05189
   foreach i,tmplines do begin
      linetie[i] = 'HeII4686'
      ncomp[i,*,*] = 2
+     ncomp[i,13,17] = 0
      zinit_gas[i,*,*,0] = 0.040d
      zinit_gas[i,*,*,1] = 0.038d
      siginit_gas[i,1] = 1000d
@@ -126,7 +129,7 @@ function ifsf_f05189
   endforeach
 ; Balmer lines, low-ion. colliosional lines
   tmplines = ['Halpha','Hbeta','[OI]6300','[OI]6364',$
-              '[OIII]4959','[OIII]5006','[NII]6548','[NII]6583',$
+              '[OIII]4959','[OIII]5007','[NII]6548','[NII]6583',$
               '[SII]6716','[SII]6731']
   foreach i,tmplines do begin
      zinit_gas[i,*,*,1] = 0.040d

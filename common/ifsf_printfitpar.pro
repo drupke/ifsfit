@@ -19,6 +19,8 @@
 ;      IFS column of spectrum. Only used if outfile is not set.
 ;    row: in, optional, type=integer
 ;      IFS row of spectrum. Only used if outfile is not set.
+;    struct: in, optional, type=structure
+;      Structure output from IFSF. Only used if outfile is not set.
 ;      
 ; :Keywords:
 ;    outfile: in, optional, type=string
@@ -56,7 +58,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_printfitpar,lun,col,row,outfile=outfile,linepars
+pro ifsf_printfitpar,lun,col,row,struct,outfile=outfile
 
 ;  Initialize file
    if keyword_set(outfile) then begin
@@ -68,7 +70,7 @@ pro ifsf_printfitpar,lun,col,row,outfile=outfile,linepars
 ;  Print data
    endif else begin
     
-     printf,lun,i+1,j+1,1,struct.redchisq,struct.niter,$
+     printf,lun,col,row,struct.redchisq,struct.niter,$
             format='(I4,I4,I4,D6.2,I6)'
 
 

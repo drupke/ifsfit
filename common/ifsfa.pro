@@ -48,9 +48,10 @@
 ;                       required parameters from 'gal' and 'bin' to
 ;                       'initproc', and optional parameter 'fibers' to
 ;                       'oned', to make it more general
-;      2013jan13, DSNR, propagated use of hashes; 
+;      2014jan13, DSNR, propagated use of hashes; 
 ;                       updated for new linelist routine; 
 ;                       re-wrote IFSF_PRINTLINPAR and created IFSF_PRINTFITPAR
+;      2014jan16, DSNR, bugfixes
 ;
 ;-
 pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,verbose=verbose
@@ -78,7 +79,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,verbose=verbose
 
   if not tag_exist(initdat,'outlines') then outlines = linelist->keys() $
   else outlines = initdat.outlines
-  ifsf_printlinpar,linelist,linlun,$
+  ifsf_printlinpar,outlines,linlun,$
                    outfile=initdat.outdir+initdat.label+'.lin.dat'
   ifsf_printfitpar,fitlun,$
                    outfile=initdat.outdir+initdat.label+'.fit.dat'
@@ -130,8 +131,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,verbose=verbose
         struct.spec_err = err[struct.gd_indx]
 
 ;       Get line fit parameters
-        linepars = ifsf_sepfitpars(structinit.param,structinit.perror,$
-                                   structinit.parinfo)
+        linepars = ifsf_sepfitpars(linelist,struct.param,struct.perror,$
+                                   struct.parinfo)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Plot
@@ -142,19 +143,18 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,verbose=verbose
 ;          Plot continuum
            if tag_exist(initdat,'fcnpltcont') then $
               fcnpltcont=initdat.fcnpltcont $
-              else fcnpltcont='ifsf_pltcont'
-              call_procedure,fcnpltcont,struct,outfile+'_cnt'
-;             Plot emission lines
-              if not linepars.nolines then begin
-                 if tag_exist(initdat,'fcnpltlin') then $
-                    fcnpltlin=initdat.fcnpltlin else fcnpltlin='ifsf_pltlin'
-                 if tag_exist(initdat,'argspltlin1') then $
-                    call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
-                                   outfile+'_lin1',/velsig
-                 if tag_exist(initdat,'argspltlin2') then $
-                    call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
-                                   outfile+'_lin2',/velsig
-              endif
+           else fcnpltcont='ifsf_pltcont'
+           call_procedure,fcnpltcont,struct,outfile+'_cnt'
+;          Plot emission lines
+           if not linepars.nolines then begin
+              if tag_exist(initdat,'fcnpltlin') then $
+                 fcnpltlin=initdat.fcnpltlin else fcnpltlin='ifsf_pltlin'
+              if tag_exist(initdat,'argspltlin1') then $
+                 call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
+                                outfile+'_lin1'
+              if tag_exist(initdat,'argspltlin2') then $
+                 call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
+                                outfile+'_lin2'
            endif
               
 ;          Print fit parameters to a text file
@@ -173,6 +173,7 @@ nofit:
 
   endfor
 
-  free_lun,fitunit
+  free_lun,fitlun
+  free_lun,linlun
 
 end

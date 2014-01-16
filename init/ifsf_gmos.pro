@@ -107,8 +107,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
      ip2 = ip1+tmp_ncomp-1
-     parinfo[ip1:ip2].value = transpose(initflux['[SII]6716',0:tmp_ncomp-1]/$
-                                        initflux['[SII]6731',0:tmp_ncomp-1])
+     parinfo[ip1:ip2].value = initflux['[SII]6716',0:tmp_ncomp-1]/$
+                              initflux['[SII]6731',0:tmp_ncomp-1]
      parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
      parinfo[ip1:ip2].limits  = rebin([0.44d,1.43d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[SII]6716/6731 line ratio'
@@ -134,11 +134,11 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ; See Ferland+12 for collisional case, Bautista99 for other cases 
   ilratlim = 1
   tmp_ncomp = ncomp['[NI]5198']
-  if ncomp[in1a] gt 0 then begin
+  if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
      ip2 = ip1+tmp_ncomp-1
-     parinfo[ip1:ip2].value = transpose(initflux['[NI]5200',0:tmp_ncomp-1]/$
-                                        initflux['[NI]5198',0:tmp_ncomp-1])
+     parinfo[ip1:ip2].value = initflux['[NI]5200',0:tmp_ncomp-1]/$
+                              initflux['[NI]5198',0:tmp_ncomp-1]
      parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
      parinfo[ip1:ip2].limits  = rebin([0.6d,3d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NI]5200/5198 line ratio'
@@ -163,8 +163,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
      ip2 = ip1 + tmp_ncomp - 1
-     parinfo[ip1:ip2].value = transpose(initflux['[NII]6583',0:tmp_ncomp-1]/$
-                                        initflux['Halpha',0:tmp_ncomp-1])
+     parinfo[ip1:ip2].value = initflux['[NII]6583',0:tmp_ncomp-1]/$
+                              initflux['Halpha',0:tmp_ncomp-1]
      parinfo[ip1:ip2].limited = rebin([0B,1B],2,tmp_ncomp)
      parinfo[ip1:ip2].limits  = rebin([0d,4d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NII]/Halpha line ratio'
@@ -189,8 +189,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
      ip2 = ip1 + tmp_ncomp - 1
-     parinfo[ip1:ip2].value = transpose(initflux['Halpha',0:tmp_ncomp-1]/$
-                                        initflux['Hbeta',0:tmp_ncomp-1])
+     parinfo[ip1:ip2].value = initflux['Halpha',0:tmp_ncomp-1]/$
+                              initflux['Hbeta',0:tmp_ncomp-1]
      parinfo[ip1:ip2].limited = rebin([1B,0B],2,tmp_ncomp)
      parinfo[ip1:ip2].limits  = rebin([2.86d,100d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = 'Halpha/Hbeta line ratio'
@@ -237,7 +237,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
         parinfo[isoff].comp = i+1
         
 ;       if the number of components to be fit is exceeded, fix line fluxes to 0
-        if i+1 gt ncomp[key] then begin 
+        if i+1 gt ncomp[line] then begin 
 
            parinfo[ifoff].value = 0d
            parinfo[iwoff].value = 0d
@@ -323,10 +323,11 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      parinfo[foff+linea*3].tied = 'P['+$
                                   string(foff+lineb*3,$
                                          format='(I0)')+']/3.0d'
-     linea = where(lines_arr eq '[OI]6364')
-     lineb = where(lines_arr eq '[OI]6300')
-     parinfo[foff+linea*3].tied = 'P['+$
-                                  string(foff+lineb*3,$
+                                         
+     linea = where(lines_arr eq '[OI]6300')
+     lineb = where(lines_arr eq '[OI]6364')
+     parinfo[foff+lineb*3].tied = 'P['+$
+                                  string(foff+linea*3,$
                                          format='(I0)')+']/3.0d'
      linea = where(lines_arr eq '[NII]6548')
      lineb = where(lines_arr eq '[NII]6583')

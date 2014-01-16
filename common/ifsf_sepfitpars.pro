@@ -69,7 +69,7 @@
 function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran
 
 ; Return 0 if no lines were fit
-  if n_elements(struct.param) eq 1 then begin
+  if n_elements(param) eq 1 then begin
     outstr = {nolines:0}
     goto,nolines
   endif
@@ -87,13 +87,13 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran
   sigma = orderedhash(linelist->keys())
 
   foreach line,linelist->keys() do begin
-    fluxpk[line] = param[where(parinfo.line eq 'line' AND $
+    fluxpk[line] = param[where(parinfo.line eq line AND $
                                parinfo.parname eq 'flux_peak')]
-    fluxpkerr[line] = perror[where(parinfo.line eq 'line' AND $
+    fluxpkerr[line] = perror[where(parinfo.line eq line AND $
                                    parinfo.parname eq 'flux_peak')]
-    wave[line] = param[where(parinfo.line eq 'line' AND $
+    wave[line] = param[where(parinfo.line eq line AND $
                              parinfo.parname eq 'wavelength')]
-    sigma[line] = param[where(parinfo.line eq 'line' AND $
+    sigma[line] = param[where(parinfo.line eq line AND $
                              parinfo.parname eq 'sigma')]
 ;   Compute total Gaussian flux
     gflux = GAUSSFLUX(fluxpk[line],sigma[line]/c * wave[line],$

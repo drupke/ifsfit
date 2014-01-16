@@ -32,7 +32,8 @@
 ;    ChangeHistory::
 ;      2009, DSNR, created
 ;      2013oct09, DSNR, documented
-;      2013nov21, DSNR, renamed, added license and copyright 
+;      2013nov21, DSNR, renamed, added license and copyright
+;      2014jan16, DSNR, changed to Coyote Graphics routines
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -104,7 +105,6 @@ pro ifsf_pltcont,instr,outfile,ps=ps
   nbottom = 20
   nbottom--
   
-  loadct,0,/silent
   xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
 ;xtit = textoidl('Observed Wavelength (!6!sA!r!u!9 %!6!n )')
   ytit = textoidl('Normalized F_\lambda')
@@ -125,10 +125,9 @@ pro ifsf_pltcont,instr,outfile,ps=ps
   if ysort[nbottom] gt ysort[0]*maxthresh then $
      yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
   if (yran[0] lt 0) then yran[0]=0
-  plot,wave,ydat,xran=xran1,yran=yran,/xsty,/ysty
-  loadct,13,/silent
-  oplot,wave,ymod,color=255
-  loadct,0,/silent
+  cgplot,wave,ydat,xran=xran1,yran=yran,/xsty,/ysty,$
+         color='White',axiscol='White'
+  cgoplot,wave,ymod,color='Red'
   multiplot,/doyaxis,/doxaxis
   ydat = specstars
   ymod = modstars
@@ -145,10 +144,9 @@ pro ifsf_pltcont,instr,outfile,ps=ps
   if ysort[nbottom] gt ysort[0]*maxthresh then $
      yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
   if (yran[0] lt 0) then yran[0]=0
-  plot,wave,ydat,xran=xran2,yran=yran,/xsty,/ysty
-  loadct,13,/silent
-  oplot,wave,ymod,color=255
-  loadct,0,/silent
+  cgplot,wave,ydat,xran=xran2,yran=yran,/xsty,/ysty,$
+         color='White',axiscol='White'
+  cgoplot,wave,ymod,color='Red'
   if ct3 gt 0 then begin
      multiplot,/doyaxis,/doxaxis
      ydat = specstars
@@ -166,15 +164,14 @@ pro ifsf_pltcont,instr,outfile,ps=ps
      if ysort[nbottom] gt ysort[0]*maxthresh then $
         yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
      if (yran[0] lt 0) then yran[0]=0
-     plot,wave,ydat,xran=xran3,yran=yran,/xsty,/ysty
-     loadct,13,/silent
-     oplot,wave,ymod,color=255
-     loadct,0,/silent
+     cgplot,wave,ydat,xran=xran3,yran=yran,/xsty,/ysty,$
+          color='White',axiscol='White'
+     cgoplot,wave,ymod,color='Red'
   endif else multiplot
   multiplot,/reset
 
   tit = 'STELLAR CONTINUUM FIT'
-  xyouts,0.5,0.96,tit,/norm,align=0.5,charsize=2,charthick=2
+  cgtext,0.5,0.96,tit,/norm,align=0.5,charsize=2,charthick=2
 
   tmpfile = outfile
   if dops then device,/close_file $

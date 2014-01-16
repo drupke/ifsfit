@@ -13,9 +13,9 @@
 ; :Params:
 ;    lambda: in, required, type=dblarr
 ;      Wavelengths of spectrum
-;    linelambda: in, required, type=dblarr(nlines)
+;    linelambda: in, required, type=hash(lines,maxncomp)
 ;      Central wavelengths of lines to mask
-;    halfwidth: in, required, type=dblarr(nlines)
+;    halfwidth: in, required, type=hash(lines,maxncomp)
 ;      Half width (in km/s) of masking region around each line
 ;
 ; :Keywords:
@@ -37,6 +37,7 @@
 ;      2013oct, DSNR, documented, added nomaskran keyword
 ;      2013nov21, DSNR, renamed, added license and copyright
 ;      2013dec11, DSNR, renamed a couple of variables for clarity
+;      2013jan14, DSNR, moved to hash input for line wavelengths and widths
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -62,7 +63,7 @@ function ifsf_masklin, lambda, linelambda, halfwidth, nomaskran=nomaskran
 
   indgd = indgen(n_elements(lambda))
 
-  foreach line,linelambda do begin
+  foreach line,linelambda->keys() do begin
     for i=0,n_elements(linelambda[line])-1 do begin
       ind_indgd = $
         where(lambda[indgd] lt linelambda[line,i]*$

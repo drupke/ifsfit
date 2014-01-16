@@ -38,6 +38,8 @@
 ;      2013sep, DSNR, added more lines for 1-slit GMOS config.
 ;      2013nov22, DSNR, documented, renamed, added copyright and
 ;                       license, and turned output into a hash
+;      2014jan14, DSNR, switched to ordered hashes
+;      2014jan16, DSNR, fixed one wrong label
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -60,7 +62,7 @@
 function ifsf_linelist,inlines
 
 ; Associated line labels:
-  lines = hash()
+  lines = orderedhash()
   lines['Halpha'] = 6562.80d
   lines['Hbeta'] = 4861.32d
   lines['HeI6678'] = 6678.15d
@@ -74,7 +76,7 @@ function ifsf_linelist,inlines
   lines['[OI]6300'] = 6300.30d
   lines['[OI]6364'] = 6363.78d
   lines['[OIII]4959'] = 4958.91d
-  lines['[OIII]5006'] = 5006.84d
+  lines['[OIII]5007'] = 5006.84d
   lines['[SII]6716'] = 6716.44d
   lines['[SII]6731'] = 6730.82d
   lines['NaD2'] = 5889.95d
@@ -84,7 +86,7 @@ function ifsf_linelist,inlines
   lines['[FeVII]6087'] = 6087.0d
   lines['[FeX]6375'] = 6374.51d
   
-  outlines = hash()
+  outlines = orderedhash()
   for i=0, n_elements(inlines)-1 do begin
      imatch = where(inlines[i] eq lines->keys(),ctmatch)
      if ctmatch eq 1 then outlines[inlines[i]] = lines[inlines[i]] $

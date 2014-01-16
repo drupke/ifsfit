@@ -22,10 +22,8 @@
 ;      Spectrum, fluxes.
 ;    err: in, required, type=dblarr(npix)
 ;      Spectrum, flux errors.
-;    z: in, required, type=structure
-;      Structure of initial guesses for redshifts. Only required tag
-;      is STAR (in, type=double; redshift used to shift template to
-;      observed frame).
+;    zstar: in, required, type=structure
+;      Initial guess for stellar redshift
 ;    linelist: in, required, type=hash(lines)
 ;      Emission line rest frame wavelengths.
 ;    linelistz: in, required, type=hash(lines\,ncomp)
@@ -79,7 +77,8 @@
 ;      2013dec12, DSNR, added SIGINIT_GAS_DEFAULT variable
 ;      2013dec17, DSNR, started propagation of hashes through code and 
 ;                       implementation of new calling sequence rubric
-;      2013jan13, DSNR, propagated use of hashes
+;      2014jan13, DSNR, propagated use of hashes
+;      2014jan16, DSNR, updated treatment of redshifts; bugfixes
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -99,7 +98,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitspec,lambda,flux,err,z,linelist,linelistz,$
+function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
                       ncomp,initdat,maskwidths=maskwidths,$
                       peakinit=peakinit,quiet=quiet
 
@@ -124,7 +123,7 @@ function ifsf_fitspec,lambda,flux,err,z,linelist,linelistz,$
      restore,initdat.startempfile
 ;    Redshift stellar templates
      templatelambdaz = $
-        reform(template.lambda,n_elements(template.lambda)) * (1d + z.star)
+        reform(template.lambda,n_elements(template.lambda)) * (1d + zstar)
      if vacuum then airtovac,templatelambdaz
   endif
 
@@ -208,7 +207,7 @@ function ifsf_fitspec,lambda,flux,err,z,linelist,linelistz,$
         else begin
            maskwidths = orderedhash(initdat.lines)
            foreach line,initdat.lines do $
-              maskwidths[line] = dblarr(maxncomp)+maskwidths_def
+              maskwidths[line] = dblarr(initdat.maxncomp)+maskwidths_def
         endelse
      ct_indx  = ifsf_masklin(gdlambda, linelistz, maskwidths, $
                              nomaskran=nomaskran)
@@ -286,6 +285,9 @@ function ifsf_fitspec,lambda,flux,err,z,linelist,linelistz,$
         continuum = ifsf_cmpcontppxf(gdlambda,gdlambda_log,temp,ct_coeff,$
                                      polydeg,polyweights)
 
+;       Adjust stellar redshift based on fit
+        zstar += sol[0]/c
+
      endif
         
      if tag_exist(initdat,'dividecont') then begin
@@ -337,17 +339,17 @@ function ifsf_fitspec,lambda,flux,err,z,linelist,linelistz,$
   if not tag_exist(initdat,'siginit_gas') then begin
      siginit_gas = orderedhash(initdat.lines)
      foreach line,initdat.lines do $
-        siginit_gas[line] = dblarr(maxncomp)+siginit_gas_def
+        siginit_gas[line] = dblarr(initdat.maxncomp)+siginit_gas_def
   endif else siginit_gas = initdat.siginit_gas
 
 ; Fill out parameter structure with initial guesses and constraints
   if tag_exist(initdat,'argsinitpar') then parinit = $
      call_function(initdat.fcninitpar,linelist,linelistz,$
-                   linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp,$
+                   initdat.linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp,$
                    _extra=initdat.argsinitpar) $
   else parinit = $
      call_function(initdat.fcninitpar,linelist,linelistz,$
-                   linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp)
+                   initdat.linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp)
 
   testsize = size(parinit)
   if testsize[0] eq 0 then begin
@@ -383,11 +385,12 @@ function ifsf_fitspec,lambda,flux,err,z,linelist,linelistz,$
 ;          Continuum fit parameters
            ct_method: method, $
            ct_coeff: ct_coeff, $
+           zstar: zstar, $
 ;          Spectrum in various forms
            wave: gdlambda, $
            spec: gdflux, $      ; data
            spec_err: gderr, $
-           cont_dat: continuum-specfit, $ ; cont. data (all data - em. line fit)
+           cont_dat: gdflux-specfit, $ ; cont. data (all data - em. line fit)
            cont_fit: continuum, $         ; cont. fit
            emlin_dat: gdflux_nocnt, $ ; em. line data (all data - cont. fit)
            emlin_fit: specfit, $      ; em. line fit
@@ -399,7 +402,7 @@ function ifsf_fitspec,lambda,flux,err,z,linelist,linelistz,$
            fitstatus: status, $
            linelist: linelist, $
            linelabel: initdat.lines, $
-           parinfo: parinfo, $
+           parinfo: parinit, $
            param: param, $
            perror: perror, $
            covar: covar $

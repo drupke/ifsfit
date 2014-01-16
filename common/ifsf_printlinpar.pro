@@ -47,8 +47,9 @@
 ;      2009may, DSNR, created
 ;      2009jun07, DSNR, rewritten
 ;      2013nov21, DSNR, documented, renamed, added license and copyright 
-;      2013jan13, DSNR, re-written to use hashes, to open file only once, and to
+;      2014jan13, DSNR, re-written to use hashes, to open file only once, and to
 ;                       print central wavelength and sigma as well as flux
+;      2014jan16, DSNR, bugfixes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -75,10 +76,14 @@ pro ifsf_printlinpar,outlines,lun,col,row,maxncomp,linepars,outfile=outfile
 
       openw,lun,outfile,/get_lun
       linestr = ''
-      foreach line,outlines do $
-         linestr += string(line,'Flux Error','Wave (A)','Sigma (km/s)',$
-                    format='(4A12)')
-      printf,lun,'#Col','Row','Cmp',linestr,format='(A-4,2A4,A0)'
+      collabstr = ''
+      foreach line,outlines do begin
+        linestr += string(line,format='(A-48)')
+        collabstr += string('Flux','Flux Error','Wave(A)','Sigma(km/s)',$
+                            format='(4A12)')
+      endforeach
+      printf,lun,'',linestr,format='(A12,A0)'
+      printf,lun,'#Col','Row','Cmp',collabstr,format='(A-4,2A4,A0)'
 
 ;  Print fluxes
    endif else begin
@@ -89,7 +94,9 @@ pro ifsf_printlinpar,outlines,lun,col,row,maxncomp,linepars,outfile=outfile
          foreach line,outlines do begin
             linestr += string(linepars.flux[line,i],$
                               linepars.fluxerr[line,i],$
-                              format='(E12.4,E12.4)')
+                              linepars.wave[line,i],$
+                              linepars.sigma[line,i],$
+                              format='(E12.4,E12.4,D12.2,D12.2)')
          endforeach
          printf,lun,col,row,i+1,linestr,format='(3I4,A0)'
       endfor
