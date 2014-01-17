@@ -104,9 +104,9 @@ function ifsf_f05189
      linetie[i] = '[FeVII]6087'
      ncomp[i,13,17] = 0
      ncomp[i,*,*] = 1
-     ncomp[i,13,13] = 2
-     zinit_gas[i,13,13,0] = 0.038d
-     zinit_gas[i,13,13,1] = 0.040d
+     ncomp[i,11:15,11:15] = 2
+     zinit_gas[i,11:15,11:15,0] = 0.038d
+     zinit_gas[i,11:15,11:15,1] = 0.040d
      siginit_gas[i,0] = 1000d
   endforeach
 ; HeII line
@@ -124,12 +124,20 @@ function ifsf_f05189
   foreach i,tmplines do begin
      linetie[i] = 'HeI6678'
      ncomp[i,*,*] = 0
-     ncomp[i,13,13] = 1
-     siginit_gas[i,0] = 1000d
+     ncomp[i,11:15,11:15] = 1
+     siginit_gas[i,0] = 500d
   endforeach
+;; [OIII] lines
+;  tmplines = ['[OIII]4959','[OIII]5007']
+;  foreach i,tmplines do begin
+;    zinit_gas[i,*,*,1] = 0.040d
+;    zinit_gas[i,*,*,2] = 0.038d
+;    siginit_gas[i,2] = 1000d
+;  endforeach
 ; Balmer lines, low-ion. colliosional lines
   tmplines = ['Halpha','Hbeta','[OI]6300','[OI]6364',$
               '[OIII]4959','[OIII]5007','[NII]6548','[NII]6583',$
+;              '[NII]6548','[NII]6583',$
               '[SII]6716','[SII]6731']
   foreach i,tmplines do begin
      zinit_gas[i,*,*,1] = 0.040d
@@ -149,12 +157,14 @@ function ifsf_f05189
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; Parameters for continuum fit
-  ;; refit = {ran: [[4950,5100],[5250,5450],[5850,6000],$
-  ;;                    [6200,6400],[6500,6700],[6725,6925],$
-  ;;                    [6925,7100],[7250,7400]],$
-  ;;              ord: [2,2,2,2,2,1,1,2]}
-  refit = {ran: [[6500,6700]],$
-           ord: [2]}
+  tweakcntfit = dblarr(ncols,nrows,3,10)
+  tweakcntfit[*,*,2,*] = 2
+  tweakcntfit[11:15,11:15,0,0:7] = $
+     rebin(reform([4950,5250,5850,6200,6500,6725,6925,7250],1,1,1,8),5,5,1,8)
+  tweakcntfit[11:15,11:15,1,0:7] = $
+     rebin(reform([5100,5450,6000,6400,6700,6925,7100,7400],1,1,1,8),5,5,1,8)
+  tweakcntfit[11:15,11:15,2,0:7] = $
+     rebin(reform([2,2,2,2,2,1,1,2],1,1,1,8),5,5,1,8)
 
 ; Parameters for emission line plotting
   linoth = strarr(2,6)
@@ -200,7 +210,6 @@ function ifsf_f05189
          zinit_stars: zinit_stars,$
          zinit_gas: zinit_gas,$
 ; Optional pars
-         argscontfit: {refit: refit},$
          argsinitpar: {siglim: siglim_gas},$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
@@ -211,7 +220,8 @@ function ifsf_f05189
          siginit_stars: 100d,$
 ;        first # is max sig, second is step size
          startempfile: '/Users/drupke/Documents/stellar_models/'+$
-         'gonzalezdelgado/SSPGeneva_z020.sav' $
+         'gonzalezdelgado/SSPGeneva_z020.sav', $
+         tweakcntfit: tweakcntfit $
          }
 
   return,init

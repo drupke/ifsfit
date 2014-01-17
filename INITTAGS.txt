@@ -8,6 +8,7 @@
 #                    consistency with other tags that initialize
 #                    things according to which emission lines they
 #                    apply to #
+#   2014jan17, DSNR, added TWEAKCNTFIT
 
 This file describes the parameters that are contained in the INITDAT
 structure. This structure is created in the initialization procedure
@@ -110,6 +111,10 @@ Optional structure tags from initialization procedure:
     stellar templates. Tags:
       lambda: in, required, type=dblarr(nwave)
       flux: in, required, type=dblarr(nwave,ntemplates)
+  tweakcntfit: in, optional, type=dblarr(ncols,nrows,3,maxregions)
+    Parameters for tweaking continuum fit with localized polynomials. For 
+    each of nregions regions, array contains lower limit, upper limit, and 
+    polynomial degree.    
   vacuum: in, optional, type=byte
     Set this param to shift stellar templates from air to
     vacuum wavelengths.

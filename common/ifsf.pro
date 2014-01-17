@@ -62,6 +62,7 @@
 ;                       through code, through first fit
 ;      2014jan13, DSNR, finished propagating use of hashes
 ;      2014jan16, DSNR, updated treatment of redshifts; bugfixes
+;      2014jan17, DSNR, bugfixes; implemented SIGINIT_GAS, TWEAKCNTFIT keywords
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -166,6 +167,12 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
               if ct gt 0 then err[indx_nad]=max(err)
            endif
 
+;          Option to tweak cont. fit
+           if tag_exist(initdat,'tweakcntfit') then $
+              tweakcntfit = reform(initdat.tweakcntfit[i,j,*,*],3,$
+                                   n_elements(initdat.tweakcntfit[i,j,0,*])) $
+           else tweakcntfit = 0
+
 ;          Initialize starting wavelengths
            linelistz = orderedhash(initdat.lines)
            foreach line,initdat.lines do $
@@ -174,7 +181,8 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
                         initdat.maxncomp)
                  
            structinit = ifsf_fitspec(cube.wave,flux,err,zstar,linelist,$
-                                     linelistz,ncomp,initdat,quiet=quiet)
+                                     linelistz,ncomp,initdat,quiet=quiet,$
+                                     tweakcntfit=tweakcntfit)
            
            testsize = size(structinit)
            if testsize[0] eq 0 then begin
@@ -209,7 +217,9 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
                                     linelist,$
                                     linelistz,ncomp,initdat,quiet=quiet,$
                                     maskwidths=maskwidths,$
-                                    peakinit=linepars.fluxpk)           
+                                    peakinit=linepars.fluxpk,$
+                                    siginit_gas=linepars.sigma,$
+                                    tweakcntfit=tweakcntfit)           
               testsize = size(struct)
               if testsize[0] eq 0 then begin
                  print,'IFSF: Aborting.'

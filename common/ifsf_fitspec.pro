@@ -43,6 +43,12 @@
 ;      Initial guesses for peak emission-line flux densities. If not
 ;      set, routine guesses from spectrum. Can also be set in INITDAT.
 ;      Routine prioritizes the keyword definition.
+;    siginit_gas: in, optional, type=hash(lines,\maxncomp)
+;      Initial guess for emission line widths for fitting.
+;    tweakcntfit: in, optional, type=dblarr(3\,nregions)
+;      Parameters for tweaking continuum fit with localized polynomials. For 
+;      each of nregions regions, array contains lower limit, upper limit, and 
+;      polynomial degree.
 ;    quiet: in, optional, type=byte
 ;      Use to prevent detailed output to screen. Default is to print
 ;      detailed output.
@@ -79,6 +85,7 @@
 ;                       implementation of new calling sequence rubric
 ;      2014jan13, DSNR, propagated use of hashes
 ;      2014jan16, DSNR, updated treatment of redshifts; bugfixes
+;      2014jan17, DSNR, bugfixes; implemented SIGINIT_GAS, TWEAKCNTFIT keywords
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -100,7 +107,8 @@
 ;-
 function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
                       ncomp,initdat,maskwidths=maskwidths,$
-                      peakinit=peakinit,quiet=quiet
+                      peakinit=peakinit,quiet=quiet,siginit_gas=siginit_gas,$
+                      tweakcntfit=tweakcntfit
 
   c = 299792.458d        ; speed of light, km/s
   maskwidths_def = 1000d ; default half-width in km/s for emission line masking
@@ -279,17 +287,44 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
         ppxf,temp_log,gdflux_log,gderr_log,velscale,$
              [0,initdat.siginit_stars],sol,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
-             degree=polydeg,polyweights=polyweights,quiet=quiet,$
+             degree=polyterms,polyweights=polyweights,quiet=quiet,$
              weights=ct_coeff
      
         continuum = ifsf_cmpcontppxf(gdlambda,gdlambda_log,temp,ct_coeff,$
-                                     polydeg,polyweights)
+                                     polyterms,polyweights)
 
 ;       Adjust stellar redshift based on fit
         zstar += sol[0]/c
 
      endif
-        
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Option to tweak cont. fit with local polynomial fits
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+     
+     if keyword_set(tweakcntfit) then begin
+;       Arrays holding emission-line-masked data
+        ct_lambda=gdlambda[ct_indx]
+        ct_flux=gdflux[ct_indx]
+        ct_err=gderr[ct_indx]
+        ct_cont = continuum[ct_indx]
+        for i=0,n_elements(tweakcntfit[0,*])-1 do begin
+;          Indices into full data
+           tmp_ind = where(gdlambda ge tweakcntfit[0,i] AND $
+                           gdlambda le tweakcntfit[1,i],ct_ind)
+;          Indices into masked data
+           tmp_ctind = where(ct_lambda ge tweakcntfit[0,i] AND $
+                             ct_lambda le tweakcntfit[1,i],ct_ctind)
+           if ct_ind gt 0 AND ct_ctind gt 0 then begin
+              parinfo = replicate({value:0d},tweakcntfit[2,i]+1)
+              tmp_pars = mpfitfun('poly',ct_lambda[tmp_ctind],$
+                                  ct_flux[tmp_ctind] - ct_cont[tmp_ctind],$
+                                  ct_err[tmp_ctind],parinfo=parinfo,/quiet)
+              continuum[tmp_ind] += poly(gdlambda[tmp_ind],tmp_pars)
+           endif
+        endfor
+     endif
+     
      if tag_exist(initdat,'dividecont') then begin
         gdflux_nocnt = gdflux / continuum - 1
         gdweight_nocnt = gdweight * continuum^2
@@ -334,13 +369,14 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
            neg = where(peakinit[line] lt 0, ct)
            if ct gt 0 then peakinit[line,neg] = 0
         endforeach
-     endelse   
+     endelse
 ; Initial guesses for emission line widths
-  if not tag_exist(initdat,'siginit_gas') then begin
-     siginit_gas = orderedhash(initdat.lines)
-     foreach line,initdat.lines do $
-        siginit_gas[line] = dblarr(initdat.maxncomp)+siginit_gas_def
-  endif else siginit_gas = initdat.siginit_gas
+  if not keyword_set(siginit_gas) then $
+     if not tag_exist(initdat,'siginit_gas') then begin
+        siginit_gas = orderedhash(initdat.lines)
+        foreach line,initdat.lines do $
+           siginit_gas[line] = dblarr(initdat.maxncomp)+siginit_gas_def
+     endif else siginit_gas = initdat.siginit_gas
 
 ; Fill out parameter structure with initial guesses and constraints
   if tag_exist(initdat,'argsinitpar') then parinit = $
