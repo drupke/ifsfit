@@ -63,9 +63,12 @@
 ;      2014jan13, DSNR, finished propagating use of hashes
 ;      2014jan16, DSNR, updated treatment of redshifts; bugfixes
 ;      2014jan17, DSNR, bugfixes; implemented SIGINIT_GAS, TWEAKCNTFIT keywords
+;      2014jan29, DSNR, added _extra parameter to permit passing parameters
+;                       to initialization routine; added some lines to deal
+;                       properly with case of 1d data "cube"
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -83,7 +86,7 @@
 ;
 ;-
 pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
-         verbose=verbose
+         verbose=verbose,_extra=ex
   
   starttime = systime(1)
   time = 0
@@ -91,7 +94,7 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
   if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  initdat = call_function(initproc)
+  initdat = call_function(initproc,_extra=ex)
   
 ; Get linelist
   linelist = ifsf_linelist(initdat.lines)
@@ -102,8 +105,13 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  if not tag_exist(initdat,'datext') then datext=1 else datext=initdat.datext
+  if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
+  if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
   
-  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned)
+  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
+                       datext=datext,varext=varext,dqext=dqext)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
@@ -147,7 +155,8 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 ;          specific to this spaxel, and write as hashes.
            ncomp = orderedhash(initdat.lines)
            foreach line,initdat.lines do $
-              ncomp[line] = (initdat.ncomp)[line,i,j]
+              if oned then ncomp[line] = (initdat.ncomp)[line,i] $
+              else ncomp[line] = (initdat.ncomp)[line,i,j]
 
              
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -155,7 +164,8 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
 ;          Initialize stellar redshift for this spaxel
-           zstar = initdat.zinit_stars[i,j]
+           if oned then zstar = initdat.zinit_stars[i] $
+           else zstar = initdat.zinit_stars[i,j]
            
 ;          Remove NaI D line for purposes of continuum fit by maximizing
 ;          error. 
@@ -176,7 +186,10 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 ;          Initialize starting wavelengths
            linelistz = orderedhash(initdat.lines)
            foreach line,initdat.lines do $
-              linelistz[line] = $
+              if keyword_set(oned) then linelistz[line] = $
+                 reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
+                        initdat.maxncomp) $
+              else linelistz[line] = $
                  reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
                         initdat.maxncomp)
                  

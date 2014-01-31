@@ -21,6 +21,12 @@
 ;      Suppress progress messages.
 ;    oned: in, optional, type=byte
 ;      Input cube has only one non-wavelength dimension.
+;    datext: in, optional, type=integer, default=1
+;      Extension # of data plane.
+;    varext: in, optional, type=integer, default=2
+;      Extension # of variance plane.
+;    dqext: in, optional, type=integer, default=3
+;      Extension # of DQ plane.
 ;
 ; :Author:
 ;    David S. N. Rupke::
@@ -34,9 +40,10 @@
 ;    ChangeHistory::
 ;      2010jun08, DSNR, created as GMOS_READCUBE
 ;      2013dec17, DSNR, ported to IFSF_READCUBE
+;      2014jan29, DSNR, added ability to change default extensions
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -53,7 +60,8 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned
+function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
+                       datext=datext,varext=varext,dqext=dqext
 
 ; Set header keywords that describe wavelength solution.
   if ~ keyword_set(oned) then begin
@@ -67,12 +75,15 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned
   endelse
 
   if ~ keyword_set(quiet) then print,'IFSF_READCUBE: Loading data.'
+  if ~ keyword_set(datext) then datext=1
+  if ~ keyword_set(varext) then varext=2
+  if ~ keyword_set(dqext) then dqext=3
 
 ; Read fits file.
   phu = readfits(infile,header_phu,ext=0,silent=quiet)
-  dat = readfits(infile,header_dat,ext=1,silent=quiet)
-  var = readfits(infile,header_var,ext=2,silent=quiet)
-  dq = readfits(infile,header_dq,ext=3,silent=quiet)
+  dat = readfits(infile,header_dat,ext=datext,silent=quiet)
+  var = readfits(infile,header_var,ext=varext,silent=quiet)
+  dq = readfits(infile,header_dq,ext=dqext,silent=quiet)
 
 ; Get #s of rows, columns, and wavelength pixels.     
   datasize = size(dat)

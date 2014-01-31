@@ -82,7 +82,7 @@ pro ifsf_printlinpar,outlines,lun,col,row,maxncomp,linepars,outfile=outfile
         collabstr += string('Flux','Flux Error','Wave(A)','Sigma(km/s)',$
                             format='(4A12)')
       endforeach
-      printf,lun,'',linestr,format='(A12,A0)'
+      printf,lun,'#',linestr,format='(A-12,A0)'
       printf,lun,'#Col','Row','Cmp',collabstr,format='(A-4,2A4,A0)'
 
 ;  Print fluxes

@@ -98,7 +98,8 @@ pro ifsf_pltlin,instr,pltpar,outfile
   linlab = pltpar.label
   linwav = pltpar.wave
   off = pltpar.off
-  linoth = pltpar.linoth
+  if tag_exist(pltpar,'linoth') then linoth = pltpar.linoth $
+  else linoth = strarr(1,nlin)
   for i=0,nlin-1 do begin
 
      linwavtmp = linwav[i]

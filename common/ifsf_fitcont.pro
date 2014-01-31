@@ -90,8 +90,7 @@
 function ifsf_fitcont,lambda,flux,weight,template_flux,index,$
                       ct_coeff,ctinput=ctinput,dust=dust,$
                       fitord=fitord,nobvls=nobvls,$
-                      nopoly=nopoly,quiet=quiet,refit=refit,$
-                      addnorm
+                      nopoly=nopoly,quiet=quiet,refit=refit
 
   if keyword_set(nopoly) AND $
      keyword_set(nobvls) AND $
@@ -109,8 +108,7 @@ function ifsf_fitcont,lambda,flux,weight,template_flux,index,$
 
   if ~ keyword_set(nobvls) AND ~ keyword_set(ctinput) then begin
      if keyword_set(dust) then nodust=0 else nodust=1
-     backfit = ibackfit(iflux,ilambda,template_flux[index, *], $
-                        invvar=iweight, nodust=nodust, quiet=quiet)
+;     backfit = ibackfit(iflux,ilambda,template_flux[index,*],invvar=iweight,nodust=nodust,quiet=quiet)
      continuum = backfit.starcoeff##template_flux
      ct_coeff = backfit.starcoeff
   endif else if keyword_set(ctinput) then begin

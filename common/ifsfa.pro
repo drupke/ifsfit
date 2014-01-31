@@ -52,17 +52,39 @@
 ;                       updated for new linelist routine; 
 ;                       re-wrote IFSF_PRINTLINPAR and created IFSF_PRINTFITPAR
 ;      2014jan16, DSNR, bugfixes
+;      2014jan29, DSNR, added _extra parameter to permit passing parameters
+;                       to initialization routine; added some lines to deal
+;                       properly with case of 1d data "cube"
+;
+; :Copyright:
+;    Copyright (C) 2013-2014 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,verbose=verbose
+pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
+          verbose=verbose,_extra=ex
 
+  bad = 1d99
   fwhmtosig = 2d*sqrt(2d*alog(2d))
+  if keyword_set(verbose) then quiet=0 else quiet=1
   if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  initdat=call_function(initproc)
+  initdat = call_function(initproc,_extra=ex)
   
-; Get linelist
 ; Get linelist
   linelist = ifsf_linelist(initdat.lines)
   nlines = linelist.count()
@@ -71,7 +93,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,verbose=verbose
 ; Read data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned)
+  if not tag_exist(initdat,'datext') then datext=1 else datext=initdat.datext
+  if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
+  if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
+
+  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
+                       datext=datext,varext=varext,dqext=dqext)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Initialize output files
@@ -83,6 +110,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,verbose=verbose
                    outfile=initdat.outdir+initdat.label+'.lin.dat'
   ifsf_printfitpar,fitlun,$
                    outfile=initdat.outdir+initdat.label+'.fit.dat'
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialize line hash
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  linmaps = orderedhash()
+  foreach line,outlines do $
+    linmaps[line] = dblarr(cube.ncols,cube.nrows,initdat.maxncomp,4) + bad
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
@@ -156,16 +191,22 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,verbose=verbose
                  call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
                                 outfile+'_lin2'
            endif
+
+        endif 
               
-;          Print fit parameters to a text file
-           ifsf_printfitpar,fitlun,i+1,j+1,struct
+;       Print fit parameters to a text file
+        ifsf_printfitpar,fitlun,i+1,j+1,struct
 
-;          Print line fluxes and Halpha Weq to a text file
-           if not linepars.nolines then $ 
-              ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
+        foreach line,outlines do $
+          linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
+                                   [linepars.fluxerr[line,*]],$
+                                   [linepars.wave[line,*]],$
+                                   [linepars.sigma[line,*]]]
 
+;       Print line fluxes and Halpha Weq to a text file
+        if not linepars.nolines then $ 
+           ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
 
-        endif
 
 nofit:
 
@@ -175,5 +216,7 @@ nofit:
 
   free_lun,fitlun
   free_lun,linlun
+
+  save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
 
 end

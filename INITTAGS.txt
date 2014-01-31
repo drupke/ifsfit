@@ -9,6 +9,7 @@
 #                    things according to which emission lines they
 #                    apply to #
 #   2014jan17, DSNR, added TWEAKCNTFIT
+#   2014jan29, DSNR, added datext, varext, dqext
 
 This file describes the parameters that are contained in the INITDAT
 structure. This structure is created in the initialization procedure
@@ -32,6 +33,8 @@ Required structure tags from initialization procedure:
   linetie: in, required, type=hash(lines)
     Name of emission line to which each emission line is tied
     (in redshift and linewidth).
+  mapdir: in, required, type=string
+    Directory for output maps.
   maxncomp: in, required, type=double
     Maximum number of components to fit.
   ncomp: in, required, type=hash(lines,ncols,nrows)
@@ -61,9 +64,13 @@ Optional structure tags from initialization procedure:
     Arguments for first line plot
   argspltlin2: in, optional, type=structure
     Arguments for first line plot
+  datext: in, optional, type=integer, default=1
+    Extension # for data plane in data cube.
   dividecont: in, optional, type=byte
     Set this param to divide the data by the continuum
     fit. Default is to subtract.
+  dqext: in, optional, type=integer, default=3
+    Extension # for dq plane in data cube.
   fcncontfit: in, optional, type=string
     Name of continuum fitting function. If not specified, no continuum
     is fit. If this equals 'ppxf,' then PPXF is used to fit the
@@ -118,3 +125,5 @@ Optional structure tags from initialization procedure:
   vacuum: in, optional, type=byte
     Set this param to shift stellar templates from air to
     vacuum wavelengths.
+  varext: in, optional, type=integer, default=2
+    Extension # for variance plane in data cube.

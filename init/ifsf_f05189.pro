@@ -206,6 +206,7 @@ function ifsf_f05189
          linetie: linetie,$
          maxncomp: maxncomp,$
          ncomp: ncomp,$
+         mapdir: '/Users/drupke/ifs/gmos/maps/'+gal+'/'+outstr+'/',$
          outdir: '/Users/drupke/specfits/gmos/'+gal+'/'+outstr+'/',$
          zinit_stars: zinit_stars,$
          zinit_gas: zinit_gas,$

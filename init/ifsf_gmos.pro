@@ -103,7 +103,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 
 ; [SII] ratio
   ilratlim = 0
-  tmp_ncomp = ncomp['[SII]6716']
+  if ncomp->haskey('[SII]6716') then tmp_ncomp = ncomp['[SII]6716'] $
+  else tmp_ncomp=0
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
      ip2 = ip1+tmp_ncomp-1
@@ -133,7 +134,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ; [NI] ratio
 ; See Ferland+12 for collisional case, Bautista99 for other cases 
   ilratlim = 1
-  tmp_ncomp = ncomp['[NI]5198']
+  if ncomp->haskey('[NI]5198') then tmp_ncomp = ncomp['[NI]5198'] $
+  else tmp_ncomp = 0
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
      ip2 = ip1+tmp_ncomp-1
@@ -159,7 +161,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 
 ; [NII]/Ha ratio
   ilratlim = 2
-  tmp_ncomp = ncomp['Halpha']
+  if ncomp->haskey('Halpha') then tmp_ncomp = ncomp['Halpha'] $
+  else tmp_ncomp = 0
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
      ip2 = ip1 + tmp_ncomp - 1
@@ -185,7 +188,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 
 ; Ha/Hb ratio
   ilratlim = 3
-  tmp_ncomp = ncomp['Halpha']
+  if ncomp->haskey('Halpha') then tmp_ncomp = ncomp['Halpha'] $
+  else tmp_ncomp = 0
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
      ip2 = ip1 + tmp_ncomp - 1
