@@ -88,8 +88,8 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
 ; Get #s of rows, columns, and wavelength pixels.     
   datasize = size(dat)
   if ~ keyword_set(oned) then begin
-     nrows = datasize[1]
-     ncols = datasize[2]
+     ncols = datasize[1]
+     nrows = datasize[2]
      nz    = datasize[3]
   endif else begin
      nz    = datasize[1]
