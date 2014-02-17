@@ -61,8 +61,8 @@
 ;-
 function ifsf_cmpnadfull,datfile,parfile,z,weq=weq
 
-  readcol300,datfile,specwave,specflux,specerr,/silent,/skip,$
-             format='(D,D,D)'
+  readcol,datfile,specwave,specflux,specerr,/silent,/skip,$
+          format='(D,D,D)'
 
   nadpars = ifsf_readnadpar(parfile)
 

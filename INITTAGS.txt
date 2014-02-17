@@ -7,9 +7,11 @@
 #   2013dec19, DSNR, changed MASKWIDTHS and PEAKINIT to hashes for
 #                    consistency with other tags that initialize
 #                    things according to which emission lines they
-#                    apply to #
+#                    apply to
 #   2014jan17, DSNR, added TWEAKCNTFIT
-#   2014jan29, DSNR, added datext, varext, dqext
+#   2014jan29, DSNR, added DATEXT, VAREXT, DQEXT
+#   2014feb17, DSNR, added PPXF_MAXDEG_ADDPOLY, removed ADDPOLY2TEMP
+#
 
 This file describes the parameters that are contained in the INITDAT
 structure. This structure is created in the initialization procedure
@@ -23,9 +25,9 @@ Tags are in alphabetical order.
 Required structure tags from initialization procedure:
 
   fcninitpar: in, required, type=string
-    Name of function for initializing continuum.
+    Name of function for initializing emission lines.
   infile: in, required, type=string
-    Filename (including path) of input data cube.
+    Filename (possibly including path) of input data cube.
   label: in, required, type=string
     Common label for output files.
   lines: in, required, type=strarr(nlines)
@@ -50,8 +52,6 @@ Required structure tags from initialization procedure:
 
 Optional structure tags from initialization procedure:
 
-  argsaddpoly2temp: in, optional, type=structure
-    Arguments for UHSF_ADDPOLY2TEMP call.
   argscontfit: in, optional, type=structure
     Arguments for continuum fit routine.
   argsinitpar: in, optional, type=structure
@@ -78,11 +78,11 @@ Optional structure tags from initialization procedure:
     requires a template to be chosen and an initial guess for sigma
     (siginit_stars) to be specified.
   fcnlinefit: in, optional, type=string
-    Name of line fitting function. Default: UHSF_MANYGAUSS
+    Name of line fitting function. Default: IFSF_MANYGAUSS
   fcnpltcont: in, optional, type=string
-    Name of continuum plotting function. Default: UHSF_PLTCONT
+    Name of continuum plotting function. Default: IFSF_PLTCONT
   fcnpltlin: in, optional, type=string
-    Name of line plotting function. Default: UHSF_PLTLIN
+    Name of line plotting function. Default: IFSF_PLTLIN
   fitran: in, optional, type=dblarr(2)
     Range of fitting, in observed frame. If not set, default is
     entire range of data / template intersection.
@@ -105,6 +105,13 @@ Optional structure tags from initialization procedure:
     Labels of emission lines for which to print line fluxes to output.
   peakinit: in, optional, type=hash(lines,maxncomp)
     Initial peak flux guesses.
+  peakinit: in, optional, type=hash(lines,maxncomp)
+    Initial peak flux guesses.
+  ppxf_maxdeg_addpoly: in, optional, type=integer, default=4
+    Highest degree of additive Legendre polynomial terms added to the
+    stellar templates in PPXF. This is also the number of terms added,
+    one per degree up to the maximum. Set to -1 to not include any
+    additive polynomials.
   siginit_gas: in, optional, type=hash(lines,maxncomp)
     Initial line width guesses, in sigma and km/s.  If not
     set, routine defaults to a value specified in IFSF_FITSPEC
@@ -119,9 +126,9 @@ Optional structure tags from initialization procedure:
       lambda: in, required, type=dblarr(nwave)
       flux: in, required, type=dblarr(nwave,ntemplates)
   tweakcntfit: in, optional, type=dblarr(ncols,nrows,3,maxregions)
-    Parameters for tweaking continuum fit with localized polynomials. For 
-    each of nregions regions, array contains lower limit, upper limit, and 
-    polynomial degree.    
+    Parameters for tweaking continuum fit with localized
+    polynomials. For each of nregions regions, array contains lower
+    limit, upper limit, and polynomial degree.
   vacuum: in, optional, type=byte
     Set this param to shift stellar templates from air to
     vacuum wavelengths.

@@ -1,0 +1,45 @@
+IFSFIT has been used to analyze data for a handful of published
+papers. If you have published data using IFSFIT, please send an e-mail
+to drupke@gmail.com with your citation to add to this list.
+
+v0.3
+----
+
+No papers.
+
+v0.2 [UHSPECFIT]
+----
+
+Rupke, D. S. N., & Veilleux, S. Breaking the Obscuring Screen: A
+Resolved Molecular Outflow in a Buried QSO. 2013, ApJL, 775, 15
+
+Rupke, D. S. N., & Veilleux, S. The Multiphase Structure and Power
+Sources of Galactic Winds in Major Mergers. 2013, ApJ, 768, 75
+
+Rupke, D. S. N., & Veilleux, S.  Integral Field Spectroscopy of
+Massive, Kiloparsec-Scale Outflows in the Infrared-Luminous QSO Mrk
+231. 2011, ApJ, 729, L27
+
+v0.1 [UHSPECFIT]
+----
+
+Rich, J. A., Torrey, P., Kewley, L. J., Dopita, M. A., & Rupke,
+D. S. N. An Integral Field Study of Abundance Gradients in Nearby
+U/LIRGS. 2012, ApJ, 753, 5
+
+Rich, J. A., Kewley, L. J., & Dopita, M. A. Galaxy-wide Shocks in
+Late-merger Stage Luminous Infrared Galaxies. 2011, ApJ, 734, 87
+
+Shih, H.-Y., & Rupke, D. S. N.  The Complex Structure of the
+Multi-phase Galactic Wind in a Starburst Merger.  2010, ApJ, 724, 1430
+
+Rupke, D. S. N., Kewley, L. J., & Chien, L.-H. Gas-phase Oxygen
+Gradients in Strongly Interacting Galaxies. I. Early-stage
+Interactions. 2010, ApJ, 723, 1255
+
+Kewley, L. J., Rupke, D. S. N., Zahid, H. J., Geller, M. J., & Barton,
+E. J. Metallicity Gradients and Gas Flows in Galaxy Pairs. 2010, ApJ,
+721, L48
+
+Rich, J. A., Dopita, M. A., Kewley, L. J., & Rupke, D. S. N. NGC 839:
+Shocks in an M82-like Superwind.  2010, ApJ, 721, 505

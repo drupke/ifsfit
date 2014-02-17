@@ -1,60 +1,115 @@
-# History
-#  09aug15  DSNR  created
-#  13jun14  DSNR  updated libraries and added version comments
+-------------------------------------------------------------------------
+OVERVIEW
+-------------------------------------------------------------------------
 
-VERSIONS FOR DIFFERENT INSTRUMENTS
+IFSFIT is a general-purpose library for fitting the continuum,
+emission lines, and absorption lines in integral field spectra
+(IFS). It uses PPXF (the Penalized Pixel-Fitting method developed by
+Cappellari & Emsellem, 2004, PASP, 116, 138) to find the best fit
+stellar continuum (using a user-defined library of stellar templates
+and including additive polynomials), or optionally a user-defined
+method to find the best fit continuum. It uses MPFIT to simultaneously
+fit Gaussians to any number of emission lines and emission line
+velocity components.
 
-/gmos: Gemini Multi-Object Spectrograph (GMOS)
-       Optimized for ~5500-7500 A IFU data
-/lris: Keck Low Resolution Imaging Spectrograph (LRIS)
-       Optimized for red+blue arms, old CCD, higher-res gratings
-/nirsifs: Gemini Near-Infrared Integral Field Spectrograph (NIFS) or Keck OSIRIS
-/slitspec: Optimized for long-slit spectra
-/sp1: Optimized for single spectra (e.g., SDSS)
+-------------------------------------------------------------------------
+REQUIREMENTS
+-------------------------------------------------------------------------
 
-SETTING UP UHSPECFIT FOR A GENERIC INSTRUMENT
+IDL v8.3
 
-[In the following instructions, I quote for example the files for a
-specific instrument, LRIS.]
+IDL libraries:
+- IDLUTILS
+  http://www.sdss3.org/dr8/software/idlutils.php
+- MPFIT
+  http://www.physics.wisc.edu/~craigm/idl/idl.html
+- Coyote
+  http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
+- PPXF
+  http://www-astro.physics.ox.ac.uk/~mxc/software/#ppxf
 
-1. Download required libraries.
+To fit stellar continua, templates are required. E.g., the population
+synthesis models from Gonzalez-Delgado et al. (2005, MNRAS, 357, 945)
+are available at
 
-   IDLUTILS
-   http://www.sdss3.org/dr8/software/idlutils.php
+http://www.iaa.csic.es/~rosa/research/synthesis/HRES/ESPS-HRES.html
 
-   MPFIT
-   http://www.physics.wisc.edu/~craigm/idl/idl.html
+The enclosed routine IFSF_GDTEMP can be used to convert these tables
+into a form readable by IFSF.
 
-   Coyote
-   http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
+-------------------------------------------------------------------------
+USAGE
+-------------------------------------------------------------------------
 
-2. Start by customizing the wrapper program that actually calls the
-fit for each spectrum [LRIS_FIT_SPECTRA].
+Usage is in principle straigtforward. The routine is run from the
+command line as
 
-3. Next, customize the routine that initializes the parameter guesses
-and constraints [LRIS_INITPARINFO].  For LRIS, this consists of a
-series of global parameters, including redshifts and line widths,
-followed by the 3 parameters of a Gaussian for each emission line and
-velocity component.  NOTE: the "ppoff0" parameter must be set to
-reflect the number of global parameters.
+> IFSF,'initialization_file' [,cols=[low,high],rows=[low,high], etc.]
 
-4. Set up the linelist for the emission lines you want to fit
-[LRIS_INITLINELIST].
+and then the results are processed using
 
-5. Set up the continuum fitting routine [LRIS_FIT_CONTINUUM].
+> IFSFA,'initialization_file' [,cols=[low,high],rows=[low,high], etc.]
 
-6. If desired, customize the routine that sets variables to initialize
-the fit [LRIS_INITFIT_SPECTRA].
+The latter produces plots of the lines fit, a table of emission line
+parameters and a table of fit results, and an IDL save file containing
+a "data cube" of emission line parameters.
 
-7. Finally, customize the routine to analyze the resulting fits
-[LRIS_ANL_SPECTRA].
+The initialization file defines an IDL function that returns an
+initialization structure. The tags of this structure, and a
+description of each one, are found in INITTAGS.txt. Several tags are
+required, but most are optional.
 
--------
+In practice, there are a considerable number of knobs that can be
+turned to optimize/customize the fit and customize the output. An
+example initialization file is included (init/IFSF_F05189.pro).
 
-NOTES
+The other user-modifiable initialization procedure that is required is
+one that sets the initial emission-line parameter structure for input
+into MPFIT. Included in this version is a procedure that is optimized
+for the GMOS instrument (init/IFSF_GMOS.pro) and contains line
+parameters pertaining to strong emission lines in the wavelength range
+4000-7000 A. However, this code can be relatively easily adapated to
+other instruments and to include parameters (like fixed line ratios)
+for other emission lines. The code has in the past been used to
+successfully fit data from many instruments: GMOS, LRIS, NIFS, OSIRIS,
+and WiFeS.
 
-1. MANYGAUSS, the routine that evaluates the emission line Gaussians,
-assumes constant dispersion (in A/pix) and that there are no "holes"
-in the spectrum.  If you have a variable dispersion or gaps in
-coverage, either modify MANYGAUSS to fit your needs or use
-MANYGAUSS_SLOW (which, as its name implies, is slower).
+-------------------------------------------------------------------------
+IMPORTANT NOTES
+-------------------------------------------------------------------------
+
+IFSF_MANYGAUSS, the routine that evaluates the emission line
+Gaussians, assumes constant dispersion (in A/pix) and that there are
+no "holes" in the spectrum (i.e., that each wavelength follows the
+next by simply adding the dispersion).  If you have a variable
+dispersion or gaps in your wavelength array, either modify
+IFSF_MANYGAUSS to fit your needs or use IFSF_MANYGAUSS_SLOW (which, as
+its name implies, is slower).
+
+-------------------------------------------------------------------------
+QUESTIONS? BUGS? WANT TO MODIFY THE CODE?
+-------------------------------------------------------------------------
+
+Feel free to contact David Rupke at drupke@gmail.com with questions,
+bug reports, etc.
+
+Modifications are encouraged, but subject to the license.
+
+-------------------------------------------------------------------------
+LICENSE AND COPYRIGHT
+-------------------------------------------------------------------------
+
+Copyright (C) 2014 David S. N. Rupke
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License or any
+later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see http://www.gnu.org/licenses/.

@@ -105,10 +105,10 @@ pro ifsf_fitnad,gal,bin,sigfix=sigfix,taumax=taumax,sigmax=sigmax
 
 ; Pick out spectra to fit using Weq criterion
   dofit = dblarr(dx,dy)
-  readcol300,fitdir+gal+'.lines.dat',$
-             col_f,row_f,comp_f,o1,o1e,ha,hae,n2,n2e,$
-             nad_weq,nad_weqe,$
-             /skip,/silent,format='(I,I,I,D,D,D,D,D,D,D,D)'
+  readcol,fitdir+gal+'.lines.dat',$
+          col_f,row_f,comp_f,o1,o1e,ha,hae,n2,n2e,$
+          nad_weq,nad_weqe,$
+          /skip,/silent,format='(I,I,I,D,D,D,D,D,D,D,D)'
   ndofit=0
   for i=0,n_elements(col_f)-1 do begin
      if comp_f[i] eq 1 then begin

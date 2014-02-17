@@ -1,8 +1,6 @@
 - = to do
 + = done
 
-SOFTWARE
-
 + Read PPXF paper.
 + Rename and finish documenting each routine (32 of 32 completed; last
   worked on 2013nov25).
@@ -17,9 +15,10 @@ SOFTWARE
     IFSF.
   + hashes: propagate through code and only turn into structures when
     necessary
-  - Cut off edges of fit range after convolution of template?
++ Get sky routine working.
++ Get rid of instances of readcol300 (--> readcol).
++ Update README.txt.
 - Write routine to do second-pass fitting.
-- Get rid of instances of readcol300 (--> readcol).
-- Update README.txt.
 - Update Na D fitting.
-- Get sky routine working.
+- Speed up code by loading precompiled version of BVLS/NNLS.
+- Cut off edges of fit range after convolution of template?

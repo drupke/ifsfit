@@ -86,9 +86,14 @@
 ;      2014jan13, DSNR, propagated use of hashes
 ;      2014jan16, DSNR, updated treatment of redshifts; bugfixes
 ;      2014jan17, DSNR, bugfixes; implemented SIGINIT_GAS, TWEAKCNTFIT keywords
+;      2014feb17, DSNR, removed code that added "treated" templates
+;                       prior to running a generic continuum fitting
+;                       routine (rebinning, adding polynomials, etc.);
+;                       i.e., generic continuum fitting routine is now
+;                       completely generic
 ;         
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013, 2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -225,26 +230,6 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
      if initdat.fcncontfit ne 'ppxf' then begin
-        
-;       Prepare templates
-        if istemp then begin
-           new_temp = template.flux
-;          Interpolate template to same grid as data
-           new_temp = ifsf_interptemp(gdlambda,templatelambdaz,new_temp)
-;          If requested, convolve template with Gaussian
-           if tag_exist(initdat,'siginit_stars') then begin
-              new_temp_undisp = new_temp
-              new_temp = ifsf_disptemp(new_temp,gdlambda,$
-                                       initdat.siginit_stars,loglam=loglam)
-           endif
-;          Add polynomials to templates
-           if tag_exist(initdat,'argsaddpoly2temp') then new_temp = $
-              call_function('ifsf_addpoly2temp',new_temp,$
-                            _extra=initdat.argsaddpoly2temp) $
-           else new_temp = call_function('ifsf_addpoly2temp',new_temp)
-        endif else begin
-           new_temp = 0
-        endelse
 
         if tag_exist(initdat,'argscontfit') then continuum = $
            call_function(initdat.fcncontfit,gdlambda,gdflux,$
@@ -280,9 +265,8 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 
 ;       Check polynomial degree
         polyterms = 4
-        if tag_exist(initdat,'argsaddpoly2temp') then $
-           if tag_exist(initdat.argsaddpoly2temp,'nterms') then $
-              polyterms = initdat.argsaddpoly2temp.nterms
+        if tag_exist(initdat,'ppxf_maxdeg_addpoly') then $
+           polyterms = initdat.ppxf_maxdeg_addpoly
 
         ppxf,temp_log,gdflux_log,gderr_log,velscale,$
              [0,initdat.siginit_stars],sol,$
