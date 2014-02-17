@@ -19,12 +19,13 @@ REQUIREMENTS
 IDL v8.3
 
 IDL libraries:
-- IDLUTILS
-  http://www.sdss3.org/dr8/software/idlutils.php
+- IDL Astronomy User's Library
+  http://idlastro.gsfc.nasa.gov
 - MPFIT
   http://www.physics.wisc.edu/~craigm/idl/idl.html
 - Coyote
   http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
+  [or from the subversion repository: https://code.google.com/p/idl-coyote/]
 - PPXF
   http://www-astro.physics.ox.ac.uk/~mxc/software/#ppxf
 
