@@ -28,6 +28,13 @@
 ;                       description of tags to INITTAGS.txt file.
 ;      2013nov26, DSNR, changed line arrays to hashes to prevent
 ;                       bookkeeping errors
+;      2013dec10, DSNR, testing and bug fixes
+;      2013dec17, DSNR, renamed variables dx, dy, cx, cy;
+;                       moved from unordered to ordered hashes; 
+;                       turn hashes into structures before passing to IFSF
+;      2013jan13, DSNR, updated to pass hashes for many parameters into IFSF, 
+;                       instead of structures
+;      2014jan16, DSNR, fixed one wrong wavelength label
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -51,12 +58,10 @@ function ifsf_f05189
 
   gal = 'f05189'
   bin = 2d
-
-  dx = 28
-  dy = 27
-  cx = 14d
-  cy = 14d 
-
+  ncols = 28
+  nrows = 27
+  centcol = 14d
+  centrow = 14d
   outstr = 'rb'+string(bin,format='(I0)')
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -72,7 +77,7 @@ function ifsf_f05189
 
 ; Lines to fit.
   lines = ['Halpha','Hbeta','HeI6678','HeI7065','HeII4686',$
-           '[OI]6300','[OI]6364','[OIII]4959','[OIII]5006',$
+           '[OI]6300','[OI]6364','[OIII]4959','[OIII]5007',$
            '[NI]5198','[NI]5200','[NII]6548','[NII]6583',$
            '[SII]6716','[SII]6731','[FeVII]5159','[FeVII]5721',$
            '[FeVII]6087','[FeX]6375']
@@ -81,25 +86,27 @@ function ifsf_f05189
 ; Max no. of components.
   maxncomp = 3
 
-; Initialize line ties, n_comps, and z_inits.
-  linetie = hash(lines,strarr(nlines)+'Halpha')
-  ncomp = hash()
-  zinit_gas = hash()
-  siginit_gas = hash() ; note that this is technically optional, put here for convenience
+; Initialize line ties, n_comps, z_inits, and sig_inits.
+  linetie = orderedhash(lines,'Halpha')
+  ncomp = orderedhash(lines)
+  zinit_gas = orderedhash(lines)
+  siginit_gas = orderedhash(lines)
+; note that siginit_gas is technically optional, put here for convenience
   foreach i,lines do begin
-     ncomp[i] = dblarr(dx,dy)+maxncomp
-     zinit_gas[i] = dblarr(dx,dy,maxncomp) + 0.0425d
+     ncomp[i] = dblarr(ncols,nrows)+maxncomp
+     zinit_gas[i] = dblarr(ncols,nrows,maxncomp) + 0.0425d
      siginit_gas[i] = dblarr(maxncomp) + 150d
   endforeach
-  zinit_stars=dblarr(dx,dy) + 0.043d
+  zinit_stars=dblarr(ncols,nrows) + 0.043d
 ; iron lines
   tmplines = ['[FeVII]5159','[FeVII]5721','[FeVII]6087','[FeX]6375']
   foreach i,tmplines do begin
      linetie[i] = '[FeVII]6087'
+     ncomp[i,13,17] = 0
      ncomp[i,*,*] = 1
-     ncomp[i,13,13] = 2
-     zinit_gas[i,13,13,0] = 0.038d
-     zinit_gas[i,13,13,1] = 0.040d
+     ncomp[i,11:15,11:15] = 2
+     zinit_gas[i,11:15,11:15,0] = 0.038d
+     zinit_gas[i,11:15,11:15,1] = 0.040d
      siginit_gas[i,0] = 1000d
   endforeach
 ; HeII line
@@ -107,6 +114,7 @@ function ifsf_f05189
   foreach i,tmplines do begin
      linetie[i] = 'HeII4686'
      ncomp[i,*,*] = 2
+     ncomp[i,13,17] = 0
      zinit_gas[i,*,*,0] = 0.040d
      zinit_gas[i,*,*,1] = 0.038d
      siginit_gas[i,1] = 1000d
@@ -116,12 +124,20 @@ function ifsf_f05189
   foreach i,tmplines do begin
      linetie[i] = 'HeI6678'
      ncomp[i,*,*] = 0
-     ncomp[i,13,13] = 1
-     siginit_gas[i,0] = 1000d
+     ncomp[i,11:15,11:15] = 1
+     siginit_gas[i,0] = 500d
   endforeach
+;; [OIII] lines
+;  tmplines = ['[OIII]4959','[OIII]5007']
+;  foreach i,tmplines do begin
+;    zinit_gas[i,*,*,1] = 0.040d
+;    zinit_gas[i,*,*,2] = 0.038d
+;    siginit_gas[i,2] = 1000d
+;  endforeach
 ; Balmer lines, low-ion. colliosional lines
   tmplines = ['Halpha','Hbeta','[OI]6300','[OI]6364',$
-              '[OIII]4959','[OIII]5006','[NII]6548','[NII]6583',$
+              '[OIII]4959','[OIII]5007','[NII]6548','[NII]6583',$
+;              '[NII]6548','[NII]6583',$
               '[SII]6716','[SII]6731']
   foreach i,tmplines do begin
      zinit_gas[i,*,*,1] = 0.040d
@@ -141,12 +157,14 @@ function ifsf_f05189
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; Parameters for continuum fit
-  ;; refit = {ran: [[4950,5100],[5250,5450],[5850,6000],$
-  ;;                    [6200,6400],[6500,6700],[6725,6925],$
-  ;;                    [6925,7100],[7250,7400]],$
-  ;;              ord: [2,2,2,2,2,1,1,2]}
-  refit = {ran: [[6500,6700]],$
-           ord: [2]}
+  tweakcntfit = dblarr(ncols,nrows,3,10)
+  tweakcntfit[*,*,2,*] = 2
+  tweakcntfit[11:15,11:15,0,0:7] = $
+     rebin(reform([4950,5250,5850,6200,6500,6725,6925,7250],1,1,1,8),5,5,1,8)
+  tweakcntfit[11:15,11:15,1,0:7] = $
+     rebin(reform([5100,5450,6000,6400,6700,6925,7100,7400],1,1,1,8),5,5,1,8)
+  tweakcntfit[11:15,11:15,2,0:7] = $
+     rebin(reform([2,2,2,2,2,1,1,2],1,1,1,8),5,5,1,8)
 
 ; Parameters for emission line plotting
   linoth = strarr(2,6)
@@ -183,31 +201,28 @@ function ifsf_f05189
          fcninitpar: 'ifsf_gmos',$
          fitran: [4600,7100],$
          infile: infile,$
+         label: gal,$
          lines: lines,$
          linetie: linetie,$
          maxncomp: maxncomp,$
          ncomp: ncomp,$
+         mapdir: '/Users/drupke/ifs/gmos/maps/'+gal+'/'+outstr+'/',$
          outdir: '/Users/drupke/specfits/gmos/'+gal+'/'+outstr+'/',$
          zinit_stars: zinit_stars,$
          zinit_gas: zinit_gas,$
 ; Optional pars
-         argscontfit: {refit: refit},$
          argsinitpar: {siglim: siglim_gas},$
-         argslinelist: {felines: 1},$
-         argsoptstelz: {lrange: [5200,5550]},$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
-         fcncontfit: 'ifsf_fitcont',$
-         fcnoptstelsig: 'ifsf_optstelsig',$
-         fcnoptstelz: 'ifsf_optstelz',$
+         fcncontfit: 'ppxf',$
          nomaskran: [5075,5100],$
          siglim_gas: siglim_gas,$
          siginit_gas: siginit_gas,$
          siginit_stars: 100d,$
 ;        first # is max sig, second is step size
-         sigfitvals: dindgen(fix(500d/25d)+1)*25d,$
          startempfile: '/Users/drupke/Documents/stellar_models/'+$
-         'gonzalezdelgado/SSPGeneva_z020.sav' $
+         'gonzalezdelgado/SSPGeneva_z020.sav', $
+         tweakcntfit: tweakcntfit $
          }
 
   return,init

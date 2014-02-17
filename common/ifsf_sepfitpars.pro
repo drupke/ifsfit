@@ -11,17 +11,20 @@
 ;    IFSFIT
 ;
 ; :Returns:
-;    A structure with separate arrays for different line
-;    parameters. Each array has NxM elements, where N is the number of
-;    emission lines fit and M is the number of velocity
-;    components. Tags: flux, fluxerr, fluxpk, fluxpkerr, wave, and
-;    sigma.
+;    A structure with separate hashes for different line parameters. The hashes 
+;    are indexed by line, and each value is an array over components. 
+;    Tags: flux, fluxerr, fluxpk, fluxpkerr, nolines, wave, and sigma.
 ;
 ; :Params:
-;    param: in, required, type=dblarr
+;    linelist: in, required, type=hash(lines)
+;      List of emission line rest-frame wavelengths.
+;    param: in, required, type=dblarr(N)
 ;      Best-fit parameter array output by MPFIT.
-;    perror: in, optional, type=dblarr
+;    perror: in, optional, type=dblarr(N)
 ;      Errors in best fit parameters, output by MPFIT.
+;    parinfo: in, required, type=structure
+;      Structure input into MPFIT. Each tag has N values, one per parameter. 
+;      Used to sort param and perror arrays.
 ;
 ; :Keywords:
 ;    waveran: in, optional, type=dblarr(2)
@@ -43,6 +46,7 @@
 ;      2009jun07, DSNR, added error propagation and rewrote
 ;      2013nov01, DSNR, added documentation
 ;      2013nov25, DSNR, renamed, added copyright and license
+;      2013jan13, DSNR, re-written to use hashes rather than arrays
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -62,59 +66,63 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_sepfitpars,param,perror,waveran=waveran
-  
+function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran
+
+; Return 0 if no lines were fit
+  if n_elements(param) eq 1 then begin
+    outstr = {nolines:0}
+    goto,nolines
+  endif
+
   c = 299792.458d
+  maxncomp = param[1]
 
-  ppoff = param[0]
-  ncomp = param[1]
+; If this turns out to be slow, can try creating the hashes by concatenation 
+; instead.
+  flux = orderedhash(linelist->keys())
+  fluxerr = orderedhash(linelist->keys())
+  fluxpk = orderedhash(linelist->keys())
+  fluxpkerr = orderedhash(linelist->keys())
+  wave = orderedhash(linelist->keys())
+  sigma = orderedhash(linelist->keys())
 
-  nlines = (n_elements(param)-ppoff)/3/ncomp
-  fluxind = (indgen(nlines*ncomp)*3 + ppoff)
-  waveind = fluxind+1
-  sigind = fluxind+2
+  foreach line,linelist->keys() do begin
+    fluxpk[line] = param[where(parinfo.line eq line AND $
+                               parinfo.parname eq 'flux_peak')]
+    fluxpkerr[line] = perror[where(parinfo.line eq line AND $
+                                   parinfo.parname eq 'flux_peak')]
+    wave[line] = param[where(parinfo.line eq line AND $
+                             parinfo.parname eq 'wavelength')]
+    sigma[line] = param[where(parinfo.line eq line AND $
+                             parinfo.parname eq 'sigma')]
+;   Compute total Gaussian flux
+    gflux = GAUSSFLUX(fluxpk[line],sigma[line]/c * wave[line],$
+                      normerr=fluxpkerr[line],sigerr=dblarr(maxncomp))
+    flux[line] = gflux.flux
+    fluxerr[line] = gflux.flux_err
 
-; Errors
-  fluxpkerr = perror[fluxind]
-  sigerr = dblarr(nlines*ncomp)
+;   Set fluxes to 0 outside of wavelength range, or if NaNs or infinite errors
+    if keyword_set(waveran) then begin
+      inoflux = where(waveran[0] gt wave[line]*(1 - 3d*sigma[line]/c) OR $
+                      waveran[1] lt wave[line]*(1 + 3d*sigma[line]/c) OR $
+                      finite(fluxerr[line]) eq 0 OR $
+                      finite(fluxpkerr[line]) eq 0,ct)
+      if ct gt 0 then begin
+        flux[line,inoflux] = 0d
+        fluxerr[line,inoflux] = 0d
+        fluxpk[line,inoflux] = 0d
+        fluxpkerr[line,inoflux] = 0d
+      endif
+    endif
 
-; Gaussian fluxes
-  fluxpk = param[fluxind]
-  gflux = GAUSSFLUX(fluxpk,param[sigind]/c * param[waveind],$
-                    normerr=fluxpkerr,sigerr=sigerr)
+  endforeach
 
-; Set fluxes to 0 outside of wavelength range
-  if keyword_set(waveran) then begin
-     inoflux = where(waveran[0] gt param[waveind]*(1 - 3d*param[sigind]/c) OR $
-                     waveran[1] lt param[waveind]*(1 + 3d*param[sigind]/c),ct)
-     if ct gt 0 then begin
-        gflux.flux[inoflux] = 0d
-        gflux.flux_err[inoflux] = 0d
-        fluxpk[inoflux] = 0d
-        fluxpkerr[inoflux] = 0d
-     endif
-  endif
-; Set fluxes to 0 if NaN or infinite errors
-  inans = where(finite(gflux.flux_err) eq 0,ctnan)
-  if ctnan gt 0 then begin
-     gflux.flux[inans] = 0d
-     gflux.flux_err[inans] = 0d
-  endif
-  inans = where(finite(fluxpkerr) eq 0,ctnan)
-  if ctnan gt 0 then begin
-     fluxpk[inans] = 0d
-     fluxpkerr[inans] = 0d
-  endif
 
-  outstr = { $
-           flux:reform(gflux.flux,nlines,ncomp),$
-           fluxerr:reform(gflux.flux_err,nlines,ncomp),$
-           fluxpk:reform(fluxpk,nlines,ncomp),$
-           fluxpkerr:reform(fluxpkerr,nlines,ncomp),$
-           wave:reform(param[waveind],nlines,ncomp),$
-           sigma:reform(param[sigind],nlines,ncomp) $
-           }
-  
+  outstr = {nolines:0,flux:flux,fluxerr:fluxerr,fluxpk:fluxpk,$
+            fluxpkerr:fluxpkerr,wave:wave,sigma:sigma}
+
+nolines:
+
   return,outstr
 
 end

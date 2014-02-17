@@ -16,7 +16,7 @@
 ;      Galaxy label in file naming.
 ;    cols: in, required, type=dblarr(Nspec)
 ;      List of column #s for each spectrum.
-;    row: in, required, type=dblarr(Nspec)
+;    rows: in, required, type=dblarr(Nspec)
 ;      List of row #s for each spectrum.
 ;    fitdir: in, required, type=string
 ;      Directory where normalized spectra and fit parameter files are

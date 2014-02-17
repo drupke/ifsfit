@@ -2,8 +2,7 @@
 ;
 ;+
 ;
-; Write emission line fluxes and flux errors to a text
-; file. Optionally include Na D equivalent width.
+; Write emission line parameters to a text file.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -12,28 +11,28 @@
 ;    None.
 ;
 ; :Params:
-;    lines: in, required, type=dblarr(Nlines)
-;      Names of lines.
-;    fluxes: in, required, type=dblarr(Nlines,Ncomp)
-;      Fluxes of lines.
-;    fluxerrors: in, required, type=dblarr(Nlines,Ncomp)
-;      Flux errors.
-;    outfile: in, required, type=string
-;      Full path and name of output file.
-;    col: in, required, type=string
-;      IFS column of spectrum.
-;    row: in, required, type=string
-;      IFS row of spectrum.
-;
+;    outlines: in, required, type=strarr(nlines)
+;      Names of lines for which to print line fluxes.
+;    lun: in/out, required, type=integer
+;      Logical unit for output file. If outfile is set, the lun is output to 
+;      this file. If outfile is not set, the lun to which to write the data is
+;      contained in this parameter.
+;    col: in, optional, type=integer
+;      IFS column of spectrum. Only used if outfile is not set.
+;    row: in, optional, type=integer
+;      IFS row of spectrum. Only used if outfile is not set.
+;    maxncomp: in, optional, type=integer
+;      Maximum number of components among all emission lines being fit. Only 
+;      used if outfile is not set.
+;    linepars: in, optional, type=structure
+;      Output of IFSF_SEPFITPARS, containing line parameters. Only used if 
+;      outfile is not set.
+;      
 ; :Keywords:
-;    append: in, optional, type=byte, default=0
-;      Append to previously existing file?
-;    init: in, optional, type=byte, default=0
-;      Initialize a new file? This writes column headers but no data.
-;    nadweq: in, optional, type=dblarr(2), default=0
-;      Write Na D equivalent width and error as last two columns? If
-;      so, set this to these values. Assumes one absorption component
-;      and attaches to first emission-line component.
+;    outfile: in, optional, type=string
+;      Full path and name of output file. If set, initializes file by opening
+;      it, creating a lun, writing column titles, and returning the lun. If not
+;      set, input lun is opened and written to.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -48,6 +47,9 @@
 ;      2009may, DSNR, created
 ;      2009jun07, DSNR, rewritten
 ;      2013nov21, DSNR, documented, renamed, added license and copyright 
+;      2014jan13, DSNR, re-written to use hashes, to open file only once, and to
+;                       print central wavelength and sigma as well as flux
+;      2014jan16, DSNR, bugfixes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -67,53 +69,38 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_printlinpar,lines,fluxes,fluxerrors,outfile,col,row,$
-                     append=append,init=init,nadweq=nadweq
+pro ifsf_printlinpar,outlines,lun,col,row,maxncomp,linepars,outfile=outfile
 
-  if ~ keyword_set(append) then append=0
+;  Initialize file
+   if keyword_set(outfile) then begin
 
-  nlines = n_elements(lines)
+      openw,lun,outfile,/get_lun
+      linestr = ''
+      collabstr = ''
+      foreach line,outlines do begin
+        linestr += string(line,format='(A-48)')
+        collabstr += string('Flux','Flux Error','Wave(A)','Sigma(km/s)',$
+                            format='(4A12)')
+      endforeach
+      printf,lun,'#',linestr,format='(A-12,A0)'
+      printf,lun,'#Col','Row','Cmp',collabstr,format='(A-4,2A4,A0)'
 
-  fluxes_info = size(fluxes)
-  if (fluxes_info[0] gt 1) then ncomp = fluxes_info[2] else ncomp=1
+;  Print fluxes
+   endif else begin
+    
+;     Cycle through components
+      for i=0,maxncomp-1 do begin
+         linestr=''
+         foreach line,outlines do begin
+            linestr += string(linepars.flux[line,i],$
+                              linepars.fluxerr[line,i],$
+                              linepars.wave[line,i],$
+                              linepars.sigma[line,i],$
+                              format='(E12.4,E12.4,D12.2,D12.2)')
+         endforeach
+         printf,lun,col,row,i+1,linestr,format='(3I4,A0)'
+      endfor
 
-; Open file for output
-  if (append) then openu,unit,outfile,/get_lun,append=append $
-  else openw,unit,outfile,/get_lun
-
-  for j=0,ncomp-1 do begin
-
-     out = ''
-     for i=0,nlines-1 do begin
-        if keyword_set(init) then $
-           out += string(lines[i],'1sigma',$
-                         format='(A12,A12)') $
-        else begin
-           ind = where(lines eq lines[i])
-           out += string(fluxes[ind,j],fluxerrors[ind,j],$
-                         format='(E12.4,E12.4)')
-        endelse
-     endfor
-     if keyword_set(nadweq) then begin
-        if j eq 0 then begin
-           if keyword_set(init) then $
-              out += string('NaI D','1sigma',$
-                            format='(A12,A12)') $
-           else begin
-              out += string(nadweq[0],nadweq[1],$
-                            format='(E12.4,E12.4)')
-           endelse
-        endif else $
-           out += string(-1,-1,format='(2I12)')
-     endif
-
-     if keyword_set(init) then $
-        printf,unit,'#Col','Row','Cmp',out,format='(A-4,2A4,A0)' $
-     else $
-        printf,unit,col,row,j+1,out,format='(3I4,A0)'
-
-  endfor
-
-  free_lun,unit
+   endelse
 
 end

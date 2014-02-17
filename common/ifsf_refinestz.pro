@@ -13,11 +13,11 @@
 ; :Params:
 ;    zinit: in, required, type=double
 ;      Initial redshift guess.
-;    lambda: in, required, type=dblarr(N)
+;    wave: in, required, type=dblarr(N)
 ;      Wavelengths of spectrum.
 ;    flux: in, required, type=dblarr(N)
 ;      Fluxes of spectrum.
-;    flux: in, required, type=dblarr(N)
+;    err: in, required, type=dblarr(N)
 ;      Flux errors of spectrum.
 ;
 ; :Keywords:
@@ -56,7 +56,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function uhsf_refinestz,zinit,wave,flux,err,sigma=sigma
+function ifsf_refinestz,zinit,wave,flux,err,sigma=sigma
 
   carest = 3934.777d
 

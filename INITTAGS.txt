@@ -1,6 +1,22 @@
+#
 # History
 #   2013nov25, DSNR, created
-#
+#   2013dec10, DSNR, updated for PPXF implementation; removed stellar
+#                    z and sigma optimization tags, since PPXF does
+#                    this
+#   2013dec19, DSNR, changed MASKWIDTHS and PEAKINIT to hashes for
+#                    consistency with other tags that initialize
+#                    things according to which emission lines they
+#                    apply to #
+#   2014jan17, DSNR, added TWEAKCNTFIT
+#   2014jan29, DSNR, added datext, varext, dqext
+
+This file describes the parameters that are contained in the INITDAT
+structure. This structure is created in the initialization procedure
+and passed to IFSF and IFSFA, and contains parameters that apply to
+the dataset as a whole (e.g., the lines to be fit or an array
+containing the initial redshift guesses for all spaxels). IFSF passes
+INITDAT to IFSF_FITSPEC without changing it.
 
 Tags are in alphabetical order.
 
@@ -9,22 +25,26 @@ Required structure tags from initialization procedure:
   fcninitpar: in, required, type=string
     Name of function for initializing continuum.
   infile: in, required, type=string
-    Filename of input data cube.
-  lines: in, required, type=dblarr(nlines)
+    Filename (including path) of input data cube.
+  label: in, required, type=string
+    Common label for output files.
+  lines: in, required, type=strarr(nlines)
     Names of emission lines to fit.
-  linetie: in, required, type=hash(lines,dx,dy)
+  linetie: in, required, type=hash(lines)
     Name of emission line to which each emission line is tied
     (in redshift and linewidth).
+  mapdir: in, required, type=string
+    Directory for output maps.
   maxncomp: in, required, type=double
     Maximum number of components to fit.
-  ncomp: in, required, type=dblarr(ncols,nrows,nlines)
+  ncomp: in, required, type=hash(lines,ncols,nrows)
     For each spaxel and emission line, # of components to fit.
   outdir: in, required, type=string
-    Directory for output save (.xdr) file
-  zinit_stars: in, required, type=double
+    Directory for output .xdr file and analysis files (plots, lists).
+  zinit_stars: in, required, type=dblarr(ncols,nrows)
     Redshift used to shift any stellar templates to observed
     frame.
-  zinit_gas: in, required, type=dblarr(ncols,nrows,nlines,ncomp)
+  zinit_gas: in, required, type=hash(lines,ncols,nrows,maxncomp)
     Initial redshift guesses for each spaxel, emission line, and
     component.
 
@@ -40,25 +60,25 @@ Optional structure tags from initialization procedure:
     Arguments for line fitting routine
   argslinelist: in, optional, type=structure
     Arguments for line selection routine
-  argsoptstelz: in, optional, type=structure
-    Arguments for stellar redshift optimization.
   argspltlin1: in, optional, type=structure
     Arguments for first line plot
   argspltlin2: in, optional, type=structure
     Arguments for first line plot
+  datext: in, optional, type=integer, default=1
+    Extension # for data plane in data cube.
   dividecont: in, optional, type=byte
     Set this param to divide the data by the continuum
     fit. Default is to subtract.
+  dqext: in, optional, type=integer, default=3
+    Extension # for dq plane in data cube.
   fcncontfit: in, optional, type=string
-    Name of continuum fitting function. If not specified,
-    continuum is not fit.
+    Name of continuum fitting function. If not specified, no continuum
+    is fit. If this equals 'ppxf,' then PPXF is used to fit the
+    stellar velocity, velocity dispersion, and template weights. PPXF
+    requires a template to be chosen and an initial guess for sigma
+    (siginit_stars) to be specified.
   fcnlinefit: in, optional, type=string
     Name of line fitting function. Default: UHSF_MANYGAUSS
-  fcnoptstelsig: in, optional, type=string
-    Name of routine to optimize stellar dispersion.
-  fcnoptstelz: in, optional, type=string
-    Name of routine to optimize stellar redshift. If not specified,
-    redshift is not optimized.
   fcnpltcont: in, optional, type=string
     Name of continuum plotting function. Default: UHSF_PLTCONT
   fcnpltlin: in, optional, type=string
@@ -70,33 +90,40 @@ Optional structure tags from initialization procedure:
     Set to not remove NaD region from fit.
   loglam: in, optional, type=byte
     Set if data has constant log(lambda) dispersion.
-  maskwidths: in, optional, type=dblarr
-    Width, in km/s, of regions to mask from continuum fit. If not
-    set, routine defaults to +/- 500 km/s. If parameter has one
-    value, then this half-width is applied to all emission
-    lines. If it has multiple values, it should have exactly the
-    same number of elements as lines that are being fit.
+  maskwidths: in, optional, type=hash(lines,maxncomp)
+    Widths, in km/s, of regions to mask from continuum fit. If not
+    set, routine defaults to a value specified in IFSF_FITSPEC
+    for all lines and components.
+  masksig_secondfit: in, optional, type=double
+    During second call to IFSF_FITSPEC, best-fit emission line sigmas
+    are multiplied by this value and set to 'maskwidths' parameter. If
+    not set, routine defaults to a value specified in IFSF for all
+    lines and components.
   nomaskran: in, optional, type=dblarr(2)
     Wavelength region *not* to mask.
   outlines: in, optional, type=strarr
     Labels of emission lines for which to print line fluxes to output.
-  peakinit: in, optional, type=dblarr(nlines,ncomp)
+  peakinit: in, optional, type=hash(lines,maxncomp)
     Initial peak flux guesses.
-  siginit_gas: in, optional, type=dblarr(nlines,ncomp)
-    Initial line width guesses, in sigma and km/s.
+  siginit_gas: in, optional, type=hash(lines,maxncomp)
+    Initial line width guesses, in sigma and km/s.  If not
+    set, routine defaults to a value specified in IFSF_FITSPEC
+    for all lines and components.
   siginit_stars: in, optional, type=double
     Initial sigma value, in km/s, for a Gaussian kernel for
     convolving with stellar template. Convolution only performed
     if this param is set.
-  sigfitvals: in, optional, type=dblarr
-    If this param is set, routine cross-correlates data with
-    continua convolved with each sigma value in this array, and
-    chooses the sigma with the highest correlation coeff.
   startempfile: in, optional, type=structure
     File containing IDL save file (usually ending in .xdr) of
     stellar templates. Tags:
       lambda: in, required, type=dblarr(nwave)
       flux: in, required, type=dblarr(nwave,ntemplates)
+  tweakcntfit: in, optional, type=dblarr(ncols,nrows,3,maxregions)
+    Parameters for tweaking continuum fit with localized polynomials. For 
+    each of nregions regions, array contains lower limit, upper limit, and 
+    polynomial degree.    
   vacuum: in, optional, type=byte
     Set this param to shift stellar templates from air to
     vacuum wavelengths.
+  varext: in, optional, type=integer, default=2
+    Extension # for variance plane in data cube.

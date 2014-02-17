@@ -23,9 +23,9 @@
 ; :Keywords:
 ;    fitord: in, optional, type=double, default=2
 ;      Polynomial order to use in fitting continuum.
-;    fitordlo: in, optional, type=dblarr(2), default=[5810\,5865]*(1+z)
+;    fitranlo: in, optional, type=dblarr(2), default=[5810\,5865]*(1+z)
 ;      Wavelength limits of region below Na D to use in fit.
-;    fitordhi: in, optional, type=dblarr(2), default=[5905\,5960]*(1+z)
+;    fitranhi: in, optional, type=dblarr(2), default=[5905\,5960]*(1+z)
 ;      Wavelength limits of region above Na D to use in fit.
 ; 
 ; :Author:
@@ -59,7 +59,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_normnadspec,wave,flux,err,z,fitord=fitord,$
+function ifsf_normnad,wave,flux,err,z,fitord=fitord,$
                      fitranlo=fitranlo,fitranhi=fitranhi
 
   if ~ keyword_set(fitord) then fitord=2

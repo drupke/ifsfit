@@ -2,7 +2,7 @@
 ;
 ;+
 ;
-; Interpolate templates from template wavelength grid to data
+; (Linearly) interpolate templates from template wavelength grid to data
 ; wavelength grid.
 ;
 ; :Categories:
@@ -32,6 +32,7 @@
 ;      2009, DSNR, copied base code from Harus Jabran Zahid
 ;      2013oct17, DSNR, documented
 ;      2013nov13, DSNR, renamed, added license and copyright 
+;      2013dec11, DSNR, added a comment
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -58,12 +59,13 @@ function ifsf_interptemp, spec_lam, temp_lam, template, $
   new_temp = fltarr(n_elements(spec_lam), ss[2])
 
   if min(temp_lam) gt min(spec_lam) then $
-     print, '  INTERPOL_TEMPLATE: WARNING: Extrapolating template from ',$
+     print, 'IFSF_INTERPTEMP: WARNING -- Extrapolating template from ',$
             min(temp_lam),' to ',min(spec_lam),'.',format='(A,I0,A,I0,A)'
   if max(temp_lam) lt max(spec_lam) then $
-     print, '  INTERPOL_TEMPLATE: WARNING: Extrapolating template from ',$
+     print, 'IFSF_INTERPTEMP: WARNING -- Extrapolating template from ',$
             max(temp_lam),' to ',max(spec_lam),'.',format='(A,I0,A,I0,A)'
 
+; Default interpolation for INTERPOL is linear
   for i = 0, ss[2] - 1 do new_temp[*, i] = $
      interpol(template[*, i],temp_lam,spec_lam)
 

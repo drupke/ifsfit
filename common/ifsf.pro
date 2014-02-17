@@ -28,6 +28,8 @@
 ;    oned: in, optional, type=byte
 ;      Data is assumed to be in a 2d array; choose this switch to
 ;      input data as a 1d array.
+;    onefit: in, optional, type=byte
+;      Option to skip second fit; primarily for testing.
 ;    verbose: in, optional, type=byte
 ;      Print error and progress messages. Propagates to most/all
 ;      subroutines.
@@ -51,9 +53,22 @@
 ;                       'oned', to make it more general
 ;      2013nov26, DSNR, added code to turn input hashes into arrays
 ;                       for each spaxel
+;      2013dec10, DSNR, testing with PPXF and bug fixes
+;      2013dec17, DSNR, inserted new IFSF_READCUBE function in place of code 
+;                       block to read data cube; started propagation of hashes
+;                       through code and implementation of new calling sequence
+;                       rubric for IFSF_FITSPEC
+;      2013dec19, DSNR, more progress on propagating use of hashes
+;                       through code, through first fit
+;      2014jan13, DSNR, finished propagating use of hashes
+;      2014jan16, DSNR, updated treatment of redshifts; bugfixes
+;      2014jan17, DSNR, bugfixes; implemented SIGINIT_GAS, TWEAKCNTFIT keywords
+;      2014jan29, DSNR, added _extra parameter to permit passing parameters
+;                       to initialization routine; added some lines to deal
+;                       properly with case of 1d data "cube"
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -70,8 +85,8 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
-         verbose=verbose
+pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
+         verbose=verbose,_extra=ex
   
   starttime = systime(1)
   time = 0
@@ -79,74 +94,51 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
   if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  initdat = call_function(initproc)
+  initdat = call_function(initproc,_extra=ex)
   
 ; Get linelist
-  if tag_exist(initdat,'argslinelist') then linelist = $
-     call_function('ifsf_linelist',initdat.lines,_extra=initdat.argslinelist) $
-  else linelist = ifsf_linelist(initdat.lines)
+  linelist = ifsf_linelist(initdat.lines)
   nlines = linelist.count()
+
+  masksig_secondfit_def = 2d
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  if not tag_exist(initdat,'datext') then datext=1 else datext=initdat.datext
+  if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
+  if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
   
-  if oned then begin
-     data = readfits(initdat.infile,header,ext=2,/silent)
-     var = readfits(initdat.infile,ext=3,/silent)
-     dq = readfits(initdat.infile,ext=4,/silent)
-     datasize = size(data)
-     nz    = datasize[1]
-     ncols = datasize[2]
-     nrows = 1
-;    Wavelength solution
-     wave = dindgen(nz)
-     crval = double(sxpar(header,'CRVAL1',/silent))
-     crpix = double(sxpar(header,'CRPIX1',/silent))
-     cdelt = double(sxpar(header,'CDELT1',/silent))
-     wave = crval + cdelt*(wave-crpix+1) 
-  endif else begin
-     data = readfits(initdat.infile,header,ext=1,/silent)
-     var = readfits(initdat.infile,ext=2,/silent)
-     dq = readfits(initdat.infile,ext=3,/silent)
-     datasize = size(data)
-     ncols = datasize[1]
-     nrows = datasize[2]
-     nz    = datasize[3]
-     wave = dindgen(nz)
-     crval = double(sxpar(header,'CRVAL3',/silent))
-     crpix = double(sxpar(header,'CRPIX3',/silent))
-;     cdelt = double(sxpar(header,'CDELT3',/silent))
-     cdelt = double(sxpar(header,'CD3_3',/silent))
-     wave = crval + cdelt*(wave-crpix+1) 
-  endelse
+  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
+                       datext=datext,varext=varext,dqext=dqext)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if ~ keyword_set(cols) then cols=[1,ncols] $
+  if ~ keyword_set(cols) then cols=[1,cube.ncols] $
   else if n_elements(cols) eq 1 then cols = [cols,cols]
   cols = fix(cols)
   for i=cols[0]-1,cols[1]-1 do begin
 
-     print,'Column ',i+1,' of ',ncols,format='(A,I0,A,I0)'
+     print,'Column ',i+1,' of ',cube.ncols,format='(A,I0,A,I0)'
 
-     if ~ keyword_set(rows) then rows=[1,nrows] $
+     if ~ keyword_set(rows) then rows=[1,cube.nrows] $
      else if n_elements(rows) eq 1 then rows = [rows,rows]
      rows = fix(rows)
      for j=rows[0]-1,rows[1]-1 do begin
 
         if oned then begin
-           flux = data[*,i]
+           flux = cube.dat[*,i]
 ;          absolute value takes care of a few deviant points
-           err = sqrt(abs(var[*,i]))
-           bad = dq[*,i]
+           err = sqrt(abs(cube.var[*,i]))
+           bad = cube.dq[*,i]
         endif else begin
-           print,'  Row ',j+1,' of ',nrows,format='(A,I0,A,I0)'
-           flux = reform(data[i,j,*],nz)
-           err = reform(sqrt(abs(var[i,j,*])),nz)
-           bad = reform(dq[i,j,*],nz)
+           print,'  Row ',j+1,' of ',cube.nrows,format='(A,I0,A,I0)'
+           flux = reform(cube.dat[i,j,*],cube.nz)
+           err = reform(sqrt(abs(cube.var[i,j,*])),cube.nz)
+           bad = reform(cube.dq[i,j,*],cube.nz)
         endelse
 
 ;       Apply DQ plane
@@ -158,44 +150,53 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
 
         nodata = where(flux ne 0d,ct)
         if ct ne 0 then begin
+           
+;          Extract # of components and initial redshift guesses
+;          specific to this spaxel, and write as hashes.
+           ncomp = orderedhash(initdat.lines)
+           foreach line,initdat.lines do $
+              if oned then ncomp[line] = (initdat.ncomp)[line,i] $
+              else ncomp[line] = (initdat.ncomp)[line,i,j]
 
-; Turn hashes into spaxel-specific arrays
-
-           ncomp = dblarr(nlines)
-           linewave = dblarr(nlines)
-           linetie = dblarr(nlines)
-           zinit_gas = dblarr(nlines,initdat.maxncomp)
-           for k=0,n_elements(initdat.lines)-1 do begin
-              ncomp[k] = initdat.ncomp[initdat.lines[k],i,j]
-              linewave[k] = linelist[initdat.lines[k]]
-              linetie[k] = initdat.linetie[initdat.lines[k]]
-              zinit_gas[k,*] = initdat.zinit_gas[lines[k],i,j,*]
-           endfor
-
-
+             
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; First fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
-;          Initialize redshift structure
-           z = {star: initdat.zinit_stars[i,j],$
-                gas: zinit_gas}
+;          Initialize stellar redshift for this spaxel
+           if oned then zstar = initdat.zinit_stars[i] $
+           else zstar = initdat.zinit_stars[i,j]
            
 ;          Remove NaI D line for purposes of continuum fit by maximizing
 ;          error. 
            if not tag_exist(initdat,'keepnad') then begin
               nadran_rest = [5850d,5900d]
-              nadran = (1d + z.star) * nadran_rest
-              indx_nad = where(wave ge nadran[0] AND wave le nadran[1],ct)
+              nadran = (1d + zstar) * nadran_rest
+              indx_nad = where(cube.wave ge nadran[0] AND $
+                               cube.wave le nadran[1],ct)
               if ct gt 0 then err[indx_nad]=max(err)
            endif
 
-;          Initialize starting wavelengths
-           linewavez = rebin(linewave,nlines,initdat.maxncomp) * (1d + z.gas)
-           
-           structinit = ifsf_fitspec(wave,flux,err,z,lines,linewave,linewavez,$
-                                     linetie,ncomp,initdat,quiet=quiet)
+;          Option to tweak cont. fit
+           if tag_exist(initdat,'tweakcntfit') then $
+              tweakcntfit = reform(initdat.tweakcntfit[i,j,*,*],3,$
+                                   n_elements(initdat.tweakcntfit[i,j,0,*])) $
+           else tweakcntfit = 0
 
+;          Initialize starting wavelengths
+           linelistz = orderedhash(initdat.lines)
+           foreach line,initdat.lines do $
+              if keyword_set(oned) then linelistz[line] = $
+                 reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
+                        initdat.maxncomp) $
+              else linelistz[line] = $
+                 reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
+                        initdat.maxncomp)
+                 
+           structinit = ifsf_fitspec(cube.wave,flux,err,zstar,linelist,$
+                                     linelistz,ncomp,initdat,quiet=quiet,$
+                                     tweakcntfit=tweakcntfit)
+           
            testsize = size(structinit)
            if testsize[0] eq 0 then begin
               print,'IFSF: Aborting.'
@@ -207,64 +208,55 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,$
               goto,nofit
            endif
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Second fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
-;          Set emission line mask parameters
-           linepars = ifsf_sepfitpars(structinit.param,structinit.perror)
-           nlines_tot = nlines*initdat.maxncomp
-           linewavez = linepars.wave
-           masksig = 2d
-           newmaskwidths = masksig*reform(linepars.sigma,nlines_tot)
+           if not keyword_set(onefit) then begin
 
-;          Put fit initialization parameters into structure
-           initdat_use = initdat
-           if tag_exist(initdat,'maskwidths') then initdat_use.maskwidths = $
-              newmaskwidths $
-           else initdat_use = $
-              jjadd_tag(initdat_use,'maskwidths',newmaskwidths,/array_tag)
-           if tag_exist(initdat,'peakinit') then initdat_use.peakinit = $
-              linepars.fluxpk $
-           else initdat_use = $
-              jjadd_tag(initdat_use,'peakinit',linepars.fluxpk,/array_tag)
-           if structinit.sig_stars gt 0 then $
-              initdat_use.siginit_stars = structinit.sig_stars
-           if tag_exist(initdat_use,'fcnoptstelz') then initdat_use = $
-              rem_tag(initdat_use,'fcnoptstelz')
-           if tag_exist(initdat_use,'fcnoptstelsig') then initdat_use = $
-              rem_tag(initdat_use,'fcnoptstelsig')
-           if tag_exist(initdat_use,'sigfitvals') then initdat_use = $
-              rem_tag(initdat_use,'sigfitvals')
-
-           struct = ifsf_fitspec(wave,flux,err,z,lines,linewave,linewavez,$
-                                 linetie,ncomp,initdat_use,quiet=quiet)
            
-           testsize = size(struct)
-           if testsize[0] eq 0 then begin
-              print,'IFSF: Aborting.'
-              goto,nofit
-           endif
-           if not quiet then print,'FIT STATUS: ',struct.fitstatus
-           if struct.fitstatus eq -16 then begin
-              print,'IFSF: Aborting.'
-              goto,nofit
-           endif
+;             Set emission line mask parameters
+              linepars = ifsf_sepfitpars(linelist,structinit.param,$
+                                         structinit.perror,structinit.parinfo)
+              linelistz = linepars.wave
+              if tag_exist(initdat,'masksig_secondfit') then $
+                 masksig_secondfit = initdat.masksig_secondfit $
+              else masksig_secondfit = masksig_secondfit_def           
+              maskwidths = orderedhash(initdat.lines)
+              foreach line,initdat.lines do $
+                 maskwidths[line] = masksig_secondfit*linepars.sigma[line]
+
+              struct = ifsf_fitspec(cube.wave,flux,err,structinit.zstar,$
+                                    linelist,$
+                                    linelistz,ncomp,initdat,quiet=quiet,$
+                                    maskwidths=maskwidths,$
+                                    peakinit=linepars.fluxpk,$
+                                    siginit_gas=linepars.sigma,$
+                                    tweakcntfit=tweakcntfit)           
+              testsize = size(struct)
+              if testsize[0] eq 0 then begin
+                 print,'IFSF: Aborting.'
+                 goto,nofit
+              endif
+              if not quiet then print,'FIT STATUS: ',struct.fitstatus
+              if struct.fitstatus eq -16 then begin
+                 print,'IFSF: Aborting.'
+                 goto,nofit
+              endif
+
+           endif else struct = structinit
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Save result to a file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-           struct = jjadd_tag(struct,'zstar',z.star)
-
            if oned then $
               save,struct,file=$
-                   string(initdat.outdir,initdat.gal,'_',i+1,'.xdr',$
+                   string(initdat.outdir,initdat.label,'_',i+1,'.xdr',$
                           format='(A,A,A,I04,A,I04,A)') $
            else $
               save,struct,file=$
-                   string(initdat.outdir,initdat.gal,'_',i+1,'_',j+1,$
+                   string(initdat.outdir,initdat.label,'_',i+1,'_',j+1,$
                           '.xdr',format='(A,A,A,I04,A,I04,A)')
 
 nofit:

@@ -13,9 +13,9 @@
 ; :Params:
 ;    lambda: in, required, type=dblarr
 ;      Wavelengths of spectrum
-;    linelambda: in, required, type=dblarr(nlines)
+;    linelambda: in, required, type=hash(lines,maxncomp)
 ;      Central wavelengths of lines to mask
-;    halfwidth: in, required, type=dblarr(nlines)
+;    halfwidth: in, required, type=hash(lines,maxncomp)
 ;      Half width (in km/s) of masking region around each line
 ;
 ; :Keywords:
@@ -35,7 +35,9 @@
 ;    ChangeHistory::
 ;      2009, DSNR, copied base code from Harus Jabran Zahid
 ;      2013oct, DSNR, documented, added nomaskran keyword
-;      2013nov21, DSNR, renamed, added license and copyright 
+;      2013nov21, DSNR, renamed, added license and copyright
+;      2013dec11, DSNR, renamed a couple of variables for clarity
+;      2013jan14, DSNR, moved to hash input for line wavelengths and widths
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -59,29 +61,33 @@ function ifsf_masklin, lambda, linelambda, halfwidth, nomaskran=nomaskran
 
   c = 299792.458d
 
-  good = indgen(n_elements(lambda))
-  nn = n_elements(linelambda)
+  indgd = indgen(n_elements(lambda))
 
-  for i = 0, nn - 1 do begin
-     gg = where(lambda[good] lt linelambda[i]*(1 - halfwidth[i]/c) or $
-                lambda[good] gt linelambda[i]*(1 + halfwidth[i]/c),ct)
-     if ct gt 0 then good = good[gg]
-  endfor
+  foreach line,linelambda->keys() do begin
+    for i=0,n_elements(linelambda[line])-1 do begin
+      ind_indgd = $
+        where(lambda[indgd] lt linelambda[line,i]*$
+                               (1d - halfwidth[line,i]/c) OR $
+              lambda[indgd] gt linelambda[line,i]*$
+                               (1d + halfwidth[line,i]/c),ct)
+      if ct gt 0 then indgd = indgd[ind_indgd]
+    endfor
+  endforeach
 
   if keyword_set(nomaskran) then begin
      for j=0,n_elements(nomaskran)/2 - 1 do begin
-        goodadd = where(lambda ge nomaskran[0,j] AND $
+        indgdadd = where(lambda ge nomaskran[0,j] AND $
                         lambda le nomaskran[1,j],ctadd)
         if ctadd gt 0 then begin
-           if ct gt 0 then good = [good,goodadd] else good = goodadd
+           if ct gt 0 then indgd = [indgd,indgdadd] else indgd = indgdadd
            ct += ctadd
         endif
      endfor
   endif
 
-  good = good[sort(good)]
-  good = good[uniq(good)]
+  indgd = indgd[sort(indgd)]
+  indgd = indgd[uniq(indgd)]
 
-  return, good
+  return, indgd
 
 end

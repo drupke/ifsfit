@@ -5,15 +5,16 @@
 ; This procedure is the core routine to plot the continuum and emission
 ; lines fits to a spectrum.
 ;
-; As input, it requires a structure of initializaiton parameters. The
-; tags for this structure can be found in INITTAGS.txt.
+; As input, it requires a structure of initialization parameters and the output 
+; XDR file from IFSF. The tags for the initialization structure can be found in 
+; INITTAGS.txt.
 ;
 ;
 ; :Categories:
 ;    IFSFIT
 ;
 ; :Returns:
-;    IDL save file (.xdr)
+;    Various plots and data files.
 ;
 ; :Params:
 ;    initproc: in, required, type=string
@@ -47,145 +48,165 @@
 ;                       required parameters from 'gal' and 'bin' to
 ;                       'initproc', and optional parameter 'fibers' to
 ;                       'oned', to make it more general
+;      2014jan13, DSNR, propagated use of hashes; 
+;                       updated for new linelist routine; 
+;                       re-wrote IFSF_PRINTLINPAR and created IFSF_PRINTFITPAR
+;      2014jan16, DSNR, bugfixes
+;      2014jan29, DSNR, added _extra parameter to permit passing parameters
+;                       to initialization routine; added some lines to deal
+;                       properly with case of 1d data "cube"
+;
+; :Copyright:
+;    Copyright (C) 2013-2014 David S. N. Rupke
+;
+;    This program is free software: you can redistribute it and/or
+;    modify it under the terms of the GNU General Public License as
+;    published by the Free Software Foundation, either version 3 of
+;    the License or any later version.
+;
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;    General Public License for more details.
+;
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see
+;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsfa,initproc,cols=cols,rows=rows,$
-          oned=oned,noplots=noplots,$
-          verbose=verbose
+pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
+          verbose=verbose,_extra=ex
 
+  bad = 1d99
   fwhmtosig = 2d*sqrt(2d*alog(2d))
+  if keyword_set(verbose) then quiet=0 else quiet=1
   if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  initdat=call_function(initproc)
+  initdat = call_function(initproc,_extra=ex)
   
 ; Get linelist
-  if tag_exist(initdat,'argslinelist') then linelist = $
-     call_function('ifsf_linelist',_extra=initdat.argslinelist) $
-  else linelist = ifsf_linelist()
-  nlines = n_elements(linelist.label)
+  linelist = ifsf_linelist(initdat.lines)
+  nlines = linelist.count()
 
-  if oned then begin
-;    Read data
-     data = readfits(initdat.infile,header,ext=2,/silent)
-     var = readfits(initdat.infile,ext=3,/silent)
-     dq = readfits(initdat.infile,ext=4,/silent)
-     datasize = size(data)
-     nz    = datasize[1]
-     ncols = datasize[2]
-     nrows = 1
-  endif else begin
-     data = readfits(initdat.infile,header,ext=1,/silent)
-     var = readfits(initdat.infile,ext=2,/silent)
-     dq = readfits(initdat.infile,ext=3,/silent)
-     datasize = size(data)
-     ncols = datasize[1]
-     nrows = datasize[2]
-     nz    = datasize[3]
-  endelse
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Read data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+  if not tag_exist(initdat,'datext') then datext=1 else datext=initdat.datext
+  if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
+  if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
+
+  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
+                       datext=datext,varext=varext,dqext=dqext)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Initialize output files
-  if not tag_exist(initdat,'outlines') then outlines = linelist.label $
-  else outlines = initdat.outlines
-  ifsf_printlinpar,[''],[0],[0],initdat.outdir+gal+'.lines.dat',-1,-1,/init,$
-                   whichlines=outlines
-  openw,fitunit,initdat.outdir+gal+'.fit.dat',/get_lun
-  printf,fitunit,'#Col','Row','Cmp','Rchi2','Niter','FWHM','z',$
-         format='(A-4,2A4,2A6,A8,A10)'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Cycle through spectra
-  if ~ keyword_set(cols) then cols=[1,ncols] $
+  if not tag_exist(initdat,'outlines') then outlines = linelist->keys() $
+  else outlines = initdat.outlines
+  ifsf_printlinpar,outlines,linlun,$
+                   outfile=initdat.outdir+initdat.label+'.lin.dat'
+  ifsf_printfitpar,fitlun,$
+                   outfile=initdat.outdir+initdat.label+'.fit.dat'
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Initialize line hash
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  linmaps = orderedhash()
+  foreach line,outlines do $
+    linmaps[line] = dblarr(cube.ncols,cube.nrows,initdat.maxncomp,4) + bad
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Loop through spaxels
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  if not keyword_set(cols) then cols=[1,cube.ncols] $
   else if n_elements(cols) eq 1 then cols = [cols,cols]
   cols = fix(cols)
-  firstspectrum=0
   for i=cols[0]-1,cols[1]-1 do begin
 
      if keyword_set(verbose) then $
-        print,'Column ',i+1,' of ',ncols,format='(A,I0,A,I0)'
+        print,'Column ',i+1,' of ',cube.ncols,format='(A,I0,A,I0)'
 
-     if ~ keyword_set(rows) then rows=[1,nrows] $
+     if not keyword_set(rows) then rows=[1,cube.nrows] $
      else if n_elements(rows) eq 1 then rows = [rows,rows]
      rows = fix(rows)
      for j=rows[0]-1,rows[1]-1 do begin
 
-;       Load raw data
         if oned then begin
-           flux = data[*,i]
-           err = sqrt(abs(var[*,i]))
+           flux = cube.dat[*,i]
+           err = sqrt(abs(cube.var[*,i]))
            lab = string(i+1,format='(I04)')
         endif else begin
            if keyword_set(verbose) then $
-              print,'  Row ',j+1,' of ',nrows,format='(A,I0,A,I0)'
+              print,'  Row ',j+1,' of ',cube.nrows,format='(A,I0,A,I0)'
+           flux = reform(cube.dat[i,j,*],cube.nz)
+           err = reform(sqrt(abs(cube.var[i,j,*])),cube.nz)
            lab = string(i+1,'_',j+1,format='(I04,A,I04)')
-           flux = reform(data[i,j,*],nz)
-           err = reform(sqrt(abs(var[i,j,*])),nz)
         endelse
+
+;       Restore fit, after a couple of sanity checks
+;       TODO: Mark zero-ed spectra as bad earlier!
+        infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
+        outfile = initdat.outdir+initdat.label+'_'+lab
         nodata = where(flux ne 0d,ct)
-        if ct ne 0 then begin
+        if file_test(infile) OR ct gt 0 then restore,file=infile $
+        else begin
+           print,'IFSFA: No XDR file for ',i+1,', ',j+1,$
+                 ', or data is everywhere 0.',$
+                 format='(A0,I4,A0,I4,A0)'
+           goto,nofit
+        endelse
 
-           if (i eq 1 AND j eq 1) then append=0 else append=1
+;       Restore original error.
+;       TODO: Is this necessary?
+        struct.spec_err = err[struct.gd_indx]
 
-;          Restore fit
-           infile = initdat.outdir+gal+'_'+lab+'.xdr'
-           outfile = initdat.outdir+gal+'_'+lab
-           if file_test(infile) then restore,file=infile $
-           else begin
-              print,'IFSFA: Spectrum ',i+1,', ',j+1,$
-                    ' does not exist.',$
-                    format='(A0,I4,A0,I4,A0)'
-              goto,nofit
-           endelse
+;       Get line fit parameters
+        linepars = ifsf_sepfitpars(linelist,struct.param,struct.perror,$
+                                   struct.parinfo)
 
-;          Restore original error
-           struct.spec_err = err[struct.gd_indx]
-           
-;; ;          # of components
-;;            if n_elements(struct.param) gt 1 then begin
-;;               ncomp = reform(initdat.ncomp[i,j,*],nlines)
-;;               linepars = ifsf_sepfitpars(struct.param,struct.perror)
-;;            endif
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Plot
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-           if not oned then begin
-              if ~ keyword_set(noplots) then begin
-                 if tag_exist(initdat,'fcnpltcont') then $
-                    fcnpltcont=initdat.fcnpltcont else $
-                       fcnpltcont='ifsf_pltcont'
-                 call_procedure,fcnpltcont,struct,outfile+'_cnt'
-              endif
-              if n_elements(struct.param) gt 1 AND $
-                 ~ keyword_set(noplots) then begin
-                 if tag_exist(initdat,'fcnpltlin') then $
-                    fcnpltlin=initdat.fcnpltlin else $
-                       fcnpltlin='ifsf_pltlin'
-                 if tag_exist(initdat,'argspltlin1') then $
-                    call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
-                                   outfile+'_lin1',/velsig
-                 if tag_exist(initdat,'argspltlin2') then $
-                    call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
-                                   outfile+'_lin2',/velsig
-              endif
+        if not keyword_set(noplots) then begin
+
+;          Plot continuum
+           if tag_exist(initdat,'fcnpltcont') then $
+              fcnpltcont=initdat.fcnpltcont $
+           else fcnpltcont='ifsf_pltcont'
+           call_procedure,fcnpltcont,struct,outfile+'_cnt'
+;          Plot emission lines
+           if not linepars.nolines then begin
+              if tag_exist(initdat,'fcnpltlin') then $
+                 fcnpltlin=initdat.fcnpltlin else fcnpltlin='ifsf_pltlin'
+              if tag_exist(initdat,'argspltlin1') then $
+                 call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
+                                outfile+'_lin1'
+              if tag_exist(initdat,'argspltlin2') then $
+                 call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
+                                outfile+'_lin2'
            endif
+
+        endif 
               
-;; ;          Print fit parameters to a text file
-;;            printf,fitunit,i+1,j+1,c1,struct.redchisq,struct.niter,$
-;;                   fwhm_c1,z_c1,$
-;;                   format='(I4,I4,I4,D6.2,I6,D8.2,D10.6)'
-;;            for k = 1,ncomp-1 do $
-;;               printf,fitunit,i+1,j+1,k+1,-1,-1,$
-;;                      fwhmtosig*linepars.sigma[0,k],struct.z.gas[k],$
-;;                      format='(I4,I4,I4,2I6,D8.2,D10.6)'
+;       Print fit parameters to a text file
+        ifsf_printfitpar,fitlun,i+1,j+1,struct
 
-;; ;         Print line fluxes and Halpha Weq to a text file
-;;            if ncomp then begin
-              
-;;               gmos_printlinepars,struct.linelabel,linepars.flux,$
-;;                                  linepars.fluxerr,$
-;;                                  outdir+gal+'.lines.dat',i+1,j+1,/append,$
-;;                                  whichlines=outlines,weq=weq
+        foreach line,outlines do $
+          linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
+                                   [linepars.fluxerr[line,*]],$
+                                   [linepars.wave[line,*]],$
+                                   [linepars.sigma[line,*]]]
 
-;;            endif
+;       Print line fluxes and Halpha Weq to a text file
+        if not linepars.nolines then $ 
+           ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
 
-        endif
 
 nofit:
 
@@ -193,6 +214,9 @@ nofit:
 
   endfor
 
-  free_lun,fitunit
+  free_lun,fitlun
+  free_lun,linlun
+
+  save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
 
 end
