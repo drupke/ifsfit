@@ -13,9 +13,9 @@
 ; :Params:
 ;    lambda: in, required, type=dblarr
 ;      Wavelengths of spectrum
-;    linelambda: in, required, type=hash(lines,maxncomp)
+;    linelambda: in, required, type=hash(lines\,maxncomp)
 ;      Central wavelengths of lines to mask
-;    halfwidth: in, required, type=hash(lines,maxncomp)
+;    halfwidth: in, required, type=hash(lines\,maxncomp)
 ;      Half width (in km/s) of masking region around each line
 ;
 ; :Keywords:

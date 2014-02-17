@@ -11,10 +11,10 @@
 ;    None.
 ;
 ; :Params:
-;    lun: in/out, required, type=integer
+;    lun: in, required, type=integer
 ;      Logical unit for output file. If outfile is set, the lun is output to
 ;      this file. If outfile is not set, the lun to which to write the data is
-;      contained in this parameter.
+;      contained in this parameter as an output.
 ;    col: in, optional, type=integer
 ;      IFS column of spectrum. Only used if outfile is not set.
 ;    row: in, optional, type=integer

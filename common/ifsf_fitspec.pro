@@ -43,7 +43,7 @@
 ;      Initial guesses for peak emission-line flux densities. If not
 ;      set, routine guesses from spectrum. Can also be set in INITDAT.
 ;      Routine prioritizes the keyword definition.
-;    siginit_gas: in, optional, type=hash(lines,\maxncomp)
+;    siginit_gas: in, optional, type=hash(lines\,maxncomp)
 ;      Initial guess for emission line widths for fitting.
 ;    tweakcntfit: in, optional, type=dblarr(3\,nregions)
 ;      Parameters for tweaking continuum fit with localized polynomials. For 
