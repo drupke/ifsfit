@@ -91,6 +91,7 @@
 ;                       routine (rebinning, adding polynomials, etc.);
 ;                       i.e., generic continuum fitting routine is now
 ;                       completely generic
+;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013, 2014 David S. N. Rupke
@@ -218,7 +219,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
         if tag_exist(initdat,'maskwidths') then $
            maskwidths = initdat.maskwidths $
         else begin
-           maskwidths = orderedhash(initdat.lines)
+           maskwidths = hash(initdat.lines)
            foreach line,initdat.lines do $
               maskwidths[line] = dblarr(initdat.maxncomp)+maskwidths_def
         endelse
@@ -347,7 +348,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
      if tag_exist(initdat,'peakinit') then $
         peakinit = initdat.peakinit $
      else begin
-        peakinit = orderedhash(initdat.lines)
+        peakinit = hash(initdat.lines)
         foreach line,initdat.lines do begin
            peakinit[line] = interpol(gdflux_nocnt, gdlambda, linelistz[line])
            neg = where(peakinit[line] lt 0, ct)
@@ -357,7 +358,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ; Initial guesses for emission line widths
   if not keyword_set(siginit_gas) then $
      if not tag_exist(initdat,'siginit_gas') then begin
-        siginit_gas = orderedhash(initdat.lines)
+        siginit_gas = hash(initdat.lines)
         foreach line,initdat.lines do $
            siginit_gas[line] = dblarr(initdat.maxncomp)+siginit_gas_def
      endif else siginit_gas = initdat.siginit_gas

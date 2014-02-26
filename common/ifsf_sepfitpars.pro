@@ -46,7 +46,8 @@
 ;      2009jun07, DSNR, added error propagation and rewrote
 ;      2013nov01, DSNR, added documentation
 ;      2013nov25, DSNR, renamed, added copyright and license
-;      2013jan13, DSNR, re-written to use hashes rather than arrays
+;      2014jan13, DSNR, re-written to use hashes rather than arrays
+;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -79,12 +80,12 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran
 
 ; If this turns out to be slow, can try creating the hashes by concatenation 
 ; instead.
-  flux = orderedhash(linelist->keys())
-  fluxerr = orderedhash(linelist->keys())
-  fluxpk = orderedhash(linelist->keys())
-  fluxpkerr = orderedhash(linelist->keys())
-  wave = orderedhash(linelist->keys())
-  sigma = orderedhash(linelist->keys())
+  flux = hash(linelist->keys())
+  fluxerr = hash(linelist->keys())
+  fluxpk = hash(linelist->keys())
+  fluxpkerr = hash(linelist->keys())
+  wave = hash(linelist->keys())
+  sigma = hash(linelist->keys())
 
   foreach line,linelist->keys() do begin
     fluxpk[line] = param[where(parinfo.line eq line AND $

@@ -55,6 +55,7 @@
 ;      2014jan29, DSNR, added _extra parameter to permit passing parameters
 ;                       to initialization routine; added some lines to deal
 ;                       properly with case of 1d data "cube"
+;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -115,7 +116,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ; Initialize line hash
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  linmaps = orderedhash()
+  linmaps = hash()
   foreach line,outlines do $
     linmaps[line] = dblarr(cube.ncols,cube.nrows,initdat.maxncomp,4) + bad
 

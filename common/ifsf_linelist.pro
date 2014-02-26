@@ -40,6 +40,7 @@
 ;                       license, and turned output into a hash
 ;      2014jan14, DSNR, switched to ordered hashes
 ;      2014jan16, DSNR, fixed one wrong label
+;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -62,7 +63,7 @@
 function ifsf_linelist,inlines
 
 ; Associated line labels:
-  lines = orderedhash()
+  lines = hash()
   lines['Halpha'] = 6562.80d
   lines['Hbeta'] = 4861.32d
   lines['HeI6678'] = 6678.15d
@@ -86,7 +87,7 @@ function ifsf_linelist,inlines
   lines['[FeVII]6087'] = 6087.0d
   lines['[FeX]6375'] = 6374.51d
   
-  outlines = orderedhash()
+  outlines = hash()
   for i=0, n_elements(inlines)-1 do begin
      imatch = where(inlines[i] eq lines->keys(),ctmatch)
      if ctmatch eq 1 then outlines[inlines[i]] = lines[inlines[i]] $

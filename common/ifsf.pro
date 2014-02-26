@@ -66,6 +66,7 @@
 ;      2014jan29, DSNR, added _extra parameter to permit passing parameters
 ;                       to initialization routine; added some lines to deal
 ;                       properly with case of 1d data "cube"
+;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -153,7 +154,7 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
            
 ;          Extract # of components and initial redshift guesses
 ;          specific to this spaxel, and write as hashes.
-           ncomp = orderedhash(initdat.lines)
+           ncomp = hash(initdat.lines)
            foreach line,initdat.lines do $
               if oned then ncomp[line] = (initdat.ncomp)[line,i] $
               else ncomp[line] = (initdat.ncomp)[line,i,j]
@@ -184,7 +185,7 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
            else tweakcntfit = 0
 
 ;          Initialize starting wavelengths
-           linelistz = orderedhash(initdat.lines)
+           linelistz = hash(initdat.lines)
            foreach line,initdat.lines do $
               if keyword_set(oned) then linelistz[line] = $
                  reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
@@ -222,7 +223,7 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
               if tag_exist(initdat,'masksig_secondfit') then $
                  masksig_secondfit = initdat.masksig_secondfit $
               else masksig_secondfit = masksig_secondfit_def           
-              maskwidths = orderedhash(initdat.lines)
+              maskwidths = hash(initdat.lines)
               foreach line,initdat.lines do $
                  maskwidths[line] = masksig_secondfit*linepars.sigma[line]
 

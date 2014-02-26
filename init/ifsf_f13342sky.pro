@@ -24,6 +24,7 @@
 ; :History:
 ;    ChangeHistory::
 ;      2014jan29, DSNR, created
+;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -55,10 +56,10 @@ function ifsf_f13342sky,skyexp=skyexp
   infile='/Users/drupke/ifs/gmos/red/'+gal+'/ctexrdat_'+skyexp+'.fits'
   lines = ['[OI]5577']
   maxncomp = 1
-  linetie = orderedhash(lines,'[OI]5577')
-  ncomp = orderedhash(lines)
-  zinit_gas = orderedhash(lines)
-  siginit_gas = orderedhash(lines)
+  linetie = hash(lines,'[OI]5577')
+  ncomp = hash(lines)
+  zinit_gas = hash(lines)
+  siginit_gas = hash(lines)
   foreach i,lines do begin
     ncomp[i] = dblarr(ncols)+maxncomp
     zinit_gas[i] = dblarr(ncols,maxncomp)

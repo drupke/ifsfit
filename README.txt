@@ -16,7 +16,7 @@ velocity components.
 REQUIREMENTS
 -------------------------------------------------------------------------
 
-IDL v8.3
+IDL v8.0 or higher (tested with v8.3)
 
 IDL libraries:
 - IDL Astronomy User's Library

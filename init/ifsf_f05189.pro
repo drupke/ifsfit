@@ -35,6 +35,7 @@
 ;      2013jan13, DSNR, updated to pass hashes for many parameters into IFSF, 
 ;                       instead of structures
 ;      2014jan16, DSNR, fixed one wrong wavelength label
+;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -87,10 +88,10 @@ function ifsf_f05189
   maxncomp = 3
 
 ; Initialize line ties, n_comps, z_inits, and sig_inits.
-  linetie = orderedhash(lines,'Halpha')
-  ncomp = orderedhash(lines)
-  zinit_gas = orderedhash(lines)
-  siginit_gas = orderedhash(lines)
+  linetie = hash(lines,'Halpha')
+  ncomp = hash(lines)
+  zinit_gas = hash(lines)
+  siginit_gas = hash(lines)
 ; note that siginit_gas is technically optional, put here for convenience
   foreach i,lines do begin
      ncomp[i] = dblarr(ncols,nrows)+maxncomp
