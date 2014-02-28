@@ -36,6 +36,7 @@
 ;                       instead of structures
 ;      2014jan16, DSNR, fixed one wrong wavelength label
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
+;      2014feb27, DSNR, added zsys_gas, platescale, specres
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -209,8 +210,11 @@ function ifsf_f05189
          ncomp: ncomp,$
          mapdir: '/Users/drupke/ifs/gmos/maps/'+gal+'/'+outstr+'/',$
          outdir: '/Users/drupke/specfits/gmos/'+gal+'/'+outstr+'/',$
+         platescale: 0.2d,$
+         specres: 1.6d,$
          zinit_stars: zinit_stars,$
          zinit_gas: zinit_gas,$
+         zsys_gas: 0.0425d,$
 ; Optional pars
          argsinitpar: {siglim: siglim_gas},$
          argspltlin1: argspltlin1,$

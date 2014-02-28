@@ -11,6 +11,7 @@
 #   2014jan17, DSNR, added TWEAKCNTFIT
 #   2014jan29, DSNR, added DATEXT, VAREXT, DQEXT
 #   2014feb17, DSNR, added PPXF_MAXDEG_ADDPOLY, removed ADDPOLY2TEMP
+#   2014feb27, DSNR, added ZSYS_GAS, PLATESCALE, SPECRES
 #
 
 This file describes the parameters that are contained in the INITDAT
@@ -43,12 +44,22 @@ Required structure tags from initialization procedure:
     For each spaxel and emission line, # of components to fit.
   outdir: in, required, type=string
     Directory for output .xdr file and analysis files (plots, lists).
+  platescale: in, required, type=double
+    Size of pixel in arcseconds.
+  specres: in, required, type=double
+    Spectral resolution of spectrograph in Angstroms, used for
+    correcting linewidths for the instrumental profile. Code does not
+    yet properly handle instruments with constant resolution in km/s,
+    at least in this respect.
   zinit_stars: in, required, type=dblarr(ncols,nrows)
     Redshift used to shift any stellar templates to observed
     frame.
   zinit_gas: in, required, type=hash(lines,ncols,nrows,maxncomp)
     Initial redshift guesses for each spaxel, emission line, and
     component.
+  zsys_gas: in, required, type=double
+    Systemic redshift for gas, used for calculating velocities
+    w.r.t. systemic.
 
 Optional structure tags from initialization procedure:
 
