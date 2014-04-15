@@ -34,10 +34,11 @@
 ;    ChangeHistory::
 ;      2009, DSNR, copied from manygauss_slow.pro and rewritten
 ;      2013sep, DSNR, switch sigma from wavelength to velocity space
-;      2013nov13, DSNR, documented, renamed, added license and copyright 
+;      2013nov13, DSNR, documented, renamed, added license and copyright
+;      2014apr10, DSNR, fixed cases of floating underflow 
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -89,9 +90,14 @@ function ifsf_manygauss, wave, param
   for i=0,nline-1 do begin
      gind = where(indsubwaves[i,*] ge 0 AND indsubwaves[i,*] le nwave-1,$
                   count)
-     if count gt 0 then $
-        yvals[indsubwaves[i,gind]] += $
-        transpose(fluxes[i]*EXP(-(dwaves[i,gind]/sigs[i])^2d/2d))
+;    The "mask" parameter eliminates floating underflow by removing very large
+;    negative exponents. See http://www.idlcoyote.com/math_tips/underflow.html
+;    for more details.
+     if count gt 0 then begin
+        exparg = -(dwaves[i,gind]/sigs[i])^2d/2d
+        mask = (abs(exparg) lt 80)
+        yvals[indsubwaves[i,gind]] += transpose(fluxes[i]*mask*EXP(exparg*mask))      
+     endif
   endfor
 
   RETURN, yvals

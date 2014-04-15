@@ -274,9 +274,13 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
              degree=polyterms,polyweights=polyweights,quiet=quiet,$
              weights=ct_coeff
-     
-        continuum = ifsf_cmpcontppxf(gdlambda,gdlambda_log,temp,ct_coeff,$
-                                     polyterms,polyweights)
+ 
+;       Resample the best fit into linear space
+        continuum = interpol(continuum_log,gdlambda_log,ALOG(gdlambda))
+
+; IFSF_CMPCONTPPXF is not yet functional ...    
+;        continuum = ifsf_cmpcontppxf(gdlambda,gdlambda_log,temp,ct_coeff,$
+;                                     polyterms,polyweights)
 
 ;       Adjust stellar redshift based on fit
         zstar += sol[0]/c

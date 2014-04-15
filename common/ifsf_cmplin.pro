@@ -39,9 +39,14 @@
 ;      2013sep12  DSNR  made into stand-alone routine
 ;      2013oct09, DSNR, added documentation
 ;      2013nov13, DSNR, renamed, added license and copyright 
+;      2014apr10, DSNR, check if sigma = 0 to prevent IEEE exception in GAUSSIAN
+;      2014apr14, DSNR, fixed bug due to change in ordering of lines in PARAM
+;                       array; switched from ordered hashes to ordinary hashes
+;                       a while ago, which unsynced ordering of lines from place
+;                       to place
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -65,14 +70,12 @@ function ifsf_cmplin,instr,line,comp,velsig=velsig
   iline = where(instr.linelabel eq line,ct)
   ppoff = instr.param[0]
   ncomp = instr.param[1]
-  ppoff0 = ppoff - (ncomp-1)
 
-  nline = n_elements(instr.linelabel)
-  indices = ppoff+(comp-1)*nline*3+iline*3
-  indices = indices[0] + indgen(3)
+  indices = where(instr.parinfo.line eq line AND instr.parinfo.comp eq comp)
   gausspar = instr.param[indices]
   if keyword_set(velsig) then gausspar[2] *= gausspar[1]/c
-  flux = gaussian(instr.wave,gausspar,/double)
+  if gausspar[2] eq 0 then flux = 0d else $
+     flux = gaussian(instr.wave,gausspar,/double)
 
   return,flux
 

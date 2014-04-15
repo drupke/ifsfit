@@ -214,7 +214,6 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
            if not keyword_set(onefit) then begin
-
            
 ;             Set emission line mask parameters
               linepars = ifsf_sepfitpars(linelist,structinit.param,$

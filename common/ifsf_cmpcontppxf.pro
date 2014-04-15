@@ -3,6 +3,10 @@
 ;+
 ;
 ; Compute the continuum spectrum fit by PPXF.
+; 
+; Unfortunately, this doesn't yet work, for reasons unclear. Though at least 
+; one reason is the fact that I don't do the convolution with the best-fit 
+; sigma.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -61,9 +65,9 @@ function ifsf_cmpcontppxf,lambda,lambda_log,temp,tempweights,$
                           polydeg,polyweights
   
 ; Compute polynomial in log space
-  x = range(-1d,1d,n_elements(lambda_log))
+  x = cap_range(-1d,1d,n_elements(lambda_log))
   apoly_log = 0d
-  for j=0,polydeg do apoly_log += legendre(x,j)*polyweights[j]
+  for j=1,polydeg do apoly_log += legendre(x,j)*polyweights[j]
 ; Interpolate polynomial to linear space
   apoly = interpol(apoly_log,lambda_log,ALOG(lambda))
 ; Compute template combination in linear space

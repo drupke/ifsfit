@@ -56,15 +56,26 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_f05189
+function ifsf_f05189,dumy=dumy
 
   gal = 'f05189'
   bin = 2d
   ncols = 28
   nrows = 27
-  centcol = 14d
-  centrow = 14d
+  centcol = 14
+  centrow = 14
   outstr = 'rb'+string(bin,format='(I0)')
+
+; distance from central pixel
+  x_pix = rebin(indgen(ncols)+1,ncols,nrows)
+  y_pix = rebin(transpose(indgen(nrows)+1),ncols,nrows)
+  rad_pix = sqrt((double(x_pix-centcol))^2d + (double(y_pix-centrow))^2d)
+
+; Regions for setting components
+  inuc0  = where(rad_pix le 3d,ctnuc0)
+  inuc1  = where(rad_pix gt 3d AND rad_pix le 6d,ctnuc1)
+  idisk0 = where(rad_pix gt 6d AND rad_pix lt 12d,ctdisk0)
+  iedge0 = where(rad_pix ge 12d,ctedge0)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Required pars
@@ -88,6 +99,7 @@ function ifsf_f05189
 ; Max no. of components.
   maxncomp = 3
 
+
 ; Initialize line ties, n_comps, z_inits, and sig_inits.
   linetie = hash(lines,'Halpha')
   ncomp = hash(lines)
@@ -104,30 +116,39 @@ function ifsf_f05189
   tmplines = ['[FeVII]5159','[FeVII]5721','[FeVII]6087','[FeX]6375']
   foreach i,tmplines do begin
      linetie[i] = '[FeVII]6087'
-     ncomp[i,13,17] = 0
      ncomp[i,*,*] = 1
-     ncomp[i,11:15,11:15] = 2
-     zinit_gas[i,11:15,11:15,0] = 0.038d
-     zinit_gas[i,11:15,11:15,1] = 0.040d
+     zinit_gas[i,*,*,0] = 0.040d
      siginit_gas[i,0] = 1000d
+     if ctnuc0 gt 0 then for j=0,ctnuc0-1 do begin
+        ncomp[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1] = 2
+        zinit_gas[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1,1] = 0.038d
+     endfor
+     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
+        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
 ; HeII line
   tmplines = ['HeII4686']
   foreach i,tmplines do begin
      linetie[i] = 'HeII4686'
-     ncomp[i,*,*] = 2
-     ncomp[i,13,17] = 0
+     ncomp[i,*,*] = 1
      zinit_gas[i,*,*,0] = 0.040d
-     zinit_gas[i,*,*,1] = 0.038d
-     siginit_gas[i,1] = 1000d
+     if ctnuc1 gt 0 then for j=0,ctnuc1-1 do begin
+       ncomp[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1] = 2
+       zinit_gas[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1,1] = 0.038d
+       siginit_gas[i,1] = 1000d
+     endfor
+     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
+        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
 ; HeI lines
   tmplines = ['HeI6678','HeI7065']
   foreach i,tmplines do begin
      linetie[i] = 'HeI6678'
      ncomp[i,*,*] = 0
-     ncomp[i,11:15,11:15] = 1
-     siginit_gas[i,0] = 500d
+     if ctnuc0 gt 0 then for j=0,ctnuc0-1 do begin
+        ncomp[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1] = 1
+        siginit_gas[i,0] = 500d
+     endfor
   endforeach
 ;; [OIII] lines
 ;  tmplines = ['[OIII]4959','[OIII]5007']
@@ -139,19 +160,24 @@ function ifsf_f05189
 ; Balmer lines, low-ion. colliosional lines
   tmplines = ['Halpha','Hbeta','[OI]6300','[OI]6364',$
               '[OIII]4959','[OIII]5007','[NII]6548','[NII]6583',$
-;              '[NII]6548','[NII]6583',$
               '[SII]6716','[SII]6731']
   foreach i,tmplines do begin
      zinit_gas[i,*,*,1] = 0.040d
      zinit_gas[i,*,*,2] = 0.038d
      siginit_gas[i,2] = 1000d
+     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
+        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 1
+     if ctdisk0 gt 0 then for j=0,ctdisk0-1 do $
+        ncomp[i,x_pix[idisk0[j]]-1,y_pix[idisk0[j]]-1] = 2
   endforeach
 ; [NI] lines
-  tmplines = ['[NI]5198']
+  tmplines = ['[NI]5198','[NI]5200']
   foreach i,tmplines do begin
      linetie[i] = '[NI]5198'
      ncomp[i,*,*] = 1
      siginit_gas[i,2] = 1000d
+     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
+        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

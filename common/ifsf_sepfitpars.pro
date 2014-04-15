@@ -50,7 +50,7 @@
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -97,8 +97,8 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran
     sigma[line] = param[where(parinfo.line eq line AND $
                              parinfo.parname eq 'sigma')]
 ;   Compute total Gaussian flux
-    gflux = GAUSSFLUX(fluxpk[line],sigma[line]/c * wave[line],$
-                      normerr=fluxpkerr[line],sigerr=dblarr(maxncomp))
+    gflux = IFSF_GAUSSFLUX(fluxpk[line],sigma[line]/c * wave[line],$
+                           normerr=fluxpkerr[line],sigerr=dblarr(maxncomp))
     flux[line] = gflux.flux
     fluxerr[line] = gflux.flux_err
 
