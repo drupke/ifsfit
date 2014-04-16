@@ -44,6 +44,8 @@
 ;                       array; switched from ordered hashes to ordinary hashes
 ;                       a while ago, which unsynced ordering of lines from place
 ;                       to place
+;      2014apr15, DSNR, turned off /DOUBLE in call to Gaussian b/c of floating
+;                       point underflow; culprit seems to be MACHAR() ...
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -74,8 +76,8 @@ function ifsf_cmplin,instr,line,comp,velsig=velsig
   indices = where(instr.parinfo.line eq line AND instr.parinfo.comp eq comp)
   gausspar = instr.param[indices]
   if keyword_set(velsig) then gausspar[2] *= gausspar[1]/c
-  if gausspar[2] eq 0 then flux = 0d else $
-     flux = gaussian(instr.wave,gausspar,/double)
+  if gausspar[2] eq 0d then flux = 0d else $
+     flux = double(gaussian(instr.wave,gausspar))
 
   return,flux
 

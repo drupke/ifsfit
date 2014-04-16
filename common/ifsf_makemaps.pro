@@ -15,6 +15,11 @@
 ;      Name of procedure to initialize the fit.
 ;
 ; :Keywords:
+;    comprange: in, optional, type=byte
+;      Adjust ranges separately by component, rather than simultaneously for all
+;      components.
+;    rangefile: in, optional, type=string
+;      File containing unique range specifications.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -27,6 +32,11 @@
 ; :History:
 ;    ChangeHistory::
 ;      2014jan24, DSNR, created
+;      2014apr15, DSNR, moved colorbar division code to subroutine IFSF_CBDIV;
+;                       added ability to automatically fix ranges separately
+;                       for different components; added ability to change ranges
+;                       using an input file; cleared up some floating point
+;                       errors
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -46,18 +56,33 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_makemaps,initproc
+pro ifsf_makemaps,initproc,comprange=comprange,rangefile=rangefile
 
   fwhm2sig = 2d*sqrt(2d*alog(2d))
   plotquantum = 2.5 ; in inches
   bad = 1d99
   c_kms = 299792.458d
+  ncbdivmax = 7
 
 ; Get fit initialization
   initdat=call_function(initproc)
 
 ; Get linelist
   linelist = ifsf_linelist(initdat.lines)
+
+; Get range file
+;
+; plot types, in order; used for correlating with input ranges (array 
+; rangequant)
+  plottypes = ['flux','velocity','sigma']
+  hasrangefile=0
+  if keyword_set(rangefile) then begin
+     if file_test(rangefile) then begin
+        readcol,rangefile,rangeline,rangecomp,rangequant,rangelo,rangehi,$
+        rangencbdiv,format='(A,I,A,D,D,I)',/silent
+        hasrangefile=1
+     endif else print,'IFSF_MAKEMAPS: Range file not found.'
+  endif
 
 ; Restore line maps
   if not tag_exist(initdat,'outlines') then outlines = linelist->keys() $
@@ -106,45 +131,36 @@ pro ifsf_makemaps,initproc
 ;   loop through plot types
     for j=0,2 do begin
 
-;      Set up ranges for scaling data
+;      Set up colorbar labeling
+       if j eq 0 then cbform = '(D0.1)' else cbform = '(I0)'
 
-       mapallcomp = linmaps[line,*,*,0:initdat.maxncomp-1,ilinmap[j]]
-       ibd = where(mapallcomp eq bad,ctbd)
-       igd = where(mapallcomp ne bad AND mapallcomp ne 0,ctgd)
-       if j eq 1 then begin
-;         redshift with respect to galaxy systemic
-          zdiff = mapallcomp[igd]/linelist[line]-1d - initdat.zsys_gas
-;         relativistic velocity shift;
-;         see http://hyperphysics.phy-astr.gsu.edu/hbase/relativ/reldop2.html
-          mapallcomp[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-       endif
-       zran = [min(mapallcomp[igd]),max(mapallcomp[igd])]
-       if j eq 0 then begin
-          cbform = '(D0.1)'
-          zmax_flux = zran[1]
-          zran=[0,1]
-          dzran = 1
-          ncbdiv = 5
-       endif else begin
-          cbform = '(I0)'
-;         get round numbers for ranges
-          zran /= 100d
-          zran=[floor(zran[0]),ceil(zran[1])]
-          zran *= 100d
-          dzran = zran[1]-zran[0]
-;         get round number for colorbar divisions
-          if dzran eq 100 then ncbdiv = 1 $
-          else if dzran eq 200 then ncbdiv = 2 $
-          else begin
-             ncbdiv = 2
-             dzdivrem = 1
-             while dzdivrem ne 0 do begin
-                ncbdiv++
-                dzdiv = dzran / double(ncbdiv) / 100d
-                dzdivrem = dzdiv - floor(dzdiv)
-             endwhile
+
+;      Set up ranges for all components at once
+       if ~ keyword_set(comprange) then begin
+        
+          mapallcomp = linmaps[line,*,*,0:initdat.maxncomp-1,ilinmap[j]]
+          ibd = where(mapallcomp eq bad,ctbd)
+          igd = where(mapallcomp ne bad AND mapallcomp ne 0,ctgd)
+          if j eq 1 then begin
+;            redshift with respect to galaxy systemic
+             zdiff = mapallcomp[igd]/linelist[line]-1d - initdat.zsys_gas
+;            relativistic velocity shift;
+;            see http://hyperphysics.phy-astr.gsu.edu/hbase/relativ/reldop2.html
+             mapallcomp[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+          endif
+          zran = [min(mapallcomp[igd]),max(mapallcomp[igd])]
+          if j eq 0 then begin
+             zmax_flux = zran[1]
+             zran=[0,1]
+             dzran = 1
+             ncbdiv = 5
+          endif else begin
+             divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+             ncbdiv = divarr[0]
+             dzran = zran[1]-zran[0]
           endelse
-       endelse
+
+       endif
 
 ;      Loop through velocity components
        for i=0,initdat.maxncomp-1 do begin
@@ -154,51 +170,85 @@ pro ifsf_makemaps,initproc
 
 ;         Get map and scale
           map = linmaps[line,*,*,i,ilinmap[j]]
-          ibd = where(map eq bad,ctbd)
-          igd = where(map ne bad AND map ne 0,ctgd)
-          if j eq 0 then map[igd] = map[igd]/zmax_flux
-          if j eq 1 then begin
-;            redshift with respect to galaxy systemic
-             zdiff = map[igd]/linelist[line]-1d - initdat.zsys_gas
-;            relativistic velocity shift;
-;            see http://hyperphysics.phy-astr.gsu.edu/hbase/relativ/reldop2.html
-             map[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-          endif
-          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-                          min=zran[0],max=zran[1])
+          ibd = where(map eq bad AND ~ finite(map),ctbd)
+          inan = where(~finite(map),ctnan)
+          igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
 
-;         Plot image
-          if j eq 0 then begin
-             cgloadct,65,/reverse
-             title='c'+string(i+1,format='(I0)')+' flux'
+          if ctgd gt 0 then begin
+            
+             if j eq 1 then begin
+                zdiff = map[igd]/linelist[line]-1d - initdat.zsys_gas
+                map[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+             endif
+
+;            Set up ranges for each component separately
+
+;            Check for manual range first ...
+             hasrange = 0
+             if hasrangefile then begin
+                ithisline = where(line eq rangeline AND $
+                                  i+1 eq rangecomp AND $
+                                  plottypes[j] eq rangequant,ctthisline)
+                if ctthisline eq 1 then begin
+                   zran = [rangelo[ithisline],rangehi[ithisline]]
+                   dzran = zran[1]-zran[0]
+                   ncbdiv = rangencbdiv[ithisline]
+                   ncbdiv = ncbdiv[0]
+                   hasrange = 1
+                endif
+             endif
+;            otherwise set it automagically.
+             if keyword_set(comprange) AND ~hasrange then begin
+                zran = [min(map[igd]),max(map[igd])]
+                if j eq 0 then begin
+                   zmax_flux = zran[1]
+                   zran=[0,1]
+                   dzran = 1
+                   ncbdiv = 5
+                endif else begin
+                   divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+                   ncbdiv = divarr[0]
+                   dzran = zran[1]-zran[0]
+                endelse
+             endif
+
+             if j eq 0 then map[igd] = map[igd]/zmax_flux
+             if ctnan gt 0 then map[inan] = bad
+             mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                             min=zran[0],max=zran[1])
+
+;            Plot image
+             if j eq 0 then begin
+                cgloadct,65,/reverse
+                title='c'+string(i+1,format='(I0)')+' flux'
+                title += ' ('+string(zmax_flux,format='(E0.2)')+')'
+             endif
+             if j eq 1 then begin
+                cgloadct,74,/reverse
+                title='c'+string(i+1,format='(I0)')+' velocity'
+             endif
+             if j eq 2 then begin
+                cgloadct,65,/reverse
+                title='c'+string(i+1,format='(I0)')+' sigma'
+             endif
+             cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
+                     noerase=iplot ne 0,missing_value=bad,missing_index=255,$
+                     missing_color='white'
+;            Plot axes in kpc
+             cgplot,[0],xsty=5,ysty=5,xran=xran,yran=yran,position=truepos,$
+                    /nodata,/noerase,title=title
+             cgaxis,xaxis=0,xran=xran_kpc,/xsty
+             cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+             cgaxis,yaxis=0,yran=yran_kpc,/ysty
+             cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+;            Colorbar
+             cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+             ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+                                (dzran - zran[1]),format=cbform)
+             cgcolorbar,position=cbpos,divisions=ncbdiv,$
+                        ticknames=ticknames,/ver,/right
+
           endif
-          if j eq 1 then begin
-             cgloadct,74,/reverse
-             title='c'+string(i+1,format='(I0)')+' velocity'
-          endif
-          if j eq 2 then begin
-             cgloadct,65,/reverse
-             title='c'+string(i+1,format='(I0)')+' sigma'
-          endif
-          cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
-                  noerase=iplot ne 0,missing_value=bad,missing_index=255,$
-                  missing_color='white'
-;         Plot axes in kpc
-          cgplot,[0],xsty=5,ysty=5,xran=xran,yran=yran,position=truepos,$
-                 /nodata,/noerase,title=title
-          cgaxis,xaxis=0,xran=xran_kpc,/xsty
-          cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
-          cgaxis,yaxis=0,yran=yran_kpc,/ysty
-          cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
-          if i eq 0 AND j eq 0 then $
-             cgtext,'max='+string(zmax_flux,format='(E0.2)'),0.05,0.9,$
-                    charsize=1,align=0
-;         Colorbar
-          cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-          ticknames = string(dindgen(ncbdiv+1)*dzran/ncbdiv - $
-                            (dzran - zran[1]),format=cbform)
-          cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                     ticknames=ticknames,/ver,/right
 
        endfor
 

@@ -132,6 +132,11 @@ function ifsf_f05189,dumy=dumy
      linetie[i] = 'HeII4686'
      ncomp[i,*,*] = 1
      zinit_gas[i,*,*,0] = 0.040d
+     if ctnuc0 gt 0 then for j=0,ctnuc0-1 do begin
+        ncomp[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1] = 2
+        zinit_gas[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1,1] = 0.038d
+        siginit_gas[i,1] = 1000d
+     endfor
      if ctnuc1 gt 0 then for j=0,ctnuc1-1 do begin
        ncomp[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1] = 2
        zinit_gas[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1,1] = 0.038d
@@ -240,7 +245,7 @@ function ifsf_f05189,dumy=dumy
          specres: 1.6d,$
          zinit_stars: zinit_stars,$
          zinit_gas: zinit_gas,$
-         zsys_gas: 0.0425d,$
+         zsys_gas: 0.04275d,$
 ; Optional pars
          argsinitpar: {siglim: siglim_gas},$
          argspltlin1: argspltlin1,$

@@ -56,6 +56,7 @@
 ;                       to initialization routine; added some lines to deal
 ;                       properly with case of 1d data "cube"
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
+;      2014apr15, DSNR, bugfix in file sanity check
 ;
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -153,14 +154,18 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;       TODO: Mark zero-ed spectra as bad earlier!
         infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
         outfile = initdat.outdir+initdat.label+'_'+lab
-        nodata = where(flux ne 0d,ct)
-        if file_test(infile) OR ct gt 0 then restore,file=infile $
-        else begin
-           print,'IFSFA: No XDR file for ',i+1,', ',j+1,$
-                 ', or data is everywhere 0.',$
-                 format='(A0,I4,A0,I4,A0)'
+        if ~ file_test(infile) then begin
+           print,'IFSFA: No XDR file for ',i+1,', ',j+1,'.',$
+           format='(A0,I4,A0,I4,A0)'
            goto,nofit
-        endelse
+        endif
+        nodata = where(flux ne 0d,ct)
+        if ct le 0 then begin
+           print,'IFSFA: Data is everywhere 0 for ',i+1,', ',j+1,'.',$
+           format='(A0,I4,A0,I4,A0)'
+           goto,nofit
+        endif
+        restore,file=infile
 
 ;       Restore original error.
 ;       TODO: Is this necessary?
