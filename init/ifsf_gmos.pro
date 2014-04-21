@@ -49,6 +49,7 @@
 ;      2014jan13, DSNR, updated to use hashes, and to add parname, line, and 
 ;                       comp tags into output parinfo structure
 ;      2014apr10, DSNR, added if statements to remove IEEE exceptions
+;      2015apr17, DSNR, adjusted upper limits for Ha/Hb and [NII]/Ha
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -181,8 +182,11 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      inz = where(fb gt 0,ctnz)
      if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
      parinfo[ip1:ip2].value = frat
-     parinfo[ip1:ip2].limited = rebin([0B,1B],2,tmp_ncomp)
-     parinfo[ip1:ip2].limits  = rebin([0d,4d],2,tmp_ncomp)
+     parinfo[ip1:ip2].limited = rebin([1B,1B],2,tmp_ncomp)
+;    This upper limit appears to be the maximum seen in Kewley+06 or 
+;    Rich+14 ("Composite Spectra in ..."). The lower limit is appropriate 
+;    for ULIRGs.
+     parinfo[ip1:ip2].limits  = rebin([0.1d,2d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NII]/Halpha line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
      for i=0,tmp_ncomp-1 do begin
@@ -212,8 +216,9 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      inz = where(fb gt 0,ctnz)
      if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
      parinfo[ip1:ip2].value = frat
-     parinfo[ip1:ip2].limited = rebin([1B,0B],2,tmp_ncomp)
-     parinfo[ip1:ip2].limits  = rebin([2.86d,100d],2,tmp_ncomp)
+     parinfo[ip1:ip2].limited = rebin([1B,1B],2,tmp_ncomp)
+;    Upper limit of 50 corresponds to E(B-V) = 2.89 using CCM
+     parinfo[ip1:ip2].limits  = rebin([2.86d,50d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = 'Halpha/Hbeta line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
      for i=0,tmp_ncomp-1 do begin

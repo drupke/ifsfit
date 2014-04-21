@@ -204,7 +204,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         ifsf_printfitpar,fitlun,i+1,j+1,struct
 
         foreach line,outlines do $
-          linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
+           linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
                                    [linepars.fluxerr[line,*]],$
                                    [linepars.wave[line,*]],$
                                    [linepars.sigma[line,*]]]
@@ -212,7 +212,6 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;       Print line fluxes and Halpha Weq to a text file
         if not linepars.nolines then $ 
            ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
-
 
 nofit:
 

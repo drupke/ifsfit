@@ -37,6 +37,7 @@
 ;      2014jan16, DSNR, fixed one wrong wavelength label
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;      2014feb27, DSNR, added zsys_gas, platescale, specres
+;      2014apr21, DSNR, added arguments for line ratio maps / VO plots
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -225,6 +226,13 @@ function ifsf_f05189,dumy=dumy
 ; Velocity dispersion limits
   siglim_gas = [299792d/3000d/2.35d,2000d]
 
+; Arguments for maps
+  argslinratmaps = hash()
+  argslinratmaps['lrat1'] = [['1_n2ha','2_n2ha','3_n2ha'],$
+                             ['1_o3hb','2_o3hb','3_o3hb'],$
+                             ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb','3_n2ha_vs_o3hb']]
+  argslinratmaps['ebv'] = ['1_ebv','2_ebv','3_ebv']
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Output structure
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -248,9 +256,15 @@ function ifsf_f05189,dumy=dumy
          zsys_gas: 0.04275d,$
 ; Optional pars
          argsinitpar: {siglim: siglim_gas},$
+         argsmakemap: $
+            {center_axes: [centcol,centrow],$
+            center_nuclei: [centcol,centrow],$
+            argslinratmaps: argslinratmaps,$
+            rangefile: '/Users/drupke/ifs/gmos/maps/f05189/rb2/ranges.txt' },$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
          fcncontfit: 'ppxf',$
+         mapcent: [centcol,centrow],$
          nomaskran: [5075,5100],$
          siglim_gas: siglim_gas,$
          siginit_gas: siginit_gas,$

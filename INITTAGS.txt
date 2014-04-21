@@ -12,6 +12,7 @@
 #   2014jan29, DSNR, added DATEXT, VAREXT, DQEXT
 #   2014feb17, DSNR, added PPXF_MAXDEG_ADDPOLY, removed ADDPOLY2TEMP
 #   2014feb27, DSNR, added ZSYS_GAS, PLATESCALE, SPECRES
+#   2014apr17, DSNR, added ARGSMAKEMAP
 #
 
 This file describes the parameters that are contained in the INITDAT
@@ -71,6 +72,8 @@ Optional structure tags from initialization procedure:
     Arguments for line fitting routine
   argslinelist: in, optional, type=structure
     Arguments for line selection routine
+  argsmakemap: in, optional, type=structure
+    Arguments for map-making procedure
   argspltlin1: in, optional, type=structure
     Arguments for first line plot
   argspltlin2: in, optional, type=structure
