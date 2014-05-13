@@ -100,7 +100,6 @@ function ifsf_f05189,dumy=dumy
 ; Max no. of components.
   maxncomp = 3
 
-
 ; Initialize line ties, n_comps, z_inits, and sig_inits.
   linetie = hash(lines,'Halpha')
   ncomp = hash(lines)
@@ -118,12 +117,12 @@ function ifsf_f05189,dumy=dumy
   foreach i,tmplines do begin
      linetie[i] = '[FeVII]6087'
      ncomp[i,*,*] = 1
-     zinit_gas[i,*,*,0] = 0.040d
+     zinit_gas[i,*,*,0] = 0.041d
      siginit_gas[i,0] = 1000d
-     if ctnuc0 gt 0 then for j=0,ctnuc0-1 do begin
-        ncomp[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1] = 2
-        zinit_gas[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1,1] = 0.038d
-     endfor
+;     if ctnuc0 gt 0 then for j=0,ctnuc0-1 do begin
+;        ncomp[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1] = 2
+;        zinit_gas[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1,1] = 0.038d
+;     endfor
      if ctedge0 gt 0 then for j=0,ctedge0-1 do $
         ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
@@ -132,17 +131,14 @@ function ifsf_f05189,dumy=dumy
   foreach i,tmplines do begin
      linetie[i] = 'HeII4686'
      ncomp[i,*,*] = 1
-     zinit_gas[i,*,*,0] = 0.040d
+     zinit_gas[i,*,*,0] = 0.041d
      if ctnuc0 gt 0 then for j=0,ctnuc0-1 do begin
         ncomp[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1] = 2
-        zinit_gas[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1,1] = 0.038d
+        zinit_gas[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1,1] = 0.039d
         siginit_gas[i,1] = 1000d
      endfor
-     if ctnuc1 gt 0 then for j=0,ctnuc1-1 do begin
-       ncomp[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1] = 2
-       zinit_gas[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1,1] = 0.038d
-       siginit_gas[i,1] = 1000d
-     endfor
+     if ctnuc1 gt 0 then for j=0,ctnuc1-1 do $
+       ncomp[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1] = 1
      if ctedge0 gt 0 then for j=0,ctedge0-1 do $
         ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
@@ -156,20 +152,22 @@ function ifsf_f05189,dumy=dumy
         siginit_gas[i,0] = 500d
      endfor
   endforeach
-;; [OIII] lines
-;  tmplines = ['[OIII]4959','[OIII]5007']
-;  foreach i,tmplines do begin
-;    zinit_gas[i,*,*,1] = 0.040d
-;    zinit_gas[i,*,*,2] = 0.038d
-;    siginit_gas[i,2] = 1000d
-;  endforeach
+; [OIII] lines
+  tmplines = ['[OIII]4959','[OIII]5007']
+  foreach i,tmplines do begin
+    ncomp[i,*,*] = 2
+    linetie[i] = '[OIII]5007'
+    zinit_gas[i,*,*,0] = 0.041d
+    zinit_gas[i,*,*,1] = 0.039d
+    siginit_gas[i,1] = 1000d
+  endforeach
 ; Balmer lines, low-ion. colliosional lines
   tmplines = ['Halpha','Hbeta','[OI]6300','[OI]6364',$
-              '[OIII]4959','[OIII]5007','[NII]6548','[NII]6583',$
+              '[NII]6548','[NII]6583',$
               '[SII]6716','[SII]6731']
   foreach i,tmplines do begin
-     zinit_gas[i,*,*,1] = 0.040d
-     zinit_gas[i,*,*,2] = 0.038d
+     zinit_gas[i,*,*,1] = 0.041d
+     zinit_gas[i,*,*,2] = 0.039d
      siginit_gas[i,2] = 1000d
      if ctedge0 gt 0 then for j=0,ctedge0-1 do $
         ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 1
@@ -179,12 +177,26 @@ function ifsf_f05189,dumy=dumy
 ; [NI] lines
   tmplines = ['[NI]5198','[NI]5200']
   foreach i,tmplines do begin
-     linetie[i] = '[NI]5198'
+     linetie[i] = '[NI]5200'
      ncomp[i,*,*] = 1
-     siginit_gas[i,2] = 1000d
      if ctedge0 gt 0 then for j=0,ctedge0-1 do $
         ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
+
+
+; Parameters for NaD + HeI 5876 fit
+
+; Initialize n_comps, z_inits, and sig_inits.
+  nad_maxncomp = 2
+  nad_nnadabs = dblarr(ncols,nrows)+2
+  nad_nnadem = dblarr(ncols,nrows)+0
+  nad_heitie = strarr(ncols,nrows)+'HeI6678'
+  nad_nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.042
+  nad_nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.043
+  nad_nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+200d
+  nad_nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+200d
+  nad_nadabs_siglim = [299792d/3000d/2.35d,1000d]
+  nad_nadem_siglim = [299792d/3000d/2.35d,1000d]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Optional pars
@@ -223,8 +235,10 @@ function ifsf_f05189,dumy=dumy
                        [-90,80],[-90,80],[-90,80]],$
                  linoth: linoth}
 
-; Velocity dispersion limits
+; Velocity dispersion limits and fixed values
   siglim_gas = [299792d/3000d/2.35d,2000d]
+  sigfix=hash()
+  sigfix['[FeVII]6087'] = 725d
 
 ; Arguments for maps
   argslinratmaps = hash()
@@ -232,6 +246,11 @@ function ifsf_f05189,dumy=dumy
                              ['1_o3hb','2_o3hb','3_o3hb'],$
                              ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb','3_n2ha_vs_o3hb']]
   argslinratmaps['ebv'] = ['1_ebv','2_ebv','3_ebv']
+  
+; Arguments for NaD fitting
+  normnadlo = [6040,6090]
+  normnadhi = [6170,6220]
+  pltnormnad = [6040,6220]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Output structure
@@ -245,9 +264,21 @@ function ifsf_f05189,dumy=dumy
          label: gal,$
          lines: lines,$
          linetie: linetie,$
-         maxncomp: maxncomp,$
-         ncomp: ncomp,$
          mapdir: '/Users/drupke/ifs/gmos/maps/'+gal+'/'+outstr+'/',$
+         maxncomp: maxncomp,$
+         nad_fcnfitnad: 'ifsf_nadfcn',$
+         nad_fcninitpar: 'ifsf_initnad',$
+         nad_refcoords: [14,14],$
+         nad_nnadabs: nad_nnadabs,$ 
+         nad_nnadem: nad_nnadem,$
+         nad_heitie: nad_heitie,$
+         nad_nadabs_zinit: nad_nadabs_zinit,$
+         nad_nadem_zinit: nad_nadem_zinit,$
+         nad_nadabs_siginit: nad_nadabs_siginit,$
+         nad_nadem_siginit: nad_nadem_siginit,$
+         nad_nadabs_siglim: nad_nadabs_siglim,$
+         nad_nadem_siglim: nad_nadem_siglim,$
+         ncomp: ncomp,$
          outdir: '/Users/drupke/specfits/gmos/'+gal+'/'+outstr+'/',$
          platescale: 0.2d,$
          specres: 1.6d,$
@@ -255,16 +286,26 @@ function ifsf_f05189,dumy=dumy
          zinit_gas: zinit_gas,$
          zsys_gas: 0.04275d,$
 ; Optional pars
-         argsinitpar: {siglim: siglim_gas},$
+;         argscheckcomp: {sigcut: 2},$
+         argsinitpar: {siglim: siglim_gas,$
+                       sigfix: sigfix},$
          argsmakemap: $
             {center_axes: [centcol,centrow],$
             center_nuclei: [centcol,centrow],$
-            argslinratmaps: argslinratmaps,$
+;            argslinratmaps: argslinratmaps,$
             rangefile: '/Users/drupke/ifs/gmos/maps/f05189/rb2/ranges.txt' },$
+         argsnormnad: {fitranlo: normnadlo,$
+                       fitranhi: normnadhi},$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
+         argspltnormnad: {fitranlo: normnadlo,$
+                          fitranhi: normnadhi,$
+                          pltran: pltnormnad},$
+         donad: 1,$
+         fcncheckcomp: 'ifsf_checkcomp',$
          fcncontfit: 'ppxf',$
          mapcent: [centcol,centrow],$
+         nad_fitran: [6080,6180],$
          nomaskran: [5075,5100],$
          siglim_gas: siglim_gas,$
          siginit_gas: siginit_gas,$

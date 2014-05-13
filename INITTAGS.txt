@@ -13,7 +13,10 @@
 #   2014feb17, DSNR, added PPXF_MAXDEG_ADDPOLY, removed ADDPOLY2TEMP
 #   2014feb27, DSNR, added ZSYS_GAS, PLATESCALE, SPECRES
 #   2014apr17, DSNR, added ARGSMAKEMAP
-#
+#   2014mayXY, DSNR, added FCNCHECKCOMP
+#   2014may08, DSNR, added ARGSNORMNAD, ARGSPLTNORMNAD
+#   2014may09, DSNR, added ARGPLTFITNAD, NAD_REFCOORDS, NAD_TAUMAX,
+#                          NAD_FITRAN, NAD_ARGSINITPAR, NAD_FCNINITPAR
 
 This file describes the parameters that are contained in the INITDAT
 structure. This structure is created in the initialization procedure
@@ -41,6 +44,30 @@ Required structure tags from initialization procedure:
     Directory for output maps.
   maxncomp: in, required, type=double
     Maximum number of components to fit.
+  nad_fcninitpar: in, required, type=string
+    Name of function for initializing NaD + HeI fit.
+  nad_maxncomp: in, required, type=double
+    Maximum number of HeI, NaD absorption, or NaD emission components.
+  nad_nnadabs: in, required, type=dblarr(ncols,nrows)
+    Number of NaD absorption components to fit.
+  nad_nnadem: in, required, type=dblarr(ncols,nrows)
+    Number of NaD emission components to fit.
+  nad_heitie: in, required, type=dblarr(ncols,nrows)
+    Emission line to use for initializing fit of HeI 5876.
+  nad_nadabs_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
+    Initial redshift guesses for NaD absorption line fits.
+  nad_nadem_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
+    Initial redshift guesses for NaD emission line fits.
+  nad_nadabs_siginit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
+    Initial sigma guesses for NaD absorption line fits.
+  nad_nadem_siginit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
+    Initial sigma guesses for NaD emission line fits.
+  nad_nadabs_siglim: in, required, type=dblarr(2)
+    Limits to sigma for NaD absorption.
+  nad_nadem_siglim: in, required, type=dblarr(2)
+    Limits to sigma for NaD emission.
+  nad_refcoords: in, required, type=dblarr(2)
+    Coordinates (unity-offset) of reference spectrum for NaD + HeI fitting.
   ncomp: in, required, type=hash(lines,ncols,nrows)
     For each spaxel and emission line, # of components to fit.
   outdir: in, required, type=string
@@ -74,10 +101,16 @@ Optional structure tags from initialization procedure:
     Arguments for line selection routine
   argsmakemap: in, optional, type=structure
     Arguments for map-making procedure
+  argsnormnad: in, optional, type=structure
+    Arguments for normalization of NaD continuum.
+  argspltfitnad: in, optional, type=structure
+    Arguments for plotting NaD fit.
   argspltlin1: in, optional, type=structure
     Arguments for first line plot
   argspltlin2: in, optional, type=structure
     Arguments for first line plot
+  argspltnormnad: in, optional, type=structure
+    Arguments for plotting normalization of NaD continuum.
   datext: in, optional, type=integer, default=1
     Extension # for data plane in data cube.
   dividecont: in, optional, type=byte
@@ -85,6 +118,9 @@ Optional structure tags from initialization procedure:
     fit. Default is to subtract.
   dqext: in, optional, type=integer, default=3
     Extension # for dq plane in data cube.
+  fcncheckcomp: in, optional, type=string
+    Name of function for automatically testing significance of
+    components.
   fcncontfit: in, optional, type=string
     Name of continuum fitting function. If not specified, no continuum
     is fit. If this equals 'ppxf,' then PPXF is used to fit the
@@ -113,6 +149,12 @@ Optional structure tags from initialization procedure:
     are multiplied by this value and set to 'maskwidths' parameter. If
     not set, routine defaults to a value specified in IFSF for all
     lines and components.
+  nad_argsinitpar: in, optional, type=structure
+    Arguments for initializing NaD + HeI fit.
+  nad_fitran: in, optional, type=dblarr(2)
+    Fit range for NaD + HeI fit, in the observed frame.
+  nad_taumax: in, optional, type=double, default=5
+    Optical depth upper limit for NaD fitting.
   nomaskran: in, optional, type=dblarr(2)
     Wavelength region *not* to mask.
   outlines: in, optional, type=strarr

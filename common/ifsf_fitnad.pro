@@ -10,9 +10,8 @@
 ; :Returns:    
 ;
 ; :Params:
-;    gal: in, required, type=string
-;      Galaxy label in file naming.
-;
+;    
+;    
 ; :Keywords:
 ; 
 ; :Author:
@@ -26,7 +25,8 @@
 ; :History:
 ;    ChangeHistory::
 ;      2010jul21, DSNR, created
-;      2013nov22, DSNR, renamed, added license and copyright 
+;      2013nov22, DSNR, renamed, added license and copyright
+;      2014may09, DSNR, completely re-written to use MPFIT 
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -46,468 +46,146 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_fitnad,gal,bin,sigfix=sigfix,taumax=taumax,sigmax=sigmax
+pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 
-  if ~keyword_set(taumax) then taumax=5d
+   starttime = systime(1)
+   time = 0
+   if keyword_set(verbose) then quiet=0 else quiet=1
 
-  if keyword_set(sigmax) then bmax=sigmax*sqrt(2d) $
-  else bmax = 1000d/(2d*sqrt(alog(2d)))
+   ; Get fit initialization
+   initdat = call_function(initproc)
 
-  he_rest = 5875.661d
-  nad1_rest = 5895.92d
-  srcdir = '/Users/drupke/winds/routines_fitting/gmos/'
+   ; Get linelist
+   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
 
-  initdat = gmos_initfit_spectra(gal,bin=bin)
-  ncompinit = initdat.ncomp
-  infile = initdat.infile
-  fitdir = initdat.outdir
-  fitran = initdat.nadfitran
-  dx = initdat.dx
-  dy = initdat.dy
-  refx = initdat.nadxref
-  refy = initdat.nadyref
-; Equivalent width sigma thresholds for fitting 1 or 2 components to NaD
-  nad_weq_sig_thresh_1comp = initdat.nad1thresh
-  nad_weq_sig_thresh_2comp = initdat.nad2thresh
-  zinit = initdat.zinit
+   if tag_exist(initdat,'nad_taumax') then taumax=initdat.nad_taumax $
+   else taumax = 5d
+   if tag_exist(initdat,'nad_fitran') then fitran=initdat.nad_fitran
 
-; Arrays to hold flags
-  donefit = dblarr(dx,dy)
-  nabscomp = dblarr(dx,dy)+1
-  nemcomp = intarr(dx,dy)
-  if gal eq 'f08572nw' OR $
-     gal eq 'f08572se' OR $
-     gal eq 'f10565' OR $
-     gal eq 'mrk231' OR $
-     gal eq 'f17207w' OR $
-     gal eq 'f17207e' then begin
-     print,'Using 0 emission components.'
-  endif else if gal eq 'mrk273' OR $
-     gal eq 'vv705nw' OR $
-     gal eq 'vv705se' then begin
-        nemcomp = intarr(dx,dy)+1
-        print,'Using 1 emission components.'
-     endif else begin
-     print,'GMOS_FIT_NAD: Galaxy not recognized.  Select # of emission components.'
-     stop
-  endelse
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Read data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Array of distances from reference spectrum
-  cols = rebin(dindgen(dx)+1,dx,dy)
-  rows = rebin(reform(dindgen(dy)+1,1,dy),dx,dy)
-  dref = sqrt((cols-refx)^2d + (rows-refy)^2d)
-; ... properly sorted in order of increasing distance
-  dref_isrt = sort(dref)
-  nspec = n_elements(rows)
-  cols_srt = reform(cols(dref_isrt),nspec)
-  rows_srt = reform(rows(dref_isrt),nspec)
-  dref_srt = reform(dref(dref_isrt),nspec)
+   restore,file=initdat.outdir+initdat.label+'.lin.xdr'
+   restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
+   nadsize = size(nadcube.wave)
 
-; Pick out spectra to fit using Weq criterion
-  dofit = dblarr(dx,dy)
-  readcol,fitdir+gal+'.lines.dat',$
-          col_f,row_f,comp_f,o1,o1e,ha,hae,n2,n2e,$
-          nad_weq,nad_weqe,$
-          /skip,/silent,format='(I,I,I,D,D,D,D,D,D,D,D)'
-  ndofit=0
-  for i=0,n_elements(col_f)-1 do begin
-     if comp_f[i] eq 1 then begin
-        if nad_weq[i] ge nad_weq_sig_thresh_1comp*nad_weqe[i] then begin
-           dofit[col_f[i]-1,row_f[i]-1] = 1
-           ndofit++
-           if nad_weq[i] ge nad_weq_sig_thresh_2comp*nad_weqe[i] then $
-              nabscomp[col_f[i]-1,row_f[i]-1] = 2
-           haflux = ha[i]
-           if comp_f[i+1] eq 2 then haflux += ha[i+1]
-;  Parameters for Mrk 231 fit
-           if gal eq 'mrk231' then begin
-              if (haflux gt 0 AND $
-                  nad_weq[i] ge 6d*nad_weqe[i] AND $
-                  (col_f[i] le 13 OR row_f[i] ge 5)) $
-              then nemcomp[col_f[i]-1,row_f[i]-1] = 1
-           endif
-        endif
-     endif
-  endfor
-  dofit = reform(dofit(dref_isrt),nspec)
-  idofit=1
+;  if keyword_set(sigmax) then bmax=sigmax*sqrt(2d) $
+;  else bmax = 1000d/(2d*sqrt(alog(2d)))
 
-; Fit reference spectrum
+   ncols = nadsize[1]
+   nrows = nadsize[2]
+   nz = nadsize[3]
+   refcol = initdat.nad_refcoords[0]
+   refrow = initdat.nad_refcoords[1]
 
-  print,'Fitting [',refx,',',refy,'].  Spec. ',idofit,' of ',ndofit,'.',$
-        format='(A,I03,A,I03,A,I0,A,I0,A)'
-  
-  spec = string(refx,'_',refy,format='(I04,A0,I04)')
-  spectot= fitdir+gal+'_'+spec
-  parin  = spectot+'_nad_parin.dat'
-  parout = spectot+'_nad_parout.dat'
-  specin = spectot+'_nad_spec.dat'
-  specout= spectot+'_nad_fit'
-  xdr = spectot+'.xdr'
-
-  restore,file=xdr
-
+;;  Arrays to hold flags
+;   donefit = dblarr(ncols,nrows)
+;   nabscomp = dblarr(ncols,nrows)+1
+;   nemcomp = intarr(ncols,nrows)
 ;
-; Redshift wavelength ranges
-;
-  outran_rest    = [5810d,5960d]
-; Get # of components
-  if n_elements(instr.param) gt 1 then ncomp = instr.param[1] $
-  else ncomp = 0
-  gas=1
-  icomp=0
-  doz=instr.z
-; Pick median redshift
-  if ncomp eq 0 then gas=0
-  if ncomp eq 2 then doz.gas=mean(instr.z.gas)
-  if ncomp eq 3 then begin
-     zsort = sort(instr.z.gas)
-     doz.gas=(instr.z.gas[zsort[1]])
+;;  Array of distances from reference spectrum
+;   cols = rebin(dindgen(ncols)+1,ncols,nrows)
+;   rows = rebin(reform(dindgen(nrows)+1,1,nrows),ncols,nrows)
+;   dref = sqrt((cols-refcol)^2d + (rows-refrow)^2d)
+;;  ... properly sorted in order of increasing distance
+;   dref_isrt = sort(dref)
+;   nspec = n_elements(rows)
+;   cols_srt = reform(cols(dref_isrt),nspec)
+;   rows_srt = reform(rows(dref_isrt),nspec)
+;   dref_srt = reform(dref(dref_isrt),nspec)
+
+;  Fit reference spectrum
+
+   print,'Fitting [',refcol,',',refrow,'].',format='(A,I03,A,I03,A)'
+
+;  Get HeI parameters
+   refline = initdat.nad_heitie[refcol-1,refrow-1]
+   if refline ne '' then begin
+
+;     Restore fit    
+      lab = string(refcol+1,'_',refrow+1,format='(I04,A,I04)')
+      infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
+      outfile = initdat.outdir+initdat.label+'_'+lab
+      if ~ file_test(infile) then begin
+         print,'IFSFA: No XDR file for ',i+1,', ',j+1,'.',$
+            format='(A0,I4,A0,I4,A0)'
+         goto,nofit
+      endif
+      restore,file=infile
+      reflinelist = ifsf_linelist([refline])
+      linepars = ifsf_sepfitpars(reflinelist,struct.param,struct.perror,$
+                                 struct.parinfo)
+
+;     Get reference line parameters      
+      iem = where(linepars.flux[refline,*] ne 0d,nhei)
+      if nhei gt 0 then $
+         inithei = [[(linepars.wave)[refline,0:nhei-1]/$
+                     reflinelist[refline]*linelist['HeI5876']],$
+                   [(linepars.sigma)[refline,0:nhei-1]],$
+                   [dblarr(nhei)+0.1d]] $
+      else inithei=0
+
+   endif else inithei=0
+
+;  Get NaD absorption parameters
+   nnadabs = initdat.nad_nnadabs[refcol-1,refrow-1]
+   if nnadabs gt 0 then begin
+      if tag_exist(initdat,'nad_nadabs_cfinit') then $
+         cfinit = (initdat.nad_nadabs_cfinit)[refcol-1,refrow-1,0:nnadabs-1] $
+      else cfinit = dblarr(nnadabs)+0.5d
+      if tag_exist(initdat,'nad_nadabs_tauinit') then $
+         tauinit = (initdat.nad_nadabs_tauinit)[refcol-1,refrow-1,0:nnadabs-1] $
+      else tauinit = dblarr(nnadabs)+0.5d
+      winit = reform(((initdat.nad_nadabs_zinit)[refcol-1,refrow-1,0:nnadabs-1]$
+                     +1d)*linelist['NaD2'],nnadabs)
+      siginit = reform((initdat.nad_nadabs_siginit)$
+                       [refcol-1,refrow-1,0:nnadabs-1],nnadabs)
+      initnadabs = [[cfinit],[tauinit],[winit],[siginit]]
+   endif else initnadabs=0
+
+;  Get NaD emission parameters
+   nnadem = initdat.nad_nnadem[refcol-1,refrow-1]
+   if nnadem gt 0 then begin
+      winit = reform(((initdat.nad_nadem_zinit)[refcol-1,refrow-1,0:nnadem-1]$
+                     +1d)*linelist('NaD2'),nnadem)
+      siginit = reform((initdat.nad_nadem_siginit)$
+                       [refcol-1,refrow-1,0:nnadem-1],nnadem)
+      if tag_exist(initdat,'nad_nadem_finit') then $
+         finit = (initdat.nad_nadem_finit)[refcol-1,refrow-1,0:nnadem-1] $
+      else finit = dblarr(nnadem)+0.1d
+      if tag_exist(initdat,'nad_nadem_rinit') then $
+         rinit = (initdat.nad_nadem_rinit)[refcol-1,refrow-1,0:nnadem-1] $
+      else rinit = dblarr(nnadem)+1.5d
+      initnadem = [[winit],[siginit],[finit],[rinit]]
+   endif else initnadem=0
+
+;  Fill out parameter structure with initial guesses and constraints
+   if tag_exist(initdat,'nad_argsinitpar') then parinit = $
+      call_function(initdat.nad_fcninitpar,inithei,initnadabs,initnadem,$
+                    initdat.nad_nadabs_siglim,initdat.nad_nadem_siglim,$
+                    _extra=initdat.nad_argsinitpar) $
+   else parinit = $
+      call_function(initdat.nad_fcninitpar,inithei,initnadabs,initnadem,$
+                    initdat.nad_nadabs_siglim,initdat.nad_nadem_siglim)
+
+   param = Mpfitfun(initdat.nad_fcnfitnad,$
+                    (nadcube.wave)[refcol-1,refrow-1,*],$
+                    (nadcube.dat)[refcol-1,refrow-1,*],$
+                    (nadcube.err)[refcol-1,refrow-1,*],$
+                    parinfo=parinit,perror=perror,maxiter=100,$
+                    bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
+                    nfev=nfev,niter=niter,status=status,quiet=quiet,$
+                    npegged=npegged,ftol=1D-6,functargs=argslinefit,$
+                    errmsg=errmsg)
+  if status eq 0 OR status eq -16 then begin
+     print,'IFSF_FITSPEC: Error in MPFIT. Aborting.'
+     outstr = 0
+     goto,finish
   endif
-  if keyword_set(restcomp) then doz.gas=instr.z.gas[restcomp-1]
-; Do redshifting
-  outran    = gmos_redshift_spec(outran_rest,doz,gas=gas,icomp=icomp)
-  
-; Compute continuum
-  wave = instr.wave
-  specstars = instr.spec - instr.specfit
-  errstars = instr.spec_err
-  specresid = specstars
-  errresid = errstars
 
-;; ; Compute equivalent width
-;;   iweq2 = value_locate(waveout,cfit1ran[1])
-;;   iweq3 = value_locate(waveout,cfit2ran[0])
-;;   fluxoutnad = 1d -fluxout[iweq2:iweq3]
-;;   erroutnad = errout[iweq2:iweq3]
+nofit:
 
-;; ; Filter out emission lines using 2-sigma cut
-;;   iem = where(fluxoutnad lt -erroutnad*2d,ctem)
-;;   if ctem gt 0 then fluxoutnad[iem] = 0d
-;;   weq = total(fluxoutnad*(waveout[iweq2:iweq3]-waveout[iweq2-1:iweq3-1]))
-;;   weq_e = sqrt(total(errout[iweq2:iweq3]^2*(waveout[iweq2:iweq3]-waveout[iweq2-1:iweq3-1])))
-;;   weq = [weq,weq_e]
-
-;; ; Print spectrum to file
-
-;;   openw,lun,outfile,/get_lun
-;;   printf,lun,ctout
-;;   for i=0,ctout-1 do $
-;;      printf,lun,waveout[i],fluxout[i],errout[i]
-;;   free_lun,lun
-
-; Get emission-line parameters
-  nem = nemcomp[refx-1,refy-1]
-  if nem gt 0 then begin
-     if n_elements(struct.param) gt 1 then $
-        nem_emfit = struct.param[1] $
-     else $
-        nem_emfit = 0
-     if nem_emfit gt 0 then begin
-        linepars = sepfitpars(struct.param,struct.perror)
-        haind = where(struct.linelabel eq 'Halpha')
-        i_hapk = 0
-        if nem_emfit gt 1 then begin
-           for i=1,nem_emfit-1 do begin
-              if linepars.fluxpk[haind,i] gt $
-                 linepars.fluxpk[haind,0] then $
-                    i_hapk = i
-           endfor
-        endif
-        ; if nem eq 2 then begin
-        ;    if nem_emfit gt 2 then begin
-        ;    for i=1,nem_emfit-1 do begin
-        ;       if linepars.fluxpk[haind,i] gt $
-        ;          linepars.fluxpk[haind,0] then $
-        ;             i_hapk = i
-        ;    endfor
-        ; endif
-        he_lam = he_rest * (1d + struct.z.gas[i_hapk])
-        he_b = linepars.sigma[haind,i_hapk] * sqrt(2d) / $
-               he_lam * 299792d
-     endif
-  endif
-
-; First with 2 components ...
-
-  nabs = 2
-
-  nadr = (nad1_rest*(1d + zinit[refx-1,refy-1,0])) + [-10,0,5]
-  nadb = (nad1_rest*(1d + zinit[refx-1,refy-1,0])) + [-18,-10,-2]
-
-  openw,lun,parin,/get_lun
-  printf,lun,nabs,nem,fitran[0],fitran[1],format='(I8,I8,D8.1,D8.1)'
-  fparin = '(D8.2,D8.2,D8.2,I8)'
-  printf,lun,0.01,0.5,1.0,1,format=fparin
-  printf,lun,0.01,0.5,taumax,1,format=fparin
-;  printf,lun,6125,6135,6140,1,format=fparin
-  printf,lun,nadr[0],nadr[1],nadr[2],1,format=fparin
-  printf,lun,60,400,bmax,1,format=fparin
-  printf,lun,0.01,0.5,1.0,1,format=fparin
-  printf,lun,0.01,0.5,taumax,1,format=fparin
-;  printf,lun,6135,6143,6155,1,format=fparin
-  printf,lun,nadb[0],nadb[1],nadb[2],1,format=fparin
-  printf,lun,60,200,bmax,1,format=fparin
-  if nem eq 1 then begin
-     printf,lun,0,0.1,2,1,format=fparin
-     printf,lun,0,he_lam,0,0,format=fparin
-     printf,lun,0,he_b,0,0,format=fparin
-  endif
-  free_lun,lun
-  
-  file_copy,srcdir+'lmfit.h',srcdir+'lmfit.h.BAK',/over
-  lmfith = strarr(15)
-  dummy = ''
-  openr,lun,srcdir+'lmfit.h',/get_lun
-  for j=0,11 do begin
-     readf,lun,dummy
-     lmfith[j] = dummy        
-  endfor
-  lmfith[12] = '#define FILE_PARI "'+parin+'"'
-  lmfith[13] = '#define FILE_OUT  "'+parout+'"'
-  lmfith[14] = '#define FILE_DAT  "'+specin+'"'
-  free_lun,lun
-  
-  openw,lun,srcdir+'lmfit.h',/get_lun
-  for j=0,14 do printf,lun,lmfith[j]
-  free_lun,lun
-     
-  spawn,'gcc -o '+fitdir+'lmfit '+srcdir+'lmfit.c -I'+$
-        srcdir+'/lib -lm'
-  spawn,fitdir+'lmfit'
-  
-  gmos_plotnadfit,specin,parout,specout,struct.z
-
-  spawn,'mv '+spectot+'_nad_parout.dat'+' '+spectot+'_nad_parout.2comp.dat'
-  spawn,'mv '+specout+'.jpg '+specout+'.2comp.jpg'
-
-; ... then with 1.
-  
-  nabs = 1
-
-  nadr = (nad1_rest*(1d + zinit[refx-1,refy-1,0])) + [-15,0,10]
-
-  openw,lun,parin,/get_lun
-  printf,lun,nabs,nem,fitran[0],fitran[1],format='(I8,I8,D8.1,D8.1)'
-  fparin = '(D8.2,D8.2,D8.2,I8)'
-  printf,lun,0.01,0.5,1.0,1,format=fparin
-  printf,lun,0.01,0.5,taumax,1,format=fparin
-;  printf,lun,6125,6140,6150,1,format=fparin
-  printf,lun,nadr[0],nadr[1],nadr[2],1,format=fparin
-  if keyword_set(sigfix) then $
-     printf,lun,60,sigfix*sqrt(2d),bmax,0,format=fparin $
-  else $
-     printf,lun,60,400,bmax,1,format=fparin
-  if nem eq 1 then begin
-     printf,lun,0,0.1,2,1,format=fparin
-     printf,lun,0,he_lam,0,0,format=fparin
-     printf,lun,0,he_b,0,0,format=fparin
-  endif
-  free_lun,lun
-  
-  file_copy,srcdir+'lmfit.h',srcdir+'lmfit.h.BAK',/over
-  lmfith = strarr(15)
-  dummy = ''
-  openr,lun,srcdir+'lmfit.h',/get_lun
-  for j=0,11 do begin
-     readf,lun,dummy
-     lmfith[j] = dummy        
-  endfor
-  lmfith[12] = '#define FILE_PARI "'+parin+'"'
-  lmfith[13] = '#define FILE_OUT  "'+parout+'"'
-  lmfith[14] = '#define FILE_DAT  "'+specin+'"'
-  free_lun,lun
-  
-  openw,lun,srcdir+'lmfit.h',/get_lun
-  for j=0,14 do printf,lun,lmfith[j]
-  free_lun,lun
-     
-  spawn,'gcc -o '+fitdir+'lmfit '+srcdir+'lmfit.c -I'+$
-        srcdir+'/lib -lm'
-  spawn,fitdir+'lmfit'
-
-  gmos_plotnadfit,specin,parout,specout,struct.z
-
-  donefit[refx-1,refy-1] = 1
-  cols_done = [refx]
-  rows_done = [refy]
-  nabs_done = [2]
-  idofit++
-
-; Fit rest of spectra
-  
-  for i=1,nspec-1 do begin
-     
-     if dofit[i] then begin
-
-        badcomp=0
-        nabs = nabscomp[cols_srt[i]-1,rows_srt[i]-1]
-        nem = nemcomp[cols_srt[i]-1,rows_srt[i]-1]
-       
-        print,'Fitting [',cols_srt[i],',',rows_srt[i],'].',$
-              format='(A,I03,A,I03,A,$)'
-
-        spec = string(cols_srt[i],'_',rows_srt[i],$
-                      format='(I04,A0,I04)')
-        spectot= fitdir+gal+'_'+spec
-        parin  = spectot+'_nad_parin.dat'
-        parout = spectot+'_nad_parout.dat'
-        specin = spectot+'_nad_spec.dat'
-        specout= spectot+'_nad_fit'
-        xdr = spectot+'.xdr'
-
-;       Get emission-line parameters
-        restore,file=xdr
-        if nem gt 0 then begin
-           if n_elements(struct.param) gt 1 then $
-              nem_emfit = struct.param[1] $
-           else $
-              nem_emfit = 0
-           if nem_emfit gt 0 then begin
-              linepars = sepfitpars(struct.param,struct.perror)
-              haind = where(struct.linelabel eq 'Halpha')
-              i_hapk = 0
-              if nem_emfit eq 2 then $
-                 if linepars.fluxpk[haind,1] gt $
-                 linepars.fluxpk[haind,0] then $
-                    i_hapk = 1
-              he_lam = he_rest * (1d + struct.z.gas[i_hapk])
-              he_b = linepars.sigma[haind,i_hapk] * sqrt(2d) / $
-                     he_lam * 299792d
-           endif
-        endif
-
-        if file_test(parout) then spawn,'rm '+parout
-
-fit:
-
-
-;       Find nearest spectrum that has already been fit for input
-;       parameters.
-        dref_new = sqrt((cols-cols_srt[i])^2d + (rows-rows_srt[i])^2d)
-        dref_new_isrt   = sort(dref_new)
-        dref_new_srt    = reform(dref_new[dref_new_isrt],nspec)
-        donefit_new_srt = reform(donefit[dref_new_isrt],nspec)
-        nabscomp_new_srt= reform(nabscomp[dref_new_isrt],nspec)
-        cols_new_srt    = reform(cols[dref_new_isrt],nspec)
-        rows_new_srt    = reform(rows[dref_new_isrt],nspec)
-        foundnearest = 0
-        j = 0
-        while ~ foundnearest AND j lt nspec do begin
-           if donefit_new_srt[j] eq 1 AND $
-              nabscomp_new_srt[j] eq nabs then foundnearest++
-           j++
-        endwhile
-        j--
-        if ~ foundnearest then begin
-           useref = 1
-           j = where(cols_new_srt eq refx AND rows_new_srt eq refy)
-        endif else useref = 0
-
-        if (nabscomp[cols_srt[i]-1,rows_srt[i]-1] eq 2 OR $
-            badcomp ne 0) AND $
-           nabs eq 1 then print,'',format='(A18,$)'
-        print,'  Ref: [',cols_new_srt[j],',',rows_new_srt[j],$
-              '].  Spec. ',idofit,' of ',ndofit,'.  Nabs =',nabs,$
-              ', Nem =',nem,'.',$
-              format='(A,I03,A,I03,A,I0,A,I0,A,I0,A,I0,A)'
-
-;       Get output parameters from nearest fit        
-        parfile_nearest = fitdir+gal+'_'+$
-                          string(cols_new_srt[j],'_',rows_new_srt[j],$
-                                 format='(I04,A0,I04)')+$
-                          '_nad_parout'
-        if nabs eq 2 then parfile_nearest += '.2comp'
-        parfile_nearest+='.dat'
-
-        nadpars = ifsf_readnadpar(parfile_nearest)
-        
-        openw,lun,parin,/get_lun
-        printf,lun,nabs,nem,fitran[0],fitran[1],$
-               format='(I8,I8,D8.1,D8.1)'
-        fparin = '(D8.2,D8.2,D8.2,I8)'
-        printf,lun,0.01,nadpars.abs[0,0],1.0,1,format=fparin
-        if nadpars.abs[1,0] gt 4.9 then $
-           printf,lun,0.01,1.0,taumax,1,format=fparin $
-        else $
-           printf,lun,0.01,nadpars.abs[1,0],taumax,1,format=fparin
-        printf,lun,nadpars.abs[2,0]-10d,nadpars.abs[2,0],$
-               nadpars.abs[2,0]+10d,1,$
-               format=fparin
-        if keyword_set(sigfix) then $
-           printf,lun,60,sigfix*sqrt(2d),bmax,0,format=fparin $
-        else $
-           printf,lun,60,nadpars.abs[3,0],bmax,1,format=fparin
-        if nabs eq 2 then begin
-           printf,lun,0.01,nadpars.abs[0,1],1.0,1,format=fparin
-           if nadpars.abs[1,1] gt 4.9 then $
-              printf,lun,0.01,1.0,taumax,1,format=fparin $
-           else $
-              printf,lun,0.01,nadpars.abs[1,1],taumax,1,format=fparin
-           printf,lun,nadpars.abs[2,1]-10d,nadpars.abs[2,1],nadpars.abs[2,1]+10d,1,$
-                  format=fparin
-           printf,lun,60,nadpars.abs[3,1],bmax,1,format=fparin
-        endif
-        if nem eq 1 then begin
-           printf,lun,0,0.1,2,1,format=fparin
-           printf,lun,0,he_lam,0,0,format=fparin
-           printf,lun,0,he_b,0,0,format=fparin
-        endif
-        free_lun,lun
-
-        file_copy,srcdir+'lmfit.h',srcdir+'lmfit.h.BAK',/over
-        lmfith = strarr(15)
-        dummy = ''
-        openr,lun,srcdir+'lmfit.h',/get_lun
-        for j=0,11 do begin
-           readf,lun,dummy
-           lmfith[j] = dummy        
-        endfor
-        lmfith[12] = '#define FILE_PARI "'+parin+'"'
-        lmfith[13] = '#define FILE_OUT  "'+parout+'"'
-        lmfith[14] = '#define FILE_DAT  "'+specin+'"'
-        free_lun,lun
-
-        openw,lun,srcdir+'lmfit.h',/get_lun
-        for j=0,14 do printf,lun,lmfith[j]
-        free_lun,lun
-     
-        spawn,'gcc -o '+fitdir+'lmfit '+srcdir+'lmfit.c -I'+$
-              srcdir+'/lib -lm'
-        spawn,fitdir+'lmfit'
-
-        if file_test(parout) then begin
-
-           if nabs eq 2 then begin
-              gmos_plotnadfit,specin,parout,specout,struct.z
-              badcomp = gmos_checknad(specin,parout,fitran)
-              if badcomp gt 0 then begin
-                 nabscomp[cols_srt[i]-1,rows_srt[i]-1] = 1
-                 print,'','Rejecting 2-component fit.',format='(A20,A)'
-              endif
-              spawn,'mv '+spectot+'_nad_parout.dat'+' '+spectot+$
-                    '_nad_parout.2comp.dat'
-              spawn,'mv '+specout+'.jpg '+specout+'.2comp.jpg'
-              nabs = 1
-              goto,fit
-           endif else begin
-              gmos_plotnadfit,specin,parout,specout,struct.z
-              donefit[cols_srt[i]-1,rows_srt[i]-1] = 1
-              cols_done = [cols_done,cols_srt[i]]
-              rows_done = [rows_done,rows_srt[i]]
-              nabs_done = [nabs_done,$
-                           nabscomp[cols_srt[i]-1,rows_srt[i]-1]]
-           endelse
-
-        endif
-
-        idofit++
-
-     endif
-
-  endfor
-
-  gmos_printnadpars,gal,cols_done,rows_done,nabs_done,$
-                    fitdir,gal+'.nad',struct.z
+finish:
 
 end

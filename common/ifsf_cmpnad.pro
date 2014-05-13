@@ -8,14 +8,15 @@
 ;    IFSFIT
 ;
 ; :Returns:
-;    Flat spectrum Na D absorption included.
+;    Flat spectrum normalized to unity, Na D absorption included.
 ;
 ; :Params:
 ;    wave: in, required, type=dblarr(N)
 ;      Wavelength array over which to compute profile.
 ;    pars: in, required, type=dblarr(4)
 ;      Parameters of profile: covering factor, optical depth, central
-;      wavelength, and Doppler parameter (in km/s)
+;      wavelength, and sigma (in km/s). Optical depth and wavelength
+;      apply to D2 line (blue).
 ;
 ; :Keywords:
 ; 
@@ -30,7 +31,8 @@
 ; :History:
 ;    ChangeHistory::
 ;      10jul22  DSNR  created
-;      2013nov21, DSNR, documented, renamed, added license and copyright 
+;      2013nov21, DSNR, documented, renamed, added license and copyright
+;      2014may13, DSNR, now uses sigma parameter instead of b (Doppler param).
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -50,7 +52,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_cmpnad,wave,pars
+function ifsf_cmpnad,wave,pars,emission=emission
   
   c = 299792.458d
 ; wavelength ratio (red to blue)
@@ -63,7 +65,7 @@ function ifsf_cmpnad,wave,pars
   arg2 = (lratio * wave - pars[2])/denom
   arg1 = arg1^2d
   arg2 = arg2^2d
-  arg12 = exp(-arg1) + tratio*exp(-arg2)
+  arg12 = exp(-arg1/2d) + tratio*exp(-arg2/2d)
   exparg12 = exp(-pars[1]*arg12)
   
   yabs = 1d - pars[0]*(1d -exparg12)

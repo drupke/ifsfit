@@ -92,6 +92,7 @@
 ;                       i.e., generic continuum fitting routine is now
 ;                       completely generic
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
+;      2014apr23, DSNR, changed MAXITER from 1000 to 100 in call to MPFIT
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013, 2014 David S. N. Rupke
@@ -385,7 +386,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 
   specfit = DBLARR(npix)
   param = Mpfitfun(fcnlinefit,gdlambda,gdflux_nocnt,gderr_nocnt,$
-                   parinfo=parinit,perror=perror,maxiter=1000,$
+                   parinfo=parinit,perror=perror,maxiter=100,$
                    bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                    nfev=nfev,niter=niter,status=status,quiet=quiet,$
                    npegged=npegged,ftol=1D-6,functargs=argslinefit,$
@@ -416,7 +417,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
            spec: gdflux, $      ; data
            spec_err: gderr, $
            cont_dat: gdflux-specfit, $ ; cont. data (all data - em. line fit)
-           cont_fit: continuum, $         ; cont. fit
+           cont_fit: continuum, $     ; cont. fit
            emlin_dat: gdflux_nocnt, $ ; em. line data (all data - cont. fit)
            emlin_fit: specfit, $      ; em. line fit
            ct_indx: ct_indx, $        ; where emission is not masked

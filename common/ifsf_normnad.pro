@@ -19,6 +19,8 @@
 ;      Flux errors of data to fit.
 ;    z: in, required, type=double
 ;      Redshift to use in computing default fit ranges.
+;    pars: out, required, type=dblarr(M)
+;      Polynomial coefficients of continuum normalization.
 ;
 ; :Keywords:
 ;    fitord: in, optional, type=double, default=2
@@ -40,9 +42,10 @@
 ;    ChangeHistory::
 ;      2013nov22, DSNR, created (copied normalization bits from old
 ;                       routine 'printnadspec')
+;      2014may08, DSNR, tweaked for clarity
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -59,7 +62,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_normnad,wave,flux,err,z,fitord=fitord,$
+function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
                      fitranlo=fitranlo,fitranhi=fitranhi
 
   if ~ keyword_set(fitord) then fitord=2
@@ -68,13 +71,16 @@ function ifsf_normnad,wave,flux,err,z,fitord=fitord,$
 
   ifit = where((wave ge fitranlo[0] AND wave le fitranlo[1]) OR $
                (wave ge fitranhi[0] AND wave le fitranhi[1]))
+  igd = where(wave ge fitranlo[0] AND wave le fitranhi[1])
 
   parinfo = replicate({value:0d},fitord)
   pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],parinfo=parinfo,/quiet)
 
-  nflux = flux / poly(wave,pars)
-  nerr = err / poly(wave,pars)
+  nwave = wave[igd]
+  unflux = flux[igd]
+  nflux = flux[igd] / poly(wave[igd],pars)
+  nerr = err[igd] / poly(wave[igd],pars)
 
-  return,[[nflux],[nerr]]
+  return,[[nwave],[unflux],[nflux],[nerr]]
 
 end

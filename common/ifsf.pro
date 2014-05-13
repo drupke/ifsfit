@@ -67,6 +67,7 @@
 ;                       to initialization routine; added some lines to deal
 ;                       properly with case of 1d data "cube"
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
+;      2014may08, DSNR, added ability to check components automagically.
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -163,6 +164,8 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; First fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+fit:
            
 ;          Initialize stellar redshift for this spaxel
            if oned then zstar = initdat.zinit_stars[i] $
@@ -245,6 +248,33 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
               endif
 
            endif else struct = structinit
+           
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Check components
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+           if tag_exist(initdat,'fcncheckcomp') AND $
+              tag_exist(initdat,'siglim_gas') then begin
+
+              linepars = ifsf_sepfitpars(linelist,struct.param,$
+                                         struct.perror,struct.parinfo)           
+              if tag_exist(initdat,'argscheckcomp') then goodcomp = $
+                 call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
+                               ncomp,newncomp,initdat.siglim_gas,$
+                               _extra=initdat.argscheckcomp) $
+              else goodcomp = $
+                 call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
+                               ncomp,newncomp,initdat.siglim_gas)
+              
+              if newncomp.count() gt 0 then begin
+                 foreach nc,newncomp,line do $
+                    print,'IFSF: Repeating the fit of ',line,$
+                          ' with ',string(nc,format='(I0)'),' components.',$
+                          format='(5A0)'
+                 goto,fit
+              endif
+
+           endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Save result to a file

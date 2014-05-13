@@ -106,13 +106,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ; Initialize output files
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if not tag_exist(initdat,'outlines') then outlines = linelist->keys() $
+  if not tag_exist(initdat,'outlines') then $
+     outlines = (linelist->keys())->toarray() $
   else outlines = initdat.outlines
   ifsf_printlinpar,outlines,linlun,$
                    outfile=initdat.outdir+initdat.label+'.lin.dat'
   ifsf_printfitpar,fitlun,$
                    outfile=initdat.outdir+initdat.label+'.fit.dat'
-
+                   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Initialize line hash
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -124,6 +125,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Switch to track when first NaD normalization done
+  firstnadnorm=1
 
   if not keyword_set(cols) then cols=[1,cube.ncols] $
   else if n_elements(cols) eq 1 then cols = [cols,cols]
@@ -213,6 +217,35 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         if not linepars.nolines then $ 
            ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
 
+;       Normalize data around NaD and plot
+        if tag_exist(initdat,'donad') then begin
+           if tag_exist(initdat,'argsnormnad') then $
+              normnad = ifsf_normnad(struct.wave,$
+                                     struct.cont_dat/struct.cont_fit,$
+                                     struct.spec_err,struct.zstar,fitpars,$
+                                     _extra=initdat.argsnormnad) else $
+              normnad = ifsf_normnad(struct.wave,$
+                                     struct.cont_dat/struct.cont_fit,$
+                                     struct.spec_err,struct.zstar,fitpars)
+           if not keyword_set(noplots) then $
+              if tag_exist(initdat,'argspltnormnad') then $
+                 ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
+                    outfile+'_nad_norm',$
+                    _extra=initdat.argspltnormnad else $
+                 ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
+                    outfile+'_nad_norm'
+           if firstnadnorm then begin
+              nadcube = $
+                 {wave: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0])),$
+                  dat: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0])),$
+                  err: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0]))}
+              firstnadnorm = 0
+           endif
+           nadcube.wave[i,j,*] = normnad[*,0]
+           nadcube.dat[i,j,*] = normnad[*,2]
+           nadcube.err[i,j,*] = normnad[*,3]
+        endif
+
 nofit:
 
      endfor
@@ -223,5 +256,6 @@ nofit:
   free_lun,linlun
 
   save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
+  save,nadcube,file=initdat.outdir+initdat.label+'.nadspec.xdr'
 
 end

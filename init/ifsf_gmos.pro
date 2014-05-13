@@ -30,6 +30,8 @@
 ; :Keywords:
 ;    siglim: in, optional, type=dblarr(2)
 ;      Lower and upper sigma limits in km/s.
+;    sigfix: in, optional, type=hash(lines\,maxncomp)
+;      Fix sigma at this value, for particular lines/components.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -50,6 +52,7 @@
 ;                       comp tags into output parinfo structure
 ;      2014apr10, DSNR, added if statements to remove IEEE exceptions
 ;      2015apr17, DSNR, adjusted upper limits for Ha/Hb and [NII]/Ha
+;      2015apr23, DSNR, added SIGFIX keyword
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -71,7 +74,7 @@
 ;-
 function ifsf_gmos,linelist,linelistz,linetie,$
                    initflux,initsig,maxncomp,ncomp,$
-                   siglim=siglim
+                   siglim=siglim,sigfix=sigfix
 
   c = 299792.458d
 
@@ -138,7 +141,11 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   endif
   
 ; [NI] ratio
-; See Ferland+12 for collisional case, Bautista99 for other cases 
+; See Ferland+12 for collisional case, Bautista99 for other cases. Upper limit 
+; was originally 3, but found that it would peg at that and then the error for 
+; [NI]5200 would be artificially large, and it would be removed from the fit. 
+; For now, fix to 1.5 (low density collisional limit, applicable to n <~ 10^3 
+; cm^-3; Ferland+12 Appendix A.3), to solve artificially large errors in [NI]5200. 
   ilratlim = 1
   if ncomp->haskey('[NI]5198') then tmp_ncomp = ncomp['[NI]5198'] $
   else tmp_ncomp = 0
@@ -150,23 +157,25 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      frat = dblarr(tmp_ncomp)+2d ; default if initial n1a flux = 0
      inz = where(fb gt 0,ctnz)
      if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
-     parinfo[ip1:ip2].value = frat
-     parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
-     parinfo[ip1:ip2].limits  = rebin([0.6d,3d],2,tmp_ncomp)
+     parinfo[ip1:ip2].value = 1.5
+     parinfo[ip1:ip2].fixed = 1b
+;     parinfo[ip1:ip2].value = frat
+;     parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
+;     parinfo[ip1:ip2].limits  = rebin([0.6d,4d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NI]5200/5198 line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
-     for i=0,tmp_ncomp-1 do begin
-;        if finite(parinfo[ip1+i].value,/nan) then parinfo[ip1+i].value = $
-;           (parinfo[ip1+i].limits[0] + parinfo[ip1+i].limits[0])/2d
-        if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
-           parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
-                                  (parinfo[ip1+i].limits[1] - $
-                                   parinfo[ip1+i].limits[0])*0.1
-        if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
-           parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
-                                  (parinfo[ip1+i].limits[1] - $
-                                   parinfo[ip1+i].limits[0])*0.1
-     endfor
+;     for i=0,tmp_ncomp-1 do begin
+;;        if finite(parinfo[ip1+i].value,/nan) then parinfo[ip1+i].value = $
+;;           (parinfo[ip1+i].limits[0] + parinfo[ip1+i].limits[0])/2d
+;        if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
+;           parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
+;                                  (parinfo[ip1+i].limits[1] - $
+;                                   parinfo[ip1+i].limits[0])*0.1
+;        if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
+;           parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
+;                                  (parinfo[ip1+i].limits[1] - $
+;                                   parinfo[ip1+i].limits[0])*0.1
+;     endfor
   endif
 
 ; [NII]/Ha ratio
@@ -186,7 +195,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ;    This upper limit appears to be the maximum seen in Kewley+06 or 
 ;    Rich+14 ("Composite Spectra in ..."). The lower limit is appropriate 
 ;    for ULIRGs.
-     parinfo[ip1:ip2].limits  = rebin([0.1d,2d],2,tmp_ncomp)
+     parinfo[ip1:ip2].limits  = rebin([0.1d,4d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NII]/Halpha line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
      for i=0,tmp_ncomp-1 do begin
@@ -300,10 +309,13 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                  string('P[',soff+indtie*3,']',format='(A0,I0,A0)')   
            endelse
 ;          fixed/free
-;           if keyword_set(sigfix) then if sigfix[i] then $
-;              parinfo[isoff].fixed=1B
-;           if keyword_set(zfix) then if zfix[i] then parinfo[iwoff].fixed=1B
-
+           if keyword_set(sigfix) then $
+              if sigfix.haskey(line) then $
+                 if sigfix[line,i] ne 0 then begin
+                    parinfo[isoff].fixed=1B
+                    parinfo[isoff].value=sigfix[line,i]
+                 endif
+                 
         endelse
 
         iline++
@@ -329,11 +341,12 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      ilratlim = 1
      linea = where(lines_arr eq '[NI]5198')
      lineb = where(lines_arr eq '[NI]5200')
-     parinfo[foff+lineb*3].tied = 'P['+$
-                                  string(foff+linea*3,$
-                                         format='(I0)')+']*P['+$
+     parinfo[foff+linea*3].tied = 'P['+$
+                                  string(foff+lineb*3,$
+                                         format='(I0)')+']/P['+$
                                   string(ppoff0+maxncomp*ilratlim+i,$
                                          format='(I0)')+']'
+                                         
      ilratlim = 2
      linea = where(lines_arr eq 'Halpha')
      lineb = where(lines_arr eq '[NII]6583')

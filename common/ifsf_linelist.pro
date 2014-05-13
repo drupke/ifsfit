@@ -66,6 +66,7 @@ function ifsf_linelist,inlines
   lines = hash()
   lines['Halpha'] = 6562.80d
   lines['Hbeta'] = 4861.32d
+  lines['HeI5876'] = 5875.661d
   lines['HeI6678'] = 6678.15d
   lines['HeI7065'] = 7065.19d
   lines['HeII4686'] = 4686.7d
