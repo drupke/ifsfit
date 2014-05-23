@@ -219,31 +219,54 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
 ;       Normalize data around NaD and plot
         if tag_exist(initdat,'donad') then begin
-           if tag_exist(initdat,'argsnormnad') then $
+           if tag_exist(initnad,'argsnormnad') then $
               normnad = ifsf_normnad(struct.wave,$
                                      struct.cont_dat/struct.cont_fit,$
-                                     struct.spec_err,struct.zstar,fitpars,$
-                                     _extra=initdat.argsnormnad) else $
+                                     struct.spec_err/struct.cont_fit,$
+                                     struct.zstar,fitpars,$
+                                     _extra=initnad.argsnormnad) else $
               normnad = ifsf_normnad(struct.wave,$
                                      struct.cont_dat/struct.cont_fit,$
-                                     struct.spec_err,struct.zstar,fitpars)
+                                     struct.spec_err/struct.cont_fit,$
+                                     struct.zstar,fitpars)
            if not keyword_set(noplots) then $
-              if tag_exist(initdat,'argspltnormnad') then $
+              if tag_exist(initnad,'argspltnormnad') then $
                  ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
                     outfile+'_nad_norm',$
-                    _extra=initdat.argspltnormnad else $
+                    _extra=initnad.argspltnormnad else $
                  ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
                     outfile+'_nad_norm'
+;          Compute empirical equivalent widths
+           if tag_exist(initnad,'argsnadweq') then $
+              weq = ifsf_cmpnadweq(normnad[*,0],normnad[*,2],normnad[*,3],$
+                                   _extra=initnad.argsnadweq) $
+           else weq = ifsf_cmpnadweq(normnad[*,0],normnad[*,2],normnad[*,3])
+;          Compute empirical velocities
+           size_weq = size(weq)
+           if size_weq[0] eq 2 then begin
+              if tag_exist(initnad,'argsnadvel') then $
+                 vel = ifsf_cmpnadvel(normnad[*,0],normnad[*,2],normnad[*,3],$
+                                      weq[*,1],initdat.zsys_gas,$
+                                      _extra=initnad.argsnadvel) $
+              else vel = ifsf_cmpnadvel(normnad[*,0],normnad[*,2],$
+                                        normnad[*,3],weq[*,1],initdat.zsys_gas)
+           endif else vel = dblarr(6)+bad
+              
+                                
            if firstnadnorm then begin
               nadcube = $
                  {wave: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0])),$
                   dat: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0])),$
-                  err: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0]))}
+                  err: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0])),$
+                  weq: dblarr(cube.ncols,cube.nrows,4)+bad,$
+                  vel: dblarr(cube.ncols,cube.nrows,6)+bad}
               firstnadnorm = 0
            endif
            nadcube.wave[i,j,*] = normnad[*,0]
            nadcube.dat[i,j,*] = normnad[*,2]
            nadcube.err[i,j,*] = normnad[*,3]
+           nadcube.weq[i,j,*] = weq[*,0]
+           nadcube.vel[i,j,*] = vel
         endif
 
 nofit:
@@ -256,6 +279,7 @@ nofit:
   free_lun,linlun
 
   save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
-  save,nadcube,file=initdat.outdir+initdat.label+'.nadspec.xdr'
+  if tag_exist(initdat,'donad') then $
+     save,nadcube,file=initdat.outdir+initdat.label+'.nadspec.xdr'
 
 end

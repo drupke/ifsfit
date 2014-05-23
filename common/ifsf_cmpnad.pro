@@ -33,6 +33,7 @@
 ;      10jul22  DSNR  created
 ;      2013nov21, DSNR, documented, renamed, added license and copyright
 ;      2014may13, DSNR, now uses sigma parameter instead of b (Doppler param).
+;      2014may14, DSNR, fixed floating underflow
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -54,22 +55,27 @@
 ;-
 function ifsf_cmpnad,wave,pars,emission=emission
   
-  c = 299792.458d
-; wavelength ratio (red to blue)
-  lratio = 1.001014158d
-; optical depth ratio (blue to red)
-  tratio = 2.0093d
+   c = 299792.458d
+;  wavelength ratio (red to blue)
+   lratio = 1.001014158d
+;  optical depth ratio (blue to red)
+   tratio = 2.0093d
   
-  denom = pars[2]*pars[3]/c
-  arg1 = (wave-pars[2])/denom
-  arg2 = (lratio * wave - pars[2])/denom
-  arg1 = arg1^2d
-  arg2 = arg2^2d
-  arg12 = exp(-arg1/2d) + tratio*exp(-arg2/2d)
-  exparg12 = exp(-pars[1]*arg12)
+   denom = pars[2]*pars[3]/c
+   arg1 = (wave-pars[2])/denom
+   arg2 = (lratio * wave - pars[2])/denom
+   arg1 = arg1^2d
+   arg2 = arg2^2d
+;  The "mask" parameter eliminates floating underflow by removing very large
+;  negative exponents. See http://www.idlcoyote.com/math_tips/underflow.html
+;  for more details.
+   mask1 = (arg1 lt 80)
+   mask2 = (arg2 lt 80)
+   arg12 = mask1*exp(-arg1/2d*mask1) + mask2*tratio*exp(-arg2/2d*mask2)
+   exparg12 = exp(-pars[1]*arg12)
   
-  yabs = 1d - pars[0]*(1d -exparg12)
+   yabs = 1d - pars[0]*(1d -exparg12)
 
-  return,yabs
+   return,yabs
 
 end

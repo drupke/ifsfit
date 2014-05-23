@@ -13,6 +13,12 @@
 ;
 ; :Params:
 ; 
+; :Keywords:
+;    initmaps: out, optional, type=structure
+;      Parameters for map making.
+;    initnad: out, optional, type=structure
+;      Parameters for NaD fitting.
+; 
 ; :Author:
 ;    David S. N. Rupke::
 ;      Rhodes College
@@ -38,9 +44,12 @@
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;      2014feb27, DSNR, added zsys_gas, platescale, specres
 ;      2014apr21, DSNR, added arguments for line ratio maps / VO plots
+;      2014may23, DSNR, added arguments for plotting continuum images;
+;                       changed way that map making and NaD parameters are 
+;                       treated
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -57,7 +66,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_f05189,dumy=dumy
+function ifsf_f05189,initmaps=initmaps,initnad=initnad
 
   gal = 'f05189'
   bin = 2d
@@ -186,17 +195,47 @@ function ifsf_f05189,dumy=dumy
 
 ; Parameters for NaD + HeI 5876 fit
 
-; Initialize n_comps, z_inits, and sig_inits.
-  nad_maxncomp = 2
-  nad_nnadabs = dblarr(ncols,nrows)+2
-  nad_nnadem = dblarr(ncols,nrows)+0
-  nad_heitie = strarr(ncols,nrows)+'HeI6678'
-  nad_nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.042
-  nad_nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.043
-  nad_nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+200d
-  nad_nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+200d
-  nad_nadabs_siglim = [299792d/3000d/2.35d,1000d]
-  nad_nadem_siglim = [299792d/3000d/2.35d,1000d]
+; NEEDS TO BE ADJUSTED FOR FLIPPED DATA CUBE
+
+;; Initialize n_comps, z_inits, and sig_inits.
+;  nad_maxncomp = 2
+;  nad_heitie = strarr(ncols,nrows)+'HeI6678'
+;  nad_heitie[13,15]='HeI5876'
+;  nad_heitie[13,16:nrows-1]=''
+;
+;  nad_heitie[16,10:14]='HeI5876'
+;
+;  nad_heitie[19,*]=''
+;
+;  nad_nnadabs = dblarr(ncols,nrows)+2
+;  nad_nnadabs[13,22]=1
+;  nad_nnadabs[13,23:nrows-1]=0
+;
+;  nad_nnadabs[16,*]=0
+;  nad_nnadabs[16,7:24]=1
+;  nad_nnadabs[16,10:21]=2
+;
+;  nad_nnadabs[19,0:9]=0
+;  nad_nnadabs[19,10:nrows-1]=1
+;  nad_nnadabs[21,*]=0
+;  nad_nnadabs[21,14:18]=1
+;  nad_nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.043
+;  nad_nadabs_zinit[*,*,1] = 0.0415
+;  nad_nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
+;  nad_nadabs_siginit[*,*,1] = 200d
+;  nad_nadabs_siglim = [299792d/3000d/2.35d,1000d]
+;
+;  nad_nnadem = dblarr(ncols,nrows)+0
+;  nad_nnadem[13,21:nrows-1]=1
+;
+;  nad_nnadem[16,*]=1
+;  nad_nnadem[16,14:20]=0
+;
+;  nad_nnadem[19,*]=1
+;  nad_nnadem[21,*]=1
+;  nad_nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044
+;  nad_nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
+;  nad_nadem_siglim = [299792d/3000d/2.35d,750d]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Optional pars
@@ -251,6 +290,10 @@ function ifsf_f05189,dumy=dumy
   normnadlo = [6040,6090]
   normnadhi = [6170,6220]
   pltnormnad = [6040,6220]
+  nad_nhei = dblarr(ncols,nrows)+1
+  nad_hei_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.041
+  nad_hei_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Output structure
@@ -266,22 +309,11 @@ function ifsf_f05189,dumy=dumy
          linetie: linetie,$
          mapdir: '/Users/drupke/ifs/gmos/maps/'+gal+'/'+outstr+'/',$
          maxncomp: maxncomp,$
-         nad_fcnfitnad: 'ifsf_nadfcn',$
-         nad_fcninitpar: 'ifsf_initnad',$
-         nad_refcoords: [14,14],$
-         nad_nnadabs: nad_nnadabs,$ 
-         nad_nnadem: nad_nnadem,$
-         nad_heitie: nad_heitie,$
-         nad_nadabs_zinit: nad_nadabs_zinit,$
-         nad_nadem_zinit: nad_nadem_zinit,$
-         nad_nadabs_siginit: nad_nadabs_siginit,$
-         nad_nadem_siginit: nad_nadem_siginit,$
-         nad_nadabs_siglim: nad_nadabs_siglim,$
-         nad_nadem_siglim: nad_nadem_siglim,$
          ncomp: ncomp,$
          outdir: '/Users/drupke/specfits/gmos/'+gal+'/'+outstr+'/',$
          platescale: 0.2d,$
          specres: 1.6d,$
+         positionangle: 0d,$
          zinit_stars: zinit_stars,$
          zinit_gas: zinit_gas,$
          zsys_gas: 0.04275d,$
@@ -289,23 +321,11 @@ function ifsf_f05189,dumy=dumy
 ;         argscheckcomp: {sigcut: 2},$
          argsinitpar: {siglim: siglim_gas,$
                        sigfix: sigfix},$
-         argsmakemap: $
-            {center_axes: [centcol,centrow],$
-            center_nuclei: [centcol,centrow],$
-;            argslinratmaps: argslinratmaps,$
-            rangefile: '/Users/drupke/ifs/gmos/maps/f05189/rb2/ranges.txt' },$
-         argsnormnad: {fitranlo: normnadlo,$
-                       fitranhi: normnadhi},$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
-         argspltnormnad: {fitranlo: normnadlo,$
-                          fitranhi: normnadhi,$
-                          pltran: pltnormnad},$
-         donad: 1,$
          fcncheckcomp: 'ifsf_checkcomp',$
          fcncontfit: 'ppxf',$
          mapcent: [centcol,centrow],$
-         nad_fitran: [6080,6180],$
          nomaskran: [5075,5100],$
          siglim_gas: siglim_gas,$
          siginit_gas: siginit_gas,$
@@ -314,8 +334,77 @@ function ifsf_f05189,dumy=dumy
          startempfile: '/Users/drupke/Documents/stellar_models/'+$
          'gonzalezdelgado/SSPGeneva_z020.sav', $
          tweakcntfit: tweakcntfit $
-         }
+        }
 
+   if keyword_set(initmaps) then begin
+      initmaps = {$
+                  center_axes: [centcol,centrow],$
+                  center_nuclei: [centcol,centrow],$
+                  rangefile: '/Users/drupke/ifs/gmos/maps/'+$
+                             'f05189/rb2/ranges.txt',$
+;                 argslinratmaps: argslinratmaps,$
+                  col: {sumrange: [4900,5000,6650,6750],$
+                        scllim: [-0.1,0.2],$
+                        stretch: 1},$
+                  ct: {sumrange: [5600,6400],$
+                       scllim: [0,1],$
+                       stretch: 1},$
+                  hst: {refcoords: [3261,2708],$
+                        subim_sm: 7d,$
+                        subim_big: 25d,$
+                        smoothfwhm: 12},$
+                  hstbl: {file: '/Users/drupke/ifs/gmos/ancillary/hst/'+$
+                                'f05189/f05189_acs_435w.fits',$
+                          scllim: [0.01,100],$
+                          sclargs: {beta: 0.05}},$
+                  hstblsm: {scllim: [0,10],$
+                            sclargs: {beta: 0.5},$
+                            stretch: 5},$
+                  hstrd: {file: '/Users/drupke/ifs/gmos/ancillary/hst/'+$
+                                'f05189/f05189_acs_814w.fits',$
+                          scllim: [0.01,100],$
+                          sclargs: {beta: 0.05}},$
+                  hstrdsm: {scllim: [0,20],$
+                            sclargs: {beta: 0.5},$
+                            stretch: 5}, $
+                  hstcol: {scllim: [0,1],$
+                           stretch: 1,$
+                           sclargs: {dumy: 1}},$
+                  hstcolsm: {scllim: [0.3,0.8],$
+                             stretch: 1,$
+                             sclargs: {dumy: 1}}$
+              }
+  endif
+
+  if keyword_set(initnad) then begin
+     initnad = {$
+                argsnadweq: {autowavelim: [6110,6160,6140,6180],autoindices:1},$
+                argsnormnad: {fitranlo: normnadlo,$
+                              fitranhi: normnadhi},$
+                argspltnormnad: {fitranlo: normnadlo,$
+                                 fitranhi: normnadhi,$
+                                 pltran: pltnormnad},$
+                fcnfitnad: 'ifsf_nadfcn',$
+                fcninitpar: 'ifsf_initnad',$
+                fitran: [6080,6180],$
+;               NaD absorption
+                nnadabs: nad_nnadabs,$
+                nadabs_zinit: nad_nadabs_zinit,$
+                nadabs_siginit: nad_nadabs_siginit,$
+                nadabs_siglim: nad_nadabs_siglim,$
+;               NAD emission
+                nnadem: nad_nnadem,$
+                nadem_zinit: nad_nadem_zinit,$
+                nadem_siginit: nad_nadem_siginit,$
+                nadem_siglim: nad_nadem_siglim,$
+;               HeI
+                nhei: nad_nhei,$
+                hei_zinit: nad_hei_zinit,$
+                hei_siginit: nad_hei_siginit,$
+                heitie: nad_heitie $
+               }
+  endif
+                  
   return,init
 
 end

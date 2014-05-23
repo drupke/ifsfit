@@ -2,7 +2,7 @@
 ;
 ;+
 ;
-; This procedure ...
+; This procedure makes maps of various quantities.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -35,6 +35,7 @@
 ;                       for different components; cleared up some floating point
 ;                       errors
 ;      2014apr21, DSNR, added line ratio maps and VO plots
+;      2014may23, DSNR, added NaD maps and continuum images
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -62,27 +63,30 @@ pro ifsf_makemaps,initproc,comprange=comprange
    c_kms = 299792.458d
    ncbdivmax = 7
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Load initialization parameters and data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;  Get fit initialization
-   initdat=call_function(initproc)
+   initmaps={dumy: 1}
+   initdat=call_function(initproc,initmaps=initmaps)
 
 ;  Get galaxy-specific parameters from initialization file
    center_axes = -1
    center_nuclei = -1
    hasrangepar=0
    hasratpar=0
-   if tag_exist(initdat,'argsmakemap') then begin
-      if tag_exist(initdat.argsmakemap,'center_axes') then $
-         center_axes = initdat.argsmakemap.center_axes
-      if tag_exist(initdat.argsmakemap,'center_nuclei') then $
-         center_nuclei = initdat.argsmakemap.center_nuclei
-      if tag_exist(initdat.argsmakemap,'argslinratmaps') then begin
-         argslinratmaps = initdat.argsmakemap.argslinratmaps
-         hasratpar=1
-      endif
-      if tag_exist(initdat.argsmakemap,'rangefile') then begin
-         rangefile = initdat.argsmakemap.rangefile
-         hasrangepar=1
-      endif
+   if tag_exist(initmaps,'center_axes') then $
+      center_axes = initmaps.center_axes
+   if tag_exist(initmaps,'center_nuclei') then $
+      center_nuclei = initmaps.center_nuclei
+   if tag_exist(initmaps,'argslinratmaps') then begin
+      argslinratmaps = initmaps.argslinratmaps
+      hasratpar=1
+   endif
+   if tag_exist(initmaps,'rangefile') then begin
+      rangefile = initmaps.rangefile
+      hasrangepar=1
    endif
 
 ;  Get linelist
@@ -120,6 +124,229 @@ pro ifsf_makemaps,initproc,comprange=comprange
    if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
    if center_nuclei[0] eq -1 then center_nuclei = center_axes
 
+;  Get NaD equivalent widths (empirical)
+   if tag_exist(initdat,'donad') then $
+      restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
+
+;  Data cube
+   if not tag_exist(initdat,'datext') then datext=1 else datext=initdat.datext
+   if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
+   if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
+   ctcube = ifsf_readcube(initdat.infile,/quiet,oned=oned,$
+                          datext=datext,varext=varext,dqext=dqext)
+
+;  HST data
+   dohstbl=0
+   dohstrd=0
+   dohstsm=0
+   dohstcol=0
+   dohstcolsm=0
+   if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstbl') then begin
+      dohstbl=1
+      hstbl = readfits(initmaps.hstbl.file,header,/silent,/ext)
+      hst_sm_ifsfov = dblarr(4,2)
+      hst_big_ifsfov = dblarr(4,2)
+      bhst_sm = ifsf_hstsubim(hstbl,[initmaps.hst.subim_sm,$
+                              initmaps.hst.subim_sm],$
+                              [dx,dy],initdat.platescale,$
+                              initdat.positionangle,center_nuclei,$
+                              initmaps.hst.refcoords,$
+                              initmaps.hstbl.scllim,$
+                              sclargs=initmaps.hstbl.sclargs,$
+                              ifsbounds=hst_sm_ifsfov)
+      bhst_big = ifsf_hstsubim(hstbl,[initmaps.hst.subim_big,$
+                               initmaps.hst.subim_big],$
+                               [dx,dy],initdat.platescale,$
+                               initdat.positionangle,center_nuclei,$
+                               initmaps.hst.refcoords,$
+                               initmaps.hstbl.scllim,$
+                               sclargs=initmaps.hstbl.sclargs,$
+                               ifsbounds=hst_big_ifsfov)
+      bhst_fov = ifsf_hstsubim(hstbl,[0,0],[dx,dy],initdat.platescale,$
+                               initdat.positionangle,center_nuclei,$
+                               initmaps.hst.refcoords,$
+                               initmaps.hstbl.scllim,$
+                               sclargs=initmaps.hstbl.sclargs,$
+                               /fov)
+      if tag_exist(initmaps,'hstblsm') then begin
+         dohstsm=1
+         hstblsm = filter_image(hstbl,fwhm=initmaps.hst.smoothfwhm,/all)
+         bhst_fov_sm = ifsf_hstsubim(hstblsm,[0,0],[dx,dy],$
+                                     initdat.platescale,$
+                                     initdat.positionangle,center_nuclei,$
+                                     initmaps.hst.refcoords,$
+                                     initmaps.hstblsm.scllim,$
+                                     stretch=initmaps.hstblsm.stretch,$
+                                     sclargs=initmaps.hstblsm.sclargs,$
+                                     /fov)
+         
+      endif
+   endif      
+   if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstrd') then begin
+      dohstrd=1
+      hstrd = readfits(initmaps.hstrd.file,header,/silent,/ext)
+      hst_sm_ifsfov = dblarr(4,2)
+      hst_big_ifsfov = dblarr(4,2)
+      rhst_sm = ifsf_hstsubim(hstrd,[initmaps.hst.subim_sm,$
+                              initmaps.hst.subim_sm],$
+                              [dx,dy],initdat.platescale,$
+                              initdat.positionangle,center_nuclei,$
+                              initmaps.hst.refcoords,$
+                              initmaps.hstrd.scllim,$
+                              sclargs=initmaps.hstrd.sclargs,$
+                              ifsbounds=hst_sm_ifsfov)
+      rhst_big = ifsf_hstsubim(hstrd,[initmaps.hst.subim_big,$
+                               initmaps.hst.subim_big],$
+                               [dx,dy],initdat.platescale,$
+                               initdat.positionangle,center_nuclei,$
+                               initmaps.hst.refcoords,$
+                               initmaps.hstrd.scllim,$
+                               sclargs=initmaps.hstrd.sclargs,$
+                               ifsbounds=hst_big_ifsfov)
+      rhst_fov = ifsf_hstsubim(hstrd,[0,0],[dx,dy],initdat.platescale,$
+                               initdat.positionangle,center_nuclei,$
+                               initmaps.hst.refcoords,$
+                               initmaps.hstrd.scllim,$
+                               sclargs=initmaps.hstrd.sclargs,$
+                               /fov)
+      if tag_exist(initmaps,'hstrdsm') then begin
+         dohstsm=1
+         hstrdsm = filter_image(hstrd,fwhm=initmaps.hst.smoothfwhm,/all)
+         rhst_fov_sm = ifsf_hstsubim(hstrdsm,[0,0],[dx,dy],$
+                                     initdat.platescale,$
+                                     initdat.positionangle,center_nuclei,$
+                                     initmaps.hst.refcoords,$
+                                     initmaps.hstrdsm.scllim,$
+                                     stretch=initmaps.hstrdsm.stretch,$
+                                     sclargs=initmaps.hstrdsm.sclargs,$
+                                     /fov)
+         
+      endif
+   endif      
+   if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstcol') then begin
+      dohstcol=1
+;     Take a bunch of random samples of HST image
+      uplim = 0.1 ; this gets rid of cosmic rays and stars ...
+      size_hst = size(hstrd)
+      pxhst = round(size_hst[1]/10)
+      pyhst = round(size_hst[2]/10)
+      sdev = dblarr(4)
+      hsttmp = hstbl[3*pxhst:4*pxhst,3*pyhst:4*pyhst]
+      sdev[0] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstbl[3*pxhst:4*pxhst,6*pyhst:7*pyhst]
+      sdev[1] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstbl[6*pxhst:7*pxhst,3*pyhst:4*pyhst]
+      sdev[2] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstbl[6*pxhst:7*pxhst,6*pyhst:7*pyhst]
+      sdev[3] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      sdevbl = median(sdev)
+      hsttmp = hstrd[3*pxhst:4*pxhst,3*pyhst:4*pyhst]
+      sdev[0] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstrd[3*pxhst:4*pxhst,6*pyhst:7*pyhst]
+      sdev[1] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstrd[6*pxhst:7*pxhst,3*pyhst:4*pyhst]
+      sdev[2] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstrd[6*pxhst:7*pxhst,6*pyhst:7*pyhst]
+      sdev[3] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      sdevrd = median(sdev)
+;     Find bad pixels
+      colsigthr = 3d
+      ibdcol = where(hstrd le colsigthr*sdevrd OR $
+                     hstbl le colsigthr*sdevbl)
+      hstcol = alog10(hstrd/hstbl)
+      hstcol[ibdcol] = 1d99
+;     Extract and scale
+      chst_sm = ifsf_hstsubim(hstcol,[initmaps.hst.subim_sm,$
+                              initmaps.hst.subim_sm],$
+                              [dx,dy],initdat.platescale,$
+                              initdat.positionangle,center_nuclei,$
+                              initmaps.hst.refcoords,$
+                              initmaps.hstcol.scllim,$
+                              stretch=initmaps.hstcol.stretch,$
+                              sclargs=initmaps.hstcol.sclargs)
+      chst_big = ifsf_hstsubim(hstcol,[initmaps.hst.subim_big,$
+                               initmaps.hst.subim_big],$
+                               [dx,dy],initdat.platescale,$
+                               initdat.positionangle,center_nuclei,$
+                               initmaps.hst.refcoords,$
+                               initmaps.hstcol.scllim,$
+                               stretch=initmaps.hstcol.stretch,$
+                               sclargs=initmaps.hstcol.sclargs)
+      chst_fov = ifsf_hstsubim(hstcol,[0,0],[dx,dy],initdat.platescale,$
+                               initdat.positionangle,center_nuclei,$
+                               initmaps.hst.refcoords,$
+                               initmaps.hstcol.scllim,$
+                               stretch=initmaps.hstcol.stretch,$
+                               sclargs=initmaps.hstcol.sclargs,$
+                               /fov)
+   endif
+   if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstcolsm') then begin
+      dohstcolsm=1
+;     Take a bunch of random samples of HST image
+      uplim = 0.1 ; this gets rid of cosmic rays and stars ...
+      size_hst = size(hstrd)
+      pxhst = round(size_hst[1]/10)
+      pyhst = round(size_hst[2]/10)
+      sdev = dblarr(4)
+      hsttmp = hstblsm[3*pxhst:4*pxhst,3*pyhst:4*pyhst]
+      sdev[0] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstblsm[3*pxhst:4*pxhst,6*pyhst:7*pyhst]
+      sdev[1] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstblsm[6*pxhst:7*pxhst,3*pyhst:4*pyhst]
+      sdev[2] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstblsm[6*pxhst:7*pxhst,6*pyhst:7*pyhst]
+      sdev[3] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      sdevbl = median(sdev)
+      hsttmp = hstrdsm[3*pxhst:4*pxhst,3*pyhst:4*pyhst]
+      sdev[0] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstrdsm[3*pxhst:4*pxhst,6*pyhst:7*pyhst]
+      sdev[1] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstrdsm[6*pxhst:7*pxhst,3*pyhst:4*pyhst]
+      sdev[2] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      hsttmp = hstrdsm[6*pxhst:7*pxhst,6*pyhst:7*pyhst]
+      sdev[3] = stddev(hsttmp[where(hsttmp ne 0 AND hsttmp le uplim)])
+      sdevrd = median(sdev)
+;     Find bad pixels
+      colsigthr = 3d
+      ibdcol = where(hstrdsm le colsigthr*sdevrd OR $
+                     hstblsm le colsigthr*sdevbl)
+      hstcolsm = alog10(hstrdsm/hstblsm)
+      hstcolsm[ibdcol] = 1d99
+;     Extract and scale
+      cshst_sm = ifsf_hstsubim(hstcolsm,[initmaps.hst.subim_sm,$
+                               initmaps.hst.subim_sm],$
+                               [dx,dy],initdat.platescale,$
+                               initdat.positionangle,center_nuclei,$
+                               initmaps.hst.refcoords,$
+                               initmaps.hstcolsm.scllim,$
+                               stretch=initmaps.hstcolsm.stretch,$
+                               sclargs=initmaps.hstcolsm.sclargs)
+      cshst_big = ifsf_hstsubim(hstcolsm,[initmaps.hst.subim_big,$
+                                initmaps.hst.subim_big],$
+                                [dx,dy],initdat.platescale,$
+                                initdat.positionangle,center_nuclei,$
+                                initmaps.hst.refcoords,$
+                                initmaps.hstcolsm.scllim,$
+                                stretch=initmaps.hstcolsm.stretch,$
+                                sclargs=initmaps.hstcolsm.sclargs)
+      cshst_fov = ifsf_hstsubim(hstcolsm,[0,0],[dx,dy],initdat.platescale,$
+                                initdat.positionangle,center_nuclei,$
+                                initmaps.hst.refcoords,$
+                                initmaps.hstcolsm.scllim,$
+                                stretch=initmaps.hstcolsm.stretch,$
+                                sclargs=initmaps.hstcolsm.sclargs,$
+                                /fov)
+   endif
+   hstrd=0
+   hstbl=0
+   hstcol=0
+   hstrdsm=0
+   hstblsm=0
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Compute some things
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;  Luminosity and angular size distances
    ldist = lumdist(initdat.zsys_gas,H0=73,Omega_m=0.27,Lambda0=0.73,/silent)
    kpc_per_as = ldist/(1+initdat.zsys_gas^2)*1000d/206265d
@@ -133,6 +360,208 @@ pro ifsf_makemaps,initproc,comprange=comprange
                          * initdat.platescale * kpc_per_as  
    center_nuclei_kpc_y = (center_nuclei[1,*] - center_axes[1]) $
                          * initdat.platescale * kpc_per_as
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Continuum plots
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if dohstrd OR dohstbl then begin
+      npx = 2
+      npy = 2
+   endif else begin
+      npx = 1
+      npy = 1
+   endelse
+   cap1 = textoidl('F435W+F814W')
+   cap2 = textoidl('F435W+F814W')
+   cap3 = textoidl('IFS cont.')
+
+   cgps_open,initdat.mapdir+initdat.label+'cont.eps',charsize=1,/encap,$
+             /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
+   pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+                   xgap=0,ygap=0)
+
+   if (dohstrd OR dohstbl) then begin
+      i = 0
+;     HST continuum, large scale
+      if dohstbl then size_subim = size(bhst_big) $
+      else size_subim = size(rhst_big)
+      mapscl = bytarr(3,size_subim[1],size_subim[2])
+      if dohstrd then mapscl[0,*,*] = rhst_big
+      if dohstbl then mapscl[2,*,*] = bhst_big
+      if dohstrd AND dohstbl then $
+         mapscl[1,*,*] = byte((double(rhst_big)+double(bhst_big))/2d)
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
+              noerase=i ne 0,missing_value=bad,missing_index=255,$
+              missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,xran=[0,size_subim[1]],$
+             yran=[0,size_subim[2]],position=truepos,$
+             /nodata,/noerase,title=cap1
+      cgoplot,[hst_big_ifsfov[*,0],hst_big_ifsfov[0,0]],$
+              [hst_big_ifsfov[*,1],hst_big_ifsfov[0,1]],color='Red'
+
+
+      i = 1
+;     HST continuum, IFS FOV
+      if dohstbl then size_subim = size(bhst_fov) $
+      else size_subim = size(rhst_fov)
+      mapscl = bytarr(3,size_subim[1],size_subim[2])
+      if dohstrd then mapscl[0,*,*] = rhst_fov
+      if dohstbl then mapscl[2,*,*] = bhst_fov
+      if dohstrd AND dohstbl then $
+         mapscl[1,*,*] = byte((double(rhst_fov)+double(bhst_fov))/2d)
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
+              noerase=i ne 0,missing_value=bad,missing_index=255,$
+              missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+             /nodata,/noerase,title=cap2
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+
+      i = 2
+;     smoothed HST continuum, IFS FOV
+      if dohstsm then begin
+         mapscl = bytarr(3,size_subim[1],size_subim[2])
+         if dohstrd then mapscl[0,*,*] = rhst_fov_sm
+         if dohstbl then mapscl[2,*,*] = bhst_fov_sm
+         if dohstrd AND dohstbl then $
+            mapscl[1,*,*] = byte((double(rhst_fov_sm)+double(bhst_fov_sm))/2d)
+         cgloadct,65,/reverse
+         cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
+                 noerase=i ne 0,missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase,title=cap2
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+         cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+         cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+         cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+         cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      endif
+ 
+      i=3
+ 
+   endif else i=0
+
+   if tag_exist(initmaps,'ct') then begin
+      ictlo = value_locate(ctcube.wave,initmaps.ct.sumrange[0])
+      icthi = value_locate(ctcube.wave,initmaps.ct.sumrange[1])
+      zran = initmaps.ct.scllim
+      dzran = zran[1]-zran[0]
+      ctmap = total(ctcube.dat[*,*,ictlo:icthi],3)
+      ctmap /= max(ctmap)
+      mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
+                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
+              noerase=i ne 0,missing_value=bad,missing_index=255,$
+              missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+             /nodata,/noerase,title=cap3
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+   endif
+
+   cgps_close
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Continuum color plots
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if dohstcol then begin
+      npx = 2
+      npy = 2
+   endif else begin
+      npx = 1
+      npy = 1
+   endelse
+   cap1 = textoidl('F435W+F814W')
+   cap2 = textoidl('F435W+F814W')
+   cap3 = textoidl('IFS cont.')
+
+   cgps_open,initdat.mapdir+initdat.label+'cont.eps',charsize=1,/encap,$
+             /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
+   pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+                   xgap=0,ygap=0)
+
+   if dohstcol then begin
+      i = 0
+      cgloadct,65,/reverse
+      cgimage,chst_big,/keep,pos=pos[*,i],opos=truepos,$
+              noerase=i ne 0,missing_value=bad,missing_index=255,$
+              missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,xran=[0,size_subim[1]],$
+             yran=[0,size_subim[2]],position=truepos,$
+             /nodata,/noerase,title=cap1
+      cgoplot,[hst_big_ifsfov[*,0],hst_big_ifsfov[0,0]],$
+              [hst_big_ifsfov[*,1],hst_big_ifsfov[0,1]],color='Red'
+
+
+      i = 1
+      cgloadct,65,/reverse
+      cgimage,chst_fov,/keep,pos=pos[*,i],opos=truepos,$
+              noerase=i ne 0,missing_value=bad,missing_index=255,$
+              missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+             /nodata,/noerase,title=cap2
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+
+      i = 2
+;     smoothed HST continuum, IFS FOV
+      if dohstcolsm then begin
+         cgloadct,65,/reverse
+         cgimage,cshst_fov,/keep,pos=pos[*,i],opos=truepos,$
+                 noerase=i ne 0,missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase,title=cap2
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+         cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+         cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+         cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+         cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      endif
+ 
+      i=3
+ 
+   endif else i=0
+
+   if tag_exist(initmaps,'ct') then begin
+      ictlo = value_locate(ctcube.wave,initmaps.ct.sumrange[0])
+      icthi = value_locate(ctcube.wave,initmaps.ct.sumrange[1])
+      zran = initmaps.ct.scllim
+      dzran = zran[1]-zran[0]
+      ctmap = total(ctcube.dat[*,*,ictlo:icthi],3)
+      ctmap /= max(ctmap)
+      mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
+                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
+              noerase=i ne 0,missing_value=bad,missing_index=255,$
+              missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+             /nodata,/noerase,title=cap3
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+   endif
+
+   cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Plots of individual emission lines
@@ -427,6 +856,555 @@ pro ifsf_makemaps,initproc,comprange=comprange
          cgps_close
 
       endforeach
+
+   endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; NaD EQUIVALENT WIDTH
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if tag_exist(initdat,'donad') then begin
+
+      nadabsweq_snrthresh=4d
+      nademweq_snrthresh=4d
+
+      cgps_open,initdat.mapdir+initdat.label+'NaDweq.eps',charsize=1,/encap,$
+         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
+
+      pos = cglayout([2,2],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+         xgap=0,ygap=0)
+      cbform = '(D0.2)'
+
+;
+;     ABSORPTION
+;
+      map = nadcube.weq[*,*,0]
+      igd = where(map ge nadabsweq_snrthresh*nadcube.weq[*,*,1] AND $
+                  map gt 0d AND map ne bad)
+      ibd = where(map lt nadabsweq_snrthresh*nadcube.weq[*,*,1] OR $
+                  map eq 0d OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDabs' AND $
+                           rangequant eq 'weq',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with 0
+      map[ibd] = 0d
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                      min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,0],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='W$\down eq$(NaD abs, $\angstrom$)'
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+;     Error
+      err = nadcube.weq[*,*,1]
+      map[igd] /= err[igd]
+
+      ;     Set up range
+      ;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDabs' AND $
+            rangequant eq 'weqsnr',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,10d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,1],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='W/$\delta$W(NaD abs)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+;
+;     EMISSION
+;
+      map = nadcube.weq[*,*,2]
+      igd = where(abs(map) ge nademweq_snrthresh*nadcube.weq[*,*,3] AND $
+                  abs(map) gt 0d AND map ne bad)
+      ibd = where(abs(map) lt nademweq_snrthresh*nadcube.weq[*,*,3] OR $
+                  map eq 0d AND map ne bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDem' AND $
+            rangequant eq 'weq',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with 0
+      map[ibd] = 0d
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65
+      cgimage,mapscl,/keep,pos=pos[*,2],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='W$\down eq$(NaD em, $\angstrom$)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+;     Error
+      err = nadcube.weq[*,*,3]
+      map[igd] /= -err[igd]
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDem' AND $
+            rangequant eq 'weqsnr',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,3],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='W/$\delta$W(NaD em)'
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+
+      cgps_close
+
+   endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; NaD "empirical" velocity maps
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if tag_exist(initdat,'donad') then begin
+
+      nadabsweq_snrthresh=3d
+
+      cgps_open,initdat.mapdir+initdat.label+'NaDempvel.eps',charsize=1,/encap,$
+         /inches,xs=plotquantum*3,ys=plotquantum*2,/qui
+
+      pos = cglayout([3,2],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+         xgap=0,ygap=0)
+      cbform = '(D0.2)'
+
+;
+;     ABSORPTION
+;
+      map = nadcube.vel[*,*,0]
+      igd = where(nadcube.weq[*,*,0] ge nadabsweq_snrthresh*nadcube.weq[*,*,1] $
+                  AND map gt 0d AND map ne bad)
+      ibd = where(nadcube.weq[*,*,0] lt nadabsweq_snrthresh*nadcube.weq[*,*,1] $
+                  OR map eq 0d OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDabs' AND $
+            rangequant eq 'empvelwid',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,200d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with "bad"
+      map[ibd] = bad
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,0],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='$\Delta$v(NaD abs, km/s)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+      map = nadcube.vel[*,*,1]
+      igd = where(nadcube.weq[*,*,0] ge nadabsweq_snrthresh*nadcube.weq[*,*,1] $
+                  AND map ne bad)
+      ibd = where(nadcube.weq[*,*,0] lt nadabsweq_snrthresh*nadcube.weq[*,*,1] $
+                  OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDabs' AND $
+            rangequant eq 'empvelavg',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with "bad"
+      map[ibd] = bad
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,1],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='<v>(NaD abs, km/s)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+
+      map = nadcube.vel[*,*,2]
+      igd = where(nadcube.weq[*,*,0] ge nadabsweq_snrthresh*nadcube.weq[*,*,1] $
+                  AND map ne bad)
+      ibd = where(nadcube.weq[*,*,0] lt nadabsweq_snrthresh*nadcube.weq[*,*,1] $
+                  OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDabs' AND $
+            rangequant eq 'empvelmax',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with "bad"
+      map[ibd] = bad
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,2],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='v$\downmax$(NaD abs, km/s)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+;
+;     EMISSION
+;
+      map = nadcube.vel[*,*,3]
+      igd = where(abs(nadcube.weq[*,*,2]) ge $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] $
+                  AND map gt 0d AND map ne bad)
+      ibd = where(abs(nadcube.weq[*,*,2]) lt $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] $
+                  OR map eq 0d OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDem' AND $
+            rangequant eq 'empvelwid',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,200d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with "bad"
+      map[ibd] = bad
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,3],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='$\Delta$v(NaD em, km/s)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+      map = nadcube.vel[*,*,4]
+      igd = where(abs(nadcube.weq[*,*,2]) ge $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] $
+                  AND map ne bad)
+      ibd = where(abs(nadcube.weq[*,*,2]) lt $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] $
+                  OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDem' AND $
+            rangequant eq 'empvelavg',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with "bad"
+      map[ibd] = bad
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,4],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='<v>(NaD em, km/s)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+      map = nadcube.vel[*,*,5]
+      igd = where(abs(nadcube.weq[*,*,2]) ge $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] $
+                  AND map ne bad)
+      ibd = where(abs(nadcube.weq[*,*,2]) lt $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] $
+                  OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDem' AND $
+            rangequant eq 'empvelmax',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with "bad"
+      map[ibd] = bad
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,5],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='v$\downmax$(NaD em, km/s)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+      cgps_close
 
    endif
 

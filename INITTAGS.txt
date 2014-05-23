@@ -15,15 +15,22 @@
 #   2014apr17, DSNR, added ARGSMAKEMAP
 #   2014mayXY, DSNR, added FCNCHECKCOMP
 #   2014may08, DSNR, added ARGSNORMNAD, ARGSPLTNORMNAD
-#   2014may09, DSNR, added ARGPLTFITNAD, NAD_REFCOORDS, NAD_TAUMAX,
-#                          NAD_FITRAN, NAD_ARGSINITPAR, NAD_FCNINITPAR
+#   2014may09, DSNR, added a bunch of NaD-related tags
+#   2014may15, DSNR, added ARGSNADWEQ
+#   2014may23, DSNR, moved ARGSMAKEMAP structure and NaD parameters 
+#                    to their own variables
 
 This file describes the parameters that are contained in the INITDAT
-structure. This structure is created in the initialization procedure
-and passed to IFSF and IFSFA, and contains parameters that apply to
-the dataset as a whole (e.g., the lines to be fit or an array
-containing the initial redshift guesses for all spaxels). IFSF passes
-INITDAT to IFSF_FITSPEC without changing it.
+and INITMAP structures. These structures are created in the
+initialization procedure and passed to IFSF, IFSFA, and other
+routines, and contain parameters that apply to the dataset as a whole
+(e.g., the lines to be fit or an array containing the initial redshift
+guesses for all spaxels). IFSF passes INITDAT to IFSF_FITSPEC without
+changing it.
+
+=======
+INITDAT
+=======
 
 Tags are in alphabetical order.
 
@@ -44,36 +51,14 @@ Required structure tags from initialization procedure:
     Directory for output maps.
   maxncomp: in, required, type=double
     Maximum number of components to fit.
-  nad_fcninitpar: in, required, type=string
-    Name of function for initializing NaD + HeI fit.
-  nad_maxncomp: in, required, type=double
-    Maximum number of HeI, NaD absorption, or NaD emission components.
-  nad_nnadabs: in, required, type=dblarr(ncols,nrows)
-    Number of NaD absorption components to fit.
-  nad_nnadem: in, required, type=dblarr(ncols,nrows)
-    Number of NaD emission components to fit.
-  nad_heitie: in, required, type=dblarr(ncols,nrows)
-    Emission line to use for initializing fit of HeI 5876.
-  nad_nadabs_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
-    Initial redshift guesses for NaD absorption line fits.
-  nad_nadem_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
-    Initial redshift guesses for NaD emission line fits.
-  nad_nadabs_siginit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
-    Initial sigma guesses for NaD absorption line fits.
-  nad_nadem_siginit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
-    Initial sigma guesses for NaD emission line fits.
-  nad_nadabs_siglim: in, required, type=dblarr(2)
-    Limits to sigma for NaD absorption.
-  nad_nadem_siglim: in, required, type=dblarr(2)
-    Limits to sigma for NaD emission.
-  nad_refcoords: in, required, type=dblarr(2)
-    Coordinates (unity-offset) of reference spectrum for NaD + HeI fitting.
   ncomp: in, required, type=hash(lines,ncols,nrows)
     For each spaxel and emission line, # of components to fit.
   outdir: in, required, type=string
     Directory for output .xdr file and analysis files (plots, lists).
   platescale: in, required, type=double
     Size of pixel in arcseconds.
+  positionangle: in, required, type=double
+    Position angle of IFS FOV, in degrees E of N.
   specres: in, required, type=double
     Spectral resolution of spectrograph in Angstroms, used for
     correcting linewidths for the instrumental profile. Code does not
@@ -99,18 +84,10 @@ Optional structure tags from initialization procedure:
     Arguments for line fitting routine
   argslinelist: in, optional, type=structure
     Arguments for line selection routine
-  argsmakemap: in, optional, type=structure
-    Arguments for map-making procedure
-  argsnormnad: in, optional, type=structure
-    Arguments for normalization of NaD continuum.
-  argspltfitnad: in, optional, type=structure
-    Arguments for plotting NaD fit.
   argspltlin1: in, optional, type=structure
     Arguments for first line plot
   argspltlin2: in, optional, type=structure
     Arguments for first line plot
-  argspltnormnad: in, optional, type=structure
-    Arguments for plotting normalization of NaD continuum.
   datext: in, optional, type=integer, default=1
     Extension # for data plane in data cube.
   dividecont: in, optional, type=byte
@@ -118,6 +95,8 @@ Optional structure tags from initialization procedure:
     fit. Default is to subtract.
   dqext: in, optional, type=integer, default=3
     Extension # for dq plane in data cube.
+  donad: in, optional, type=byte
+    Run NaD analysis (normalization and finding weq) in IFSFA.
   fcncheckcomp: in, optional, type=string
     Name of function for automatically testing significance of
     components.
@@ -149,12 +128,6 @@ Optional structure tags from initialization procedure:
     are multiplied by this value and set to 'maskwidths' parameter. If
     not set, routine defaults to a value specified in IFSF for all
     lines and components.
-  nad_argsinitpar: in, optional, type=structure
-    Arguments for initializing NaD + HeI fit.
-  nad_fitran: in, optional, type=dblarr(2)
-    Fit range for NaD + HeI fit, in the observed frame.
-  nad_taumax: in, optional, type=double, default=5
-    Optical depth upper limit for NaD fitting.
   nomaskran: in, optional, type=dblarr(2)
     Wavelength region *not* to mask.
   outlines: in, optional, type=strarr
@@ -190,3 +163,157 @@ Optional structure tags from initialization procedure:
     vacuum wavelengths.
   varext: in, optional, type=integer, default=2
     Extension # for variance plane in data cube.
+
+========
+INITMAPS
+========
+
+  center_axes: in, optional, type=dblarr(2)
+    [centcol,centrow]
+  center_nuclei: in, optional, type=dblarr(2)
+    [centcol,centrow]
+  rangefile:  in, optional, type=string
+     Full path and file name for file to manually set color scale
+     ranges for plots.
+  argslinratmaps: in, optional, type=structure
+     If set, line ratios are plotted. The following tags govern the
+     image:
+
+  col: in, optional, type=structure
+     If set, IFS continuum color image is created. The following
+     tags govern the image.
+     sumrange: in, required, type=dblarr(4)
+       Lower and upper wavelength limits for summing together the blue
+       and red continuum regions.
+     scllim: in, required, type=dblarr(2)
+       Lower and upper flux limits for byte scaling.
+     stretch: in, required, type=long
+       Function for byte scaling data. See CGIMGSCL for a list of
+       possible values.
+  ct: in, optional, type=structure
+     If set, IFS continuum image is created. The following
+     tags govern the image.
+     sumrange: in, required, type=dblarr(2)
+       Lower and upper wavelength limits for summing the continuum.
+     scllim: in, required, type=dblarr(2)
+       Lower and upper flux limits for byte scaling.
+     stretch: in, required, type=long
+       Function for byte scaling data. See CGIMGSCL for a list of
+       possible values.
+  hst: in, optional, type=structure
+     If set (along with hstbl and/or hstrd), HST continuum image is
+     loaded and plotted. The following tags govern the image.
+     refcoords: in, required, type=longarr(2)
+       Coordinates of reference point for aligning HST and IFS images.
+     subim_sm: in, required, type=double
+       Size of one side of (square) small subimage in arcseconds.
+     subim_big: in, required, type=double
+       Size of one side of (square) big subimage in arcseconds.
+     smoothfwhm: in, required, type=double
+       FWHM of Gaussian smoothing kernel, in pixels.
+  hstbl: in, optional, type=structure
+     If set (along with hst), blue HST continuum image is loaded and
+     plotted. The following tags govern the image.
+     file: in, required, type=string
+     scllim: in, required, type=dblarr(2)
+       Lower and upper flux limits for byte scaling.
+     sclargs: in, required, type=structure
+       Optional arguments for byte scaling routine (CGIMGSCL). If no
+       arguments, then input a dummy tag.
+  hstblsm: in, optional, type=structure
+     If set (along with hstbl and hst), smoothed blue HST continuum
+     image is created and plotted. The following tags govern the
+     image.
+     scllim: in, required, type=dblarr(2)
+       Lower and upper flux limits for byte scaling.
+     sclargs: in, required, type=structure
+       Optional arguments for byte scaling routine (CGIMGSCL). If no
+       arguments, then input a dummy tag.
+     stretch: in, required, type=long
+       Function for byte scaling data. See CGIMGSCL for a list of
+       possible values.
+  hstrd: in, optional, type=structure
+     If set (along with hst), red HST continuum image is loaded and
+     plotted. The following tags govern the image.
+     file: in, required, type=string
+     scllim: in, required, type=dblarr(2)
+       Lower and upper flux limits for byte scaling.
+     sclargs: in, required, type=structure
+       Optional arguments for byte scaling routine (CGIMGSCL). If no
+       arguments, then input a dummy tag.
+  hstrdsm: in, optional, type=structure
+     If set (along with hstrd and hst), smoothed red HST continuum
+     image is created and plotted. The following tags govern the
+     image.
+     scllim: in, required, type=dblarr(2)
+       Lower and upper flux limits for byte scaling.
+     sclargs: in, required, type=structure
+       Optional arguments for byte scaling routine (CGIMGSCL). If no
+       arguments, then input a dummy tag.
+     stretch: in, required, type=long
+       Function for byte scaling data. See CGIMGSCL for a list of
+       possible values.
+  hstcol: in, optional, type=structure
+     If set (along with hstrd and hstbl), HST continuum color
+     image is created and plotted. The following tags govern the
+     image.
+     scllim: in, required, type=dblarr(2)
+       Lower and upper flux limits for byte scaling.
+     sclargs: in, required, type=structure
+       Optional arguments for byte scaling routine (CGIMGSCL). If no
+       arguments, then input a dummy tag.
+     stretch: in, required, type=long
+       Function for byte scaling data. See CGIMGSCL for a list of
+       possible values.
+  hstcol: in, optional, type=structure
+     If set (along with hstrd, hstbl, hstrdsm, and hstblsm), smoothed
+     HST continuum color image is created and plotted. The following
+     tags govern the image.
+     scllim: in, required, type=dblarr(2)
+       Lower and upper flux limits for byte scaling.
+     sclargs: in, required, type=structure
+       Optional arguments for byte scaling routine (CGIMGSCL). If no
+       arguments, then input a dummy tag.
+     stretch: in, required, type=long
+       Function for byte scaling data. See CGIMGSCL for a list of
+       possible values.
+
+
+=======
+INITNAD
+=======
+
+  argsinitpar: in, optional, type=structure
+    Arguments for initializing NaD + HeI fit.
+  argsnadweq: in, optional, type=structure
+    Arguments for computing NaD equivalent width
+  argsnormnad: in, optional, type=structure
+    Arguments for normalization of NaD continuum.
+  argspltfitnad: in, optional, type=structure
+    Arguments for plotting NaD fit.
+  argspltnormnad: in, optional, type=structure
+    Arguments for plotting normalization of NaD continuum.
+  fcninitpar: in, required, type=string
+    Name of function for initializing NaD + HeI fit.
+  maxncomp: in, required, type=double
+    Maximum number of HeI, NaD absorption, or NaD emission components.
+  nnadabs: in, required, type=dblarr(ncols,nrows)
+    Number of NaD absorption components to fit.
+  nnadem: in, required, type=dblarr(ncols,nrows)
+    Number of NaD emission components to fit.
+  heitie: in, required, type=dblarr(ncols,nrows)
+    Emission line to use for initializing fit of HeI 5876.
+  nadabs_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
+    Initial redshift guesses for NaD absorption line fits.
+  nadem_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
+    Initial redshift guesses for NaD emission line fits.
+  nadabs_siginit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
+    Initial sigma guesses for NaD absorption line fits.
+  nadem_siginit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
+    Initial sigma guesses for NaD emission line fits.
+  nadabs_siglim: in, required, type=dblarr(2)
+    Limits to sigma for NaD absorption.
+  nadem_siglim: in, required, type=dblarr(2)
+    Limits to sigma for NaD emission.
+  taumax: in, optional, type=double, default=5
+    Optical depth upper limit for NaD fitting.

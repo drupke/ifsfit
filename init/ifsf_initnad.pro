@@ -62,7 +62,7 @@
 ;
 ;-
 function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
-                      taumax=taumax
+                      taumax=taumax,heifix=heifix,siglimhei=siglimhei
 
    c = 299792.458d
 ;  NaD optical depth ratio (blue to red)
@@ -74,9 +74,12 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
    size_hei = size(inithei)
    size_nadabs = size(initnadabs)
    size_nadem = size(initnadem)
-   if size_hei[0] gt 0 then nhei = fix(size_hei[1]) else nhei=0l
-   if size_nadabs[0] gt 0 then nnadabs = fix(size_nadabs[1]) else nnadabs=0l
-   if size_nadem[0] gt 0 then nnadem = fix(size_nadem[1]) else nnadem=0l
+   if size_hei[0] eq 1 then nhei = 1 $
+   else if size_hei[0] gt 1 then nhei = fix(size_hei[1]) else nhei=0l
+   if size_nadabs[0] eq 1 then nnadabs = 1 $
+   else if size_nadabs[0] gt 1 then nnadabs = fix(size_nadabs[1]) else nnadabs=0l
+   if size_nadem[0] eq 1 then nnadem = 1 $
+   else if size_nadem[0] gt 1 then nnadem = fix(size_nadem[1]) else nnadem=0l
   
 ;  Initialize PARINFO  
    parinfo = REPLICATE({value:0d, fixed:0b, limited:[0B,0B], tied:'', $
@@ -107,8 +110,19 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
 ;     Limits + fixed/free
       parinfo[ind_f].limited[0] = 1B
       parinfo[ind_f].limits[0]  = 0d
+      parinfo[ind_w].limited[0] = 1B
+      parinfo[ind_w].limited[1] = 1B
+      parinfo[ind_w].limits[0] = inithei[*,0]-10d
+      parinfo[ind_w].limits[1]  = inithei[*,0]+10d
       parinfo[ind_w].fixed = 1B
+      parinfo[ind_s].limited[0] = 1B
+      parinfo[ind_s].limited[1] = 1B
+      if ~ keyword_set(siglimhei) then siglimhei=[50d,1000d]
+      parinfo[ind_s].limits[0] = siglimhei[0]
+      parinfo[ind_s].limits[1]  = siglimhei[1]
       parinfo[ind_s].fixed = 1B
+      if keyword_set(heifix) then $
+         parinfo[ilo:ilo+nhei*3-1].fixed = reform(transpose(heifix),nhei*3)
 ;     Labels
       parinfo[ind_f].parname = 'flux_peak'
       parinfo[ind_w].parname = 'wavelength'
@@ -143,8 +157,8 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_w].limited[0] = 1B
       parinfo[ind_w].limited[1] = 1B
       for i=0,nnadabs-1 do begin
-         parinfo[ilo+2+i*4].limits[0] = initnadabs[i,2]-5d
-         parinfo[ilo+2+i*4].limits[1] = initnadabs[i,2]+5d
+         parinfo[ilo+2+i*4].limits[0] = initnadabs[i,2]-10d
+         parinfo[ilo+2+i*4].limits[1] = initnadabs[i,2]+10d
       endfor
 ;     Labels
       parinfo[ind_c].parname = 'covering_factor'
@@ -169,8 +183,8 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_w].limited[0] = 1B
       parinfo[ind_w].limited[1] = 1B
       for i=0,nnadem-1 do begin
-         parinfo[ilo+i*4-1].limits[0] = initnadem[i,0]-5d
-         parinfo[ilo+i*4-1].limits[1] = initnadem[i,0]+5d
+         parinfo[ilo+i*4].limits[0] = initnadem[i,0]-10d
+         parinfo[ilo+i*4].limits[1] = initnadem[i,0]+10d
       endfor
       parinfo[ind_s].limited[0] = 1B
       parinfo[ind_s].limited[1] = 1B
@@ -182,13 +196,14 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_r].limited[1] = 1B
       parinfo[ind_r].limits[0]  = 1d/tratio
       parinfo[ind_r].limits[1]  = 1d
+      parinfo[ind_r].fixed = 1b
 ;     Labels
-      parinfo[ind_f].parname = 'flux_peak'
       parinfo[ind_w].parname = 'wavelength'
       parinfo[ind_s].parname = 'sigma'
+      parinfo[ind_f].parname = 'flux_peak'
       parinfo[ind_r].parname = 'flux_ratio'
-      parinfo[ilo:ilo+nnadem*3-1].line = 'NaD2'
-      parinfo[ilo:ilo+nnadem*3-1].comp = rebin(indgen(nnadem)+1,nnadem*4)
+      parinfo[ilo:ilo+nnadem*4-1].line = 'NaD2'
+      parinfo[ilo:ilo+nnadem*4-1].comp = rebin(indgen(nnadem)+1,nnadem*4)
    endif
 
 ;  Check parinit initial values vs. limits

@@ -2,8 +2,7 @@
 ;
 ;+
 ;
-; Write Na D absorption line properties to a text file. This cycles
-; through all spectra and writes the file all at once.
+; Write Na D absorption line properties to a text file.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -12,21 +11,23 @@
 ;    None.
 ;
 ; :Params:
-;    gal: in, required, type=string
-;      Galaxy label in file naming.
-;    cols: in, required, type=dblarr(Nspec)
-;      List of column #s for each spectrum.
-;    rows: in, required, type=dblarr(Nspec)
-;      List of row #s for each spectrum.
-;    fitdir: in, required, type=string
-;      Directory where normalized spectra and fit parameter files are
-;      located.
-;    outfile: in, required, type=string
-;      Name of output text file. (Path specified by fitdir.)
-;    z: in, required, type=double
-;      Galaxy redshift.
-;
+;    lun: in, required, type=integer
+;      Logical unit for output file. If outfile is set, the lun is output to
+;      this file. If outfile is not set, the lun to which to write the data is
+;      contained in this parameter as an output.
+;    col: in, optional, type=integer
+;      IFS column of spectrum. Only used if outfile is not set.
+;    row: in, optional, type=integer
+;      IFS row of spectrum. Only used if outfile is not set.
+;    param: in, optional, type=structure
+;      Output of NaD fit, containing line parameters. Only used if 
+;      outfile is not set.
+;      
 ; :Keywords:
+;    outfile: in, optional, type=string
+;      Full path and name of output file. If set, initializes file by opening
+;      it, creating a lun, writing column titles, and returning the lun. If not
+;      set, input lun is opened and written to.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -39,10 +40,12 @@
 ; :History:
 ;    ChangeHistory::
 ;      2010jul22, DSNR, created
-;      2013nov21, DSNR, documented, renamed, added license and copyright 
+;      2013nov21, DSNR, documented, renamed, added license and copyright
+;      2014may13, DSNR, re-written to match logic of IFSF_PRINTLINPAR,
+;                       and for new fitting method
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2014 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -59,37 +62,52 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_printnadpar,gal,cols,rows,fitdir,outfile,z
+pro ifsf_printnadpar,lun,col,row,param,outfile=outfile
 
-  nad1_rest = 5895.92d
-  nad2_rest = 5889.95d
+;  Initialize file
+   if keyword_set(outfile) then begin
 
-  nspec = n_elements(rows)
+      openw,lun,outfile,/get_lun
+      linestr = string('#','HeI 5876 emission','NaD absorption','NaD emission',$
+                       format='(A-12,A-32,A-42,A-40)')
+      collabstr = string('#Col','Row','Cmp',$
+                         'Wave','Sigma','Flux',$
+                         'C_f','tau','Wave','sigma',$
+                         'Wave','Sigma','Flux','D1/D2',$
+                         format='(A-4,2A4,2A12,2A8,A10,4A12,2A8)')
+      printf,lun,linestr,collabstr
 
-  openw,lun,fitdir+outfile+'.dat',/get_lun
-  printf,lun,'#Col','Row','Cmp','z','FWHM','tau','C_f','W_eq',$
-         format='(A-4,2A4,5A10)'
+;  Print line parameters
+   endif else begin
 
-  for i=0,nspec-1 do begin
+      nhei=param[0]
+      nnadabs=param[1]
+      nnadem=param[2]
+      nmax = max(param[0:2])
 
-;    Syntax for file naming:
-;      Emission-line subtracted spectrum: galaxy_col_row_nad_spec.dat
-;      Best fit parameters: galaxy_col_row_nad_parout.dat
-     spec = string(cols[i],'_',rows[i],format='(I04,A0,I04)')
-     spectot= fitdir+gal+'_'+spec
-     specin = spectot+'_nad_spec.dat'
-     parout = spectot+'_nad_parout.dat'
-;    Get best fit parameters
-     nadpars = ifsf_readnadpar(parout)
-;    Compute equivalent width
-     dumy = ifsf_cmpnadfull(specin,parout,z,weq=weq)
-     printf,lun,cols[i],rows[i],1,nadpars.abs[2,0]/nad1_rest-1d,$
-            nadpars.abs[3,0]*2d*sqrt(alog(2d)),$
-            nadpars.abs[1,0],nadpars.abs[0,0],$
-            weq,format='(3I4,D10.6,D10.2,D10.4,D10.4,D10.4)'
+
+      for i=0,nmax-1 do begin
+         outstr=''
+         ilo = 3
+         if nhei ge i+1 then $
+            outstr += string(param[ilo+i*3:ilo+(i+1)*3-1],$
+                              format='(D12.2,D12.2,D8.4)') $
+         else outstr += string(0,0,0,format='(D12.2,D12.2,D8.4)')
+         ilo = 3+nhei*3
+         if nnadabs ge i+1 then $
+            outstr += string(param[ilo+i*4:ilo+(i+1)*4-1],$
+                              format='(D8.4,D10.4,D12.2,D12.2)') $
+         else outstr += string(0,0,0,0,format='(D8.4,D10.4,D12.2,D12.2)')
+         ilo = 3+nhei*3+nnadabs*4
+         if nnadem ge i+1 then $
+            outstr += string(param[ilo+i*4:ilo+(i+1)*4-1],$
+                              format='(D12.2,D12.2,D8.4,D8.4)') $
+         else outstr += string(0,0,0,0,format='(D12.2,D12.2,D8.4,D8.4)')
+
+         printf,lun,col,row,i+1,outstr,format='(3I4,A0)'
      
-  endfor
+      endfor
   
-  free_lun,lun
-
+   endelse
+  
 end

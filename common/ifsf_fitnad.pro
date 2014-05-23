@@ -2,17 +2,31 @@
 ;
 ;+
 ;
-; Fit Na D absorption line.
+; Fit Na D absorption line. Plot fit and write fit parameters to a
+; file.
 ;
 ; :Categories:
 ;    IFSFIT
 ;
-; :Returns:    
+; :Returns:
+;    Produces a plot ([gal_col_row]_nad_fit.jpg) for each fit, and a
+;    parameter file ([gal].nad.dat) containing the fit parameters for
+;    all spaxels.
 ;
 ; :Params:
-;    
-;    
+;    initproc: in, required, type=string
+;      Name of procedure to initialize the fit.
+;
 ; :Keywords:
+;    cols: in, optional, type=intarr, default=all
+;      Columns to fit, in 1-offset format. Either a scalar or a
+;      two-element vector listing the first and last columns to fit.
+;    rows: in, optional, type=intarr, default=all
+;      Rows to fit, in 1-offset format. Either a scalar or a
+;      two-element vector listing the first and last rows to fit.
+;    verbose: in, optional, type=byte
+;      Print error and progress messages. Propagates to most/all
+;      subroutines.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -48,19 +62,25 @@
 ;-
 pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 
+;  NaD optical depth ratio (blue to red)
+   tratio = 2.0093d
+   nad_emrat_init = 1d
+
    starttime = systime(1)
    time = 0
    if keyword_set(verbose) then quiet=0 else quiet=1
 
    ; Get fit initialization
-   initdat = call_function(initproc)
+   initnad={dumy: 1}
+   initdat = call_function(initproc,initnad=initnad}
 
    ; Get linelist
    linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
 
-   if tag_exist(initdat,'nad_taumax') then taumax=initdat.nad_taumax $
+   if tag_exist(initnad,'taumax') then taumax=initnad.taumax $
    else taumax = 5d
-   if tag_exist(initdat,'nad_fitran') then fitran=initdat.nad_fitran
+
+   ifsf_printnadpar,nadparlun,outfile=initdat.outdir+initdat.label+'.nad.dat'
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
@@ -70,122 +90,149 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
    restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
    nadsize = size(nadcube.wave)
 
-;  if keyword_set(sigmax) then bmax=sigmax*sqrt(2d) $
-;  else bmax = 1000d/(2d*sqrt(alog(2d)))
-
    ncols = nadsize[1]
    nrows = nadsize[2]
    nz = nadsize[3]
-   refcol = initdat.nad_refcoords[0]
-   refrow = initdat.nad_refcoords[1]
 
-;;  Arrays to hold flags
-;   donefit = dblarr(ncols,nrows)
-;   nabscomp = dblarr(ncols,nrows)+1
-;   nemcomp = intarr(ncols,nrows)
-;
-;;  Array of distances from reference spectrum
-;   cols = rebin(dindgen(ncols)+1,ncols,nrows)
-;   rows = rebin(reform(dindgen(nrows)+1,1,nrows),ncols,nrows)
-;   dref = sqrt((cols-refcol)^2d + (rows-refrow)^2d)
-;;  ... properly sorted in order of increasing distance
-;   dref_isrt = sort(dref)
-;   nspec = n_elements(rows)
-;   cols_srt = reform(cols(dref_isrt),nspec)
-;   rows_srt = reform(rows(dref_isrt),nspec)
-;   dref_srt = reform(dref(dref_isrt),nspec)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Loop through spaxels
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;  Fit reference spectrum
+   if not keyword_set(cols) then cols=[1,ncols] $
+   else if n_elements(cols) eq 1 then cols = [cols,cols]
+   cols = fix(cols)
+   for i=cols[0]-1,cols[1]-1 do begin
 
-   print,'Fitting [',refcol,',',refrow,'].',format='(A,I03,A,I03,A)'
+      print,'Column ',i+1,' of ',ncols,format='(A,I0,A,I0)'
 
-;  Get HeI parameters
-   refline = initdat.nad_heitie[refcol-1,refrow-1]
-   if refline ne '' then begin
+      if not keyword_set(rows) then rows=[1,nrows] $
+      else if n_elements(rows) eq 1 then rows = [rows,rows]
+      rows = fix(rows)
+      for j=rows[0]-1,rows[1]-1 do begin
 
-;     Restore fit    
-      lab = string(refcol+1,'_',refrow+1,format='(I04,A,I04)')
-      infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
-      outfile = initdat.outdir+initdat.label+'_'+lab
-      if ~ file_test(infile) then begin
-         print,'IFSFA: No XDR file for ',i+1,', ',j+1,'.',$
-            format='(A0,I4,A0,I4,A0)'
-         goto,nofit
-      endif
-      restore,file=infile
-      reflinelist = ifsf_linelist([refline])
-      linepars = ifsf_sepfitpars(reflinelist,struct.param,struct.perror,$
-                                 struct.parinfo)
+         print,'  Row ',j+1,' of ',nrows,format='(A,I0,A,I0)'
 
-;     Get reference line parameters      
-      iem = where(linepars.flux[refline,*] ne 0d,nhei)
-      if nhei gt 0 then $
-         inithei = [[(linepars.wave)[refline,0:nhei-1]/$
-                     reflinelist[refline]*linelist['HeI5876']],$
-                   [(linepars.sigma)[refline,0:nhei-1]],$
-                   [dblarr(nhei)+0.1d]] $
-      else inithei=0
+;        Restore continuum + emission-line fit
+         lab = string(i+1,'_',j+1,format='(I04,A,I04)')
+         infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
+         outfile = initdat.outdir+initdat.label+'_'+lab
+         if ~ file_test(infile) then begin
+            print,'IFSF_FITNAD: No XDR file for ',i+1,', ',j+1,'.',$
+                  format='(A0,I4,A0,I4,A0)'
+            goto,nofit
+         endif
+         restore,file=infile
 
-   endif else inithei=0
+;        Get HeI parameters
+         refline = initnad.heitie[i,j]
+         heifix=0
+         if refline ne '' then begin
+            if refline ne 'HeI5876' then begin
+;              Get reference line parameters
+               reflinelist = ifsf_linelist([refline])
+               linepars = ifsf_sepfitpars(reflinelist,struct.param,struct.perror,$
+                                          struct.parinfo)
+               iem = where(linepars.flux[refline,*] ne 0d,nhei)
+               if nhei gt 0 then $
+                  inithei = [[(linepars.wave)[refline,0:nhei-1]/$
+                              reflinelist[refline]*linelist['HeI5876']],$
+                             [(linepars.sigma)[refline,0:nhei-1]],$
+                             [dblarr(nhei)+0.1d]] $
+               else inithei=0
+            endif else if tag_exist(initnad,'hei_zinit') AND $
+                          tag_exist(initnad,'hei_siginit') AND $
+                          tag_exist(initnad,'nhei') then begin
+               nhei=initnad.nhei[i,j]
+               inithei = [[((initnad.hei_zinit)[i,j,0:nhei-1]+1d)*$
+                           linelist['HeI5876']],$
+                          [(initnad.hei_siginit)[i,j,0:nhei-1]],$
+                          [dblarr(nhei)+0.1d]]
+               heifix = bytarr(nhei,3)
+            endif else begin
+               print,'IFSF_FITNAD: HeI5876 initialization parameters'+$
+                     ' not properly specified.'
+               goto,nofit
+            endelse
+         endif else inithei=0
 
-;  Get NaD absorption parameters
-   nnadabs = initdat.nad_nnadabs[refcol-1,refrow-1]
-   if nnadabs gt 0 then begin
-      if tag_exist(initdat,'nad_nadabs_cfinit') then $
-         cfinit = (initdat.nad_nadabs_cfinit)[refcol-1,refrow-1,0:nnadabs-1] $
-      else cfinit = dblarr(nnadabs)+0.5d
-      if tag_exist(initdat,'nad_nadabs_tauinit') then $
-         tauinit = (initdat.nad_nadabs_tauinit)[refcol-1,refrow-1,0:nnadabs-1] $
-      else tauinit = dblarr(nnadabs)+0.5d
-      winit = reform(((initdat.nad_nadabs_zinit)[refcol-1,refrow-1,0:nnadabs-1]$
-                     +1d)*linelist['NaD2'],nnadabs)
-      siginit = reform((initdat.nad_nadabs_siginit)$
-                       [refcol-1,refrow-1,0:nnadabs-1],nnadabs)
-      initnadabs = [[cfinit],[tauinit],[winit],[siginit]]
-   endif else initnadabs=0
+;        Get NaD absorption parameters
+         nnadabs = initnad.nnadabs[i,j]
+         if nnadabs gt 0 then begin
+            if tag_exist(initnad,'nadabs_cfinit') then $
+               cfinit = (initnad.nadabs_cfinit)[i,j,0:nnadabs-1] $
+            else cfinit = dblarr(nnadabs)+0.5d
+            if tag_exist(initnad,'nadabs_tauinit') then $
+               tauinit = (initnad.nadabs_tauinit)[i,j,0:nnadabs-1] $
+            else tauinit = dblarr(nnadabs)+0.5d
+            winit = reform(((initnad.nadabs_zinit)[i,j,0:nnadabs-1]$
+                            +1d)*linelist['NaD2'],nnadabs)
+            siginit = reform((initnad.nadabs_siginit)$
+                              [i,j,0:nnadabs-1],nnadabs)
+            initnadabs = [[cfinit],[tauinit],[winit],[siginit]]
+         endif else initnadabs=0
 
-;  Get NaD emission parameters
-   nnadem = initdat.nad_nnadem[refcol-1,refrow-1]
-   if nnadem gt 0 then begin
-      winit = reform(((initdat.nad_nadem_zinit)[refcol-1,refrow-1,0:nnadem-1]$
-                     +1d)*linelist('NaD2'),nnadem)
-      siginit = reform((initdat.nad_nadem_siginit)$
-                       [refcol-1,refrow-1,0:nnadem-1],nnadem)
-      if tag_exist(initdat,'nad_nadem_finit') then $
-         finit = (initdat.nad_nadem_finit)[refcol-1,refrow-1,0:nnadem-1] $
-      else finit = dblarr(nnadem)+0.1d
-      if tag_exist(initdat,'nad_nadem_rinit') then $
-         rinit = (initdat.nad_nadem_rinit)[refcol-1,refrow-1,0:nnadem-1] $
-      else rinit = dblarr(nnadem)+1.5d
-      initnadem = [[winit],[siginit],[finit],[rinit]]
-   endif else initnadem=0
+;        Get NaD emission parameters
+         nnadem = initnad.nnadem[i,j]
+         if nnadem gt 0 then begin
+            winit = reform(((initnad.nadem_zinit)[i,j,0:nnadem-1]+1d)$
+                           *linelist['NaD2'],nnadem)
+            siginit = reform((initnad.nadem_siginit)[i,j,0:nnadem-1],nnadem)
+            if tag_exist(initnad,'nadem_finit') then $
+               finit = (initnad.nadem_finit)[i,j,0:nnadem-1] $
+            else finit = dblarr(nnadem)+0.1d
+            if tag_exist(initnad,'nadem_rinit') then $
+               rinit = (initnad.nadem_rinit)[i,j,0:nnadem-1] $
+            else rinit = dblarr(nnadem)+nad_emrat_init
+            initnadem = [[winit],[siginit],[finit],[rinit]]
+         endif else initnadem=0
 
-;  Fill out parameter structure with initial guesses and constraints
-   if tag_exist(initdat,'nad_argsinitpar') then parinit = $
-      call_function(initdat.nad_fcninitpar,inithei,initnadabs,initnadem,$
-                    initdat.nad_nadabs_siglim,initdat.nad_nadem_siglim,$
-                    _extra=initdat.nad_argsinitpar) $
-   else parinit = $
-      call_function(initdat.nad_fcninitpar,inithei,initnadabs,initnadem,$
-                    initdat.nad_nadabs_siglim,initdat.nad_nadem_siglim)
+;        Fill out parameter structure with initial guesses and constraints
+         if tag_exist(initnad,'argsinitpar') then parinit = $
+            call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
+                          initnad.nadabs_siglim,initnad.nadem_siglim,$
+                          heifix=heifix,_extra=initnad.argsinitpar) $
+         else parinit = $
+            call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
+                          initnad.nadabs_siglim,initnad.nadem_siglim,$
+                          heifix=heifix)
 
-   param = Mpfitfun(initdat.nad_fcnfitnad,$
-                    (nadcube.wave)[refcol-1,refrow-1,*],$
-                    (nadcube.dat)[refcol-1,refrow-1,*],$
-                    (nadcube.err)[refcol-1,refrow-1,*],$
-                    parinfo=parinit,perror=perror,maxiter=100,$
-                    bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
-                    nfev=nfev,niter=niter,status=status,quiet=quiet,$
-                    npegged=npegged,ftol=1D-6,functargs=argslinefit,$
-                    errmsg=errmsg)
-  if status eq 0 OR status eq -16 then begin
-     print,'IFSF_FITSPEC: Error in MPFIT. Aborting.'
-     outstr = 0
-     goto,finish
-  endif
+         param = Mpfitfun(initnad.fcnfitnad,$
+                          (nadcube.wave)[i,j,*],$
+                          (nadcube.dat)[i,j,*],$
+                          (nadcube.err)[i,j,*],$
+                          parinfo=parinit,perror=perror,maxiter=100,$
+                          bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
+                          nfev=nfev,niter=niter,status=status,quiet=quiet,$
+                          npegged=npegged,ftol=1D-6,functargs=argslinefit,$
+                          errmsg=errmsg)
+         if status eq 5 then print,'IFSF_FITNAD: Max. iterations reached.'
+         if status eq 0 OR status eq -16 then begin
+            print,'IFSF_FITNAD: Error in MPFIT. Aborting.'
+            outstr = 0
+            goto,finish
+         endif
+
+         if tag_exist(initnad,'argspltfitnad') then $
+            ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
+                           (nadcube.dat)[i,j,*],$
+                           param,outfile+'_nad_fit',struct.zstar,$
+                           _extra=initnad.argspltfitnad $
+         else $
+            ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
+                           (nadcube.dat)[i,j,*],$
+                           param,outfile+'_nad_fit',struct.zstar
+      
+         ifsf_printnadpar,nadparlun,i+1,j+1,param                  
 
 nofit:
 
+      endfor
+      
+   endfor
+
+
 finish:
+
+   free_lun,nadparlun
 
 end
