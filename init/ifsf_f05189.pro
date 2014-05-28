@@ -192,51 +192,6 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
         ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
 
-
-; Parameters for NaD + HeI 5876 fit
-
-; NEEDS TO BE ADJUSTED FOR FLIPPED DATA CUBE
-
-;; Initialize n_comps, z_inits, and sig_inits.
-;  nad_maxncomp = 2
-;  nad_heitie = strarr(ncols,nrows)+'HeI6678'
-;  nad_heitie[13,15]='HeI5876'
-;  nad_heitie[13,16:nrows-1]=''
-;
-;  nad_heitie[16,10:14]='HeI5876'
-;
-;  nad_heitie[19,*]=''
-;
-;  nad_nnadabs = dblarr(ncols,nrows)+2
-;  nad_nnadabs[13,22]=1
-;  nad_nnadabs[13,23:nrows-1]=0
-;
-;  nad_nnadabs[16,*]=0
-;  nad_nnadabs[16,7:24]=1
-;  nad_nnadabs[16,10:21]=2
-;
-;  nad_nnadabs[19,0:9]=0
-;  nad_nnadabs[19,10:nrows-1]=1
-;  nad_nnadabs[21,*]=0
-;  nad_nnadabs[21,14:18]=1
-;  nad_nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.043
-;  nad_nadabs_zinit[*,*,1] = 0.0415
-;  nad_nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
-;  nad_nadabs_siginit[*,*,1] = 200d
-;  nad_nadabs_siglim = [299792d/3000d/2.35d,1000d]
-;
-;  nad_nnadem = dblarr(ncols,nrows)+0
-;  nad_nnadem[13,21:nrows-1]=1
-;
-;  nad_nnadem[16,*]=1
-;  nad_nnadem[16,14:20]=0
-;
-;  nad_nnadem[19,*]=1
-;  nad_nnadem[21,*]=1
-;  nad_nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044
-;  nad_nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
-;  nad_nadem_siglim = [299792d/3000d/2.35d,750d]
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Optional pars
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -278,23 +233,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
   siglim_gas = [299792d/3000d/2.35d,2000d]
   sigfix=hash()
   sigfix['[FeVII]6087'] = 725d
-
-; Arguments for maps
-  argslinratmaps = hash()
-  argslinratmaps['lrat1'] = [['1_n2ha','2_n2ha','3_n2ha'],$
-                             ['1_o3hb','2_o3hb','3_o3hb'],$
-                             ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb','3_n2ha_vs_o3hb']]
-  argslinratmaps['ebv'] = ['1_ebv','2_ebv','3_ebv']
   
-; Arguments for NaD fitting
-  normnadlo = [6040,6090]
-  normnadhi = [6170,6220]
-  pltnormnad = [6040,6220]
-  nad_nhei = dblarr(ncols,nrows)+1
-  nad_hei_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.041
-  nad_hei_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Output structure
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -323,6 +262,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                        sigfix: sigfix},$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
+         donad: 1,$
          fcncheckcomp: 'ifsf_checkcomp',$
          fcncontfit: 'ppxf',$
          mapcent: [centcol,centrow],$
@@ -336,7 +276,18 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
          tweakcntfit: tweakcntfit $
         }
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Arguments for maps
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
    if keyword_set(initmaps) then begin
+      argslinratmaps = hash()
+      argslinratmaps['lrat1'] = [['1_n2ha','2_n2ha','3_n2ha'],$
+                                 ['1_o3hb','2_o3hb','3_o3hb'],$
+                                 ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb',$
+                                  '3_n2ha_vs_o3hb']]
+      argslinratmaps['ebv'] = ['1_ebv','2_ebv','3_ebv']
+
       initmaps = {$
                   center_axes: [centcol,centrow],$
                   center_nuclei: [centcol,centrow],$
@@ -373,38 +324,86 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   hstcolsm: {scllim: [0.3,0.8],$
                              stretch: 1,$
                              sclargs: {dumy: 1}}$
-              }
-  endif
+                 }
+   endif
 
-  if keyword_set(initnad) then begin
-     initnad = {$
-                argsnadweq: {autowavelim: [6110,6160,6140,6180],autoindices:1},$
-                argsnormnad: {fitranlo: normnadlo,$
-                              fitranhi: normnadhi},$
-                argspltnormnad: {fitranlo: normnadlo,$
-                                 fitranhi: normnadhi,$
-                                 pltran: pltnormnad},$
-                fcnfitnad: 'ifsf_nadfcn',$
-                fcninitpar: 'ifsf_initnad',$
-                fitran: [6080,6180],$
-;               NaD absorption
-                nnadabs: nad_nnadabs,$
-                nadabs_zinit: nad_nadabs_zinit,$
-                nadabs_siginit: nad_nadabs_siginit,$
-                nadabs_siglim: nad_nadabs_siglim,$
-;               NAD emission
-                nnadem: nad_nnadem,$
-                nadem_zinit: nad_nadem_zinit,$
-                nadem_siginit: nad_nadem_siginit,$
-                nadem_siglim: nad_nadem_siglim,$
-;               HeI
-                nhei: nad_nhei,$
-                hei_zinit: nad_hei_zinit,$
-                hei_siginit: nad_hei_siginit,$
-                heitie: nad_heitie $
-               }
-  endif
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Parameters for NaD + HeI 5876 fit
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if keyword_set(initnad) then begin
+  
+      normnadlo = [6040,6090]
+      normnadhi = [6170,6220]
+      pltnormnad = [6040,6220]
+      nad_maxncomp = 2
+
+;     Initialize n_comps, z_inits, and sig_inits.
+
+      nhei = dblarr(ncols,nrows)+1
+      heitie = strarr(ncols,nrows)+'HeI6678'
+      heitie[13,13]='HeI5876'
+      heitie[13,0:12]=''
+      heitie[16,14:18]='HeI5876'
+      heitie[19,*]=''
+      hei_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.041
+      hei_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
+
+      nnadabs = dblarr(ncols,nrows)+2
+      nnadabs[13,6]=1
+      nnadabs[13,0:5]=0
+      nnadabs[16,*]=0
+      nnadabs[16,4:21]=1
+      nnadabs[16,7:18]=2
+      nnadabs[19,19:nrows-1]=0
+      nnadabs[19,0:18]=1
+      nnadabs[21,*]=0
+      nnadabs[21,10:14]=1
+      nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.043
+      nadabs_zinit[*,*,1] = 0.0415
+      nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
+      nadabs_siginit[*,*,1] = 200d
+      nadabs_siglim = [299792d/3000d/2.35d,1000d]
+
+      nnadem = dblarr(ncols,nrows)+0
+      nnadem[13,0:7]=1
+      nnadem[16,*]=1
+      nnadem[16,8:14]=0
+      nnadem[19,*]=1
+      nnadem[21,*]=1
+      nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044
+      nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
+      nadem_siglim = [299792d/3000d/2.35d,750d]
+
+      initnad = {$
+                 argsnadweq: {autowavelim: [6110,6160,6140,6180],$
+                              autoindices:1},$
+                 argsnormnad: {fitranlo: normnadlo,$
+                               fitranhi: normnadhi},$
+                 argspltnormnad: {fitranlo: normnadlo,$
+                                  fitranhi: normnadhi,$
+                                  pltran: pltnormnad},$
+                 fcnfitnad: 'ifsf_nadfcn',$
+                 fcninitpar: 'ifsf_initnad',$
+                 fitran: [6080,6180],$
+;                NaD absorption
+                 nnadabs: nnadabs,$
+                 nadabs_zinit: nadabs_zinit,$
+                 nadabs_siginit: nadabs_siginit,$
+                 nadabs_siglim: nadabs_siglim,$
+;                NaD emission
+                 nnadem: nnadem,$
+                 nadem_zinit: nadem_zinit,$
+                 nadem_siginit: nadem_siginit,$
+                 nadem_siglim: nadem_siglim,$
+;                HeI
+                 nhei: nhei,$
+                 hei_zinit: hei_zinit,$
+                 hei_siginit: hei_siginit,$
+                 heitie: heitie $
+                }
+   endif
                   
-  return,init
+   return,init
 
 end

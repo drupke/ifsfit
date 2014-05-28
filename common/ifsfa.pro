@@ -85,7 +85,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
   if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  initdat = call_function(initproc,_extra=ex)
+  initnad={dumy: 1}
+  initdat = call_function(initproc,initnad=initnad,_extra=ex)
   
 ; Get linelist
   linelist = ifsf_linelist(initdat.lines)
@@ -219,16 +220,27 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
 ;       Normalize data around NaD and plot
         if tag_exist(initdat,'donad') then begin
-           if tag_exist(initnad,'argsnormnad') then $
+           if tag_exist(initnad,'argsnormnad') then begin
               normnad = ifsf_normnad(struct.wave,$
                                      struct.cont_dat/struct.cont_fit,$
                                      struct.spec_err/struct.cont_fit,$
                                      struct.zstar,fitpars,$
-                                     _extra=initnad.argsnormnad) else $
+                                     _extra=initnad.argsnormnad)
+              normnadem = ifsf_normnad(struct.wave,$
+                                       struct.emlin_dat,$
+                                       struct.spec_err,$
+                                       struct.zstar,fitpars,/subtract,$
+                                       _extra=initnad.argsnormnad)
+           endif else begin
               normnad = ifsf_normnad(struct.wave,$
                                      struct.cont_dat/struct.cont_fit,$
                                      struct.spec_err/struct.cont_fit,$
                                      struct.zstar,fitpars)
+              normnadem = ifsf_normnad(struct.wave,$
+                                       struct.emlin_dat,$
+                                       struct.spec_err,$
+                                       struct.zstar,fitpars,/subtract)
+           endelse
            if not keyword_set(noplots) then $
               if tag_exist(initnad,'argspltnormnad') then $
                  ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
@@ -236,36 +248,41 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     _extra=initnad.argspltnormnad else $
                  ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
                     outfile+'_nad_norm'
-;          Compute empirical equivalent widths
+;          Compute empirical equivalent widths and emission-line fluxes
+           emflux=dblarr(2)
            if tag_exist(initnad,'argsnadweq') then $
-              weq = ifsf_cmpnadweq(normnad[*,0],normnad[*,2],normnad[*,3],$
+              weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
+                                   snflux=normnadem.nflux,unerr=normnadem.nerr,$
+                                   emflux=emflux,$
                                    _extra=initnad.argsnadweq) $
-           else weq = ifsf_cmpnadweq(normnad[*,0],normnad[*,2],normnad[*,3])
+           else weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
+                                     snflux=normnadem.nflux,unerr=normnadem.nerr,$
+                                     emflux=emflux)
 ;          Compute empirical velocities
            size_weq = size(weq)
            if size_weq[0] eq 2 then begin
               if tag_exist(initnad,'argsnadvel') then $
-                 vel = ifsf_cmpnadvel(normnad[*,0],normnad[*,2],normnad[*,3],$
+                 vel = ifsf_cmpnadvel(normnad.wave,normnad.nflux,normnad.nerr,$
                                       weq[*,1],initdat.zsys_gas,$
                                       _extra=initnad.argsnadvel) $
-              else vel = ifsf_cmpnadvel(normnad[*,0],normnad[*,2],$
-                                        normnad[*,3],weq[*,1],initdat.zsys_gas)
-           endif else vel = dblarr(6)+bad
-              
-                                
+              else vel = ifsf_cmpnadvel(normnad.wave,normnad.nflux,normnad.nerr,$
+                                        weq[*,1],initdat.zsys_gas)
+           endif else vel = dblarr(6)+bad                               
            if firstnadnorm then begin
               nadcube = $
-                 {wave: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0])),$
-                  dat: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0])),$
-                  err: dblarr(cube.ncols,cube.nrows,n_elements(normnad[*,0])),$
+                 {wave: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
+                  dat: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
+                  err: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
                   weq: dblarr(cube.ncols,cube.nrows,4)+bad,$
+                  emflux: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   vel: dblarr(cube.ncols,cube.nrows,6)+bad}
               firstnadnorm = 0
            endif
-           nadcube.wave[i,j,*] = normnad[*,0]
-           nadcube.dat[i,j,*] = normnad[*,2]
-           nadcube.err[i,j,*] = normnad[*,3]
+           nadcube.wave[i,j,*] = normnad.wave
+           nadcube.dat[i,j,*] = normnad.nflux
+           nadcube.err[i,j,*] = normnad.nerr
            nadcube.weq[i,j,*] = weq[*,0]
+           nadcube.emflux[i,j,*] = emflux
            nadcube.vel[i,j,*] = vel
         endif
 

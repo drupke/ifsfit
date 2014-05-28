@@ -8,7 +8,7 @@
 ;    IFSFIT
 ;
 ; :Returns:
-;    type=dblarr(Nwave,2): Normalized flux and error vectors.
+;    A structure of normalized flux and error vectors.
 ;
 ; :Params:
 ;    wave: in, required, type=dblarr(N)
@@ -29,6 +29,8 @@
 ;      Wavelength limits of region below Na D to use in fit.
 ;    fitranhi: in, optional, type=dblarr(2), default=[5905\,5960]*(1+z)
 ;      Wavelength limits of region above Na D to use in fit.
+;    subtract: in, optional, type=byte
+;      Subtract fitted continuum instead of dividing.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -43,6 +45,9 @@
 ;      2013nov22, DSNR, created (copied normalization bits from old
 ;                       routine 'printnadspec')
 ;      2014may08, DSNR, tweaked for clarity
+;      2014may27, DSNR, added output of un-normalized error and 
+;                       subtraction-normalized flux; converted output to a 
+;                       structure
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -63,24 +68,36 @@
 ;
 ;-
 function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
-                     fitranlo=fitranlo,fitranhi=fitranhi
+                     fitranlo=fitranlo,fitranhi=fitranhi,subtract=subtract
 
-  if ~ keyword_set(fitord) then fitord=2
-  if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
-  if ~ keyword_set(fitranhi) then fitranhi = (1d +z)*[5905d,5960d]
+   if ~ keyword_set(fitord) then fitord=2
+   if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
+   if ~ keyword_set(fitranhi) then fitranhi = (1d +z)*[5905d,5960d]
 
-  ifit = where((wave ge fitranlo[0] AND wave le fitranlo[1]) OR $
-               (wave ge fitranhi[0] AND wave le fitranhi[1]))
-  igd = where(wave ge fitranlo[0] AND wave le fitranhi[1])
+   ifit = where((wave ge fitranlo[0] AND wave le fitranlo[1]) OR $
+                (wave ge fitranhi[0] AND wave le fitranhi[1]))
+   igd = where(wave ge fitranlo[0] AND wave le fitranhi[1])
 
-  parinfo = replicate({value:0d},fitord)
-  pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],parinfo=parinfo,/quiet)
+   parinfo = replicate({value:0d},fitord)
+   pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],parinfo=parinfo,/quiet)
 
-  nwave = wave[igd]
-  unflux = flux[igd]
-  nflux = flux[igd] / poly(wave[igd],pars)
-  nerr = err[igd] / poly(wave[igd],pars)
+   nwave = wave[igd]
+   unflux = flux[igd]
+   unerr = err[igd]
+   if keyword_set(subtract) then begin
+      nflux = flux[igd] - poly(wave[igd],pars)
+      nerr = err[igd]
+   endif else begin
+      nflux = flux[igd] / poly(wave[igd],pars)
+      nerr = err[igd] / poly(wave[igd],pars)
+   endelse
 
-  return,[[nwave],[unflux],[nflux],[nerr]]
+  out = {wave: nwave,$
+         flux: unflux,$
+         err: unerr,$
+         nflux: nflux,$
+         nerr: nerr}
+         
+  return,out
 
 end

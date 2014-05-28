@@ -43,6 +43,8 @@
 ;    fov: in, optional, type=byte
 ;      Select the entire IFS FOV as the subimage. If selected, HST data
 ;      will be rotated to align its pixels with the IFS spaxels.
+;    noscl: in, optional, type=byte
+;      Skip byte scaling.
 ;    stretch: in, optional, type=long, default=5
 ;      Function for byte scaling data. See CGIMGSCL for a list of
 ;      possible values.
@@ -82,7 +84,7 @@
 ;-
 function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
                        hstrefcoords,scllim,hstps=hstps,ifsbounds=ifsbounds,$
-                       fov=fov,stretch=stretch,sclargs=sclargs
+                       fov=fov,stretch=stretch,sclargs=sclargs,noscl=noscl
 
 ;  HST platescale, in arcseconds
    if ~ keyword_set(hstps) then hstps = 0.05d
@@ -152,11 +154,12 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
    else use_subimcrd = subimcrd
    hst_subim = temporary(image[use_subimcrd[0]:use_subimcrd[1],$
                                use_subimcrd[2]:use_subimcrd[3]])
-   if keyword_set(sclargs) then $
-      hst_subim = call_function('cgimgscl',hst_subim,minval=scllim[0],$
-                                max=scllim[1],stretch=stretch,_extra=sclargs) $
-   else hst_subim = call_function('cgimgscl',hst_subim,minval=scllim[0],$
-                                  max=scllim[1],stretch=stretch)
+   if ~ keyword_set(noscl) then $                       
+      if keyword_set(sclargs) then $
+         hst_subim = call_function('cgimgscl',hst_subim,minval=scllim[0],$
+                                   max=scllim[1],stretch=stretch,_extra=sclargs) $
+      else hst_subim = call_function('cgimgscl',hst_subim,minval=scllim[0],$
+                                     max=scllim[1],stretch=stretch)
 
 ;  rotate and trim image
    if keyword_set(fov) then begin

@@ -336,6 +336,13 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                 stretch=initmaps.hstcolsm.stretch,$
                                 sclargs=initmaps.hstcolsm.sclargs,$
                                 /fov)
+;     Extract unscaled color image and convert to same pixel scale as IFS data
+      cshst_fov_ns = ifsf_hstsubim(hstcolsm,[0,0],[dx,dy],initdat.platescale,$
+                                   initdat.positionangle,center_nuclei,$
+                                   initmaps.hst.refcoords,[0,0],/noscl,/fov)
+      cshst_fov_rb = congrid(cshst_fov_ns,dx,dy,/interp)
+      size_fov_hst = size(cshst_fov)
+      cshst_fov_rb /= size_fov_hst[1]*size_fov_hst[2]/(dx*dy)
    endif
    hstrd=0
    hstbl=0
@@ -488,7 +495,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
    cap2 = textoidl('F435W+F814W')
    cap3 = textoidl('IFS cont.')
 
-   cgps_open,initdat.mapdir+initdat.label+'cont.eps',charsize=1,/encap,$
+   cgps_open,initdat.mapdir+initdat.label+'color.eps',charsize=1,/encap,$
              /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
    pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
                    xgap=0,ygap=0)
@@ -869,11 +876,11 @@ pro ifsf_makemaps,initproc,comprange=comprange
       nademweq_snrthresh=4d
 
       cgps_open,initdat.mapdir+initdat.label+'NaDweq.eps',charsize=1,/encap,$
-         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
+         /inches,xs=plotquantum*2,ys=plotquantum*3,/qui
 
-      pos = cglayout([2,2],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+      pos = cglayout([2,3],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
          xgap=0,ygap=0)
-      cbform = '(D0.2)'
+      cbform = '(I0)'
 
 ;
 ;     ABSORPTION
@@ -1072,6 +1079,65 @@ pro ifsf_makemaps,initproc,comprange=comprange
          ticknames=ticknames,/ver,/right,charsize=0.6
 
 
+
+;     Flux
+      cbform = '(D0.2)'
+      map = nadcube.emflux[*,*,0]
+      igd = where(abs(nadcube.weq[*,*,2]) ge $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] AND $
+                  abs(map) gt 0d AND map ne bad)
+      ibd = where(abs(nadcube.weq[*,*,2]) lt $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] OR $
+                  map eq 0d AND map ne bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDem' AND $
+            rangequant eq 'flux',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         zmax_flux = zran[1]
+         zran=[0,1]
+         dzran = 1
+         ncbdiv = 5
+      endif
+      
+;     replace bad points with 0
+      map[ibd] = 0d
+;     normalize good points
+      map[igd] /= zmax_flux
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,4],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='Flux (NaD em)'
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+
       cgps_close
 
    endif
@@ -1082,14 +1148,12 @@ pro ifsf_makemaps,initproc,comprange=comprange
 
    if tag_exist(initdat,'donad') then begin
 
-      nadabsweq_snrthresh=3d
-
       cgps_open,initdat.mapdir+initdat.label+'NaDempvel.eps',charsize=1,/encap,$
          /inches,xs=plotquantum*3,ys=plotquantum*2,/qui
 
       pos = cglayout([3,2],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
          xgap=0,ygap=0)
-      cbform = '(D0.2)'
+      cbform = '(I0)'
 
 ;
 ;     ABSORPTION
@@ -1403,6 +1467,71 @@ pro ifsf_makemaps,initproc,comprange=comprange
          (dzran - zran[1]),format=cbform)
       cgcolorbar,position=cbpos,divisions=ncbdiv,$
          ticknames=ticknames,/ver,/right,charsize=0.6
+
+      cgps_close
+
+   endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; NaD: Color vs. equivalent width and emission-line flux
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if tag_exist(initdat,'donad') AND $
+      tag_exist(initmaps,'hst') AND $
+      tag_exist(initmaps,'hstcolsm') then begin
+
+      cgps_open,initdat.mapdir+initdat.label+'NaDweq_v_col.eps',charsize=0.75,$
+         /encap,/inches,xs=plotquantum*2,ys=plotquantum*1,/qui
+      pos = cglayout([2,1],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[8,4],$
+         xgap=0)
+
+      cmap = cshst_fov_rb
+      
+;     ABSORPTION
+      map = nadcube.weq[*,*,0]
+      igd = where(nadcube.weq[*,*,0] ge nadabsweq_snrthresh*nadcube.weq[*,*,1] $
+                  AND map gt 0d AND map ne bad)
+      ibd = where(nadcube.weq[*,*,0] lt nadabsweq_snrthresh*nadcube.weq[*,*,1] $
+                  OR map eq 0d OR map eq bad)
+      map[ibd] = bad
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDabs' AND $
+            rangequant eq 'weq',ctthisline)
+         if ctthisline eq 1 then begin
+            yran = [rangelo[ithisline],rangehi[ithisline]]
+            hasrange = 1
+         endif
+      endif
+      if ~hasrange then yran = [min(map[igd]),max(map[igd])]
+
+      xran = [min(cmap[igd]),max(cmap[igd])]
+      cgplot,cmap,map,/xsty,/ysty,xran=xran,yran=yran,psym=16,pos=pos[*,0],$
+         xtit='log(red/blue)',ytit='W$\down eq$(NaD abs, $\angstrom$)'
+
+;     EMISSION
+      map = nadcube.emflux[*,*,0]
+      igd = where(abs(nadcube.weq[*,*,2]) ge $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] AND $
+                  abs(map) gt 0d AND map ne bad)
+      ibd = where(abs(nadcube.weq[*,*,2]) lt $
+                  nademweq_snrthresh*nadcube.weq[*,*,3] OR $
+                  map eq 0d AND map ne bad)
+      map[ibd] = bad
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDabs' AND $
+            rangequant eq 'weq',ctthisline)
+         if ctthisline eq 1 then begin
+            yran = [rangelo[ithisline],rangehi[ithisline]]
+            hasrange = 1
+         endif
+      endif
+      if ~hasrange then yran = [min(map[igd]),max(map[igd])]
+
+      xran = [min(cmap[igd]),max(cmap[igd])]
+      cgplot,cmap,map,/xsty,/ysty,xran=xran,yran=yran,psym=16,pos=pos[*,1],$
+         /noerase,xtit='log(red/blue)',ytit='Flux (NaD em)'
 
       cgps_close
 

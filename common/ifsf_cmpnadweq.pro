@@ -72,7 +72,8 @@
 ;-
 function ifsf_cmpnadweq,wave,flux,err,wavelim=wavelim,$
                         autowavelim=autowavelim,$
-                        smoothkernel=smoothkernel
+                        smoothkernel=smoothkernel,$
+                        snflux=snflux,unerr=unerr,emflux=emflux
    
    
    if ~ keyword_set(smoothkernel) then smoothkernel=5l
@@ -161,6 +162,15 @@ function ifsf_cmpnadweq,wave,flux,err,wavelim=wavelim,$
                      (wave[iemlo:iemup]-wave[iemlo-1:iemup-1]))
       weq_em_e = sqrt(total(err[iemlo:iemup]^2*$
                             (wave[iemlo:iemup]-wave[iemlo-1:iemup-1])))
+      if keyword_set(snflux) AND keyword_set(emflux) then begin
+         fl_em = total(snflux[iemlo:iemup]*$
+                       (wave[iemlo:iemup]-wave[iemlo-1:iemup-1]))
+         if keyword_set(unerr) then $
+            fl_em_e = sqrt(total(unerr[iemlo:iemup]^2*$
+                                 (wave[iemlo:iemup]-wave[iemlo-1:iemup-1]))) $
+         else fl_em_e = 0d
+         emflux = [fl_em,fl_em_e]
+      endif
    endif else begin
       weq_em = 0d
       weq_em_e = 0d

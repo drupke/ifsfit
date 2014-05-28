@@ -72,10 +72,12 @@ function ifsf_cmpnadvel,wave,flux,err,inds,zsys
 ;     Depth-weighted average absorption wavelength and velocity
       abs_lamwavg = total(wave[inds[0]:inds[1]]*(1d -flux[inds[0]:inds[1]]))/$
                     total(1d -flux[inds[0]:inds[1]])
-      abs_velwavg = c_kms*(abs_lamwavg / lamavgrest - (1d +zsys))
-;     'Maximum' velocity: distance in velocity space between depth-weighted
-;     average absorption wavelength and bluest wavelength
-      abs_velmax = (wave[inds[0]] - abs_lamwavg) / abs_lamwavg * c_kms
+      zdiff = abs_lamwavg/lamavgrest-1d - zsys
+      abs_velwavg = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+;     'Maximum' velocity: distance in velocity space between zsys and bluest 
+;     wavelength, assuming the bluest wavelength corresponds to NaD2
+      zdiff = wave[inds[0]]/linelist['NaD2']-1d - zsys
+      abs_velmax = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
    endif else begin
       abs_velwid=bad
       abs_velwavg=bad
@@ -91,10 +93,13 @@ function ifsf_cmpnadvel,wave,flux,err,inds,zsys
 ;     Flux-weighted average emission wavelength and velocity
       em_lamwavg = total(wave[inds[2]:inds[3]]*flux[inds[2]:inds[3]])/$
                    total(flux[inds[2]:inds[3]])
-      em_velwavg = c_kms*(em_lamwavg / lamavgrest - (1d +zsys))
+      zdiff = em_lamwavg/lamavgrest-1d - zsys
+      em_velwavg = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
 ;     'Maximum' velocity: distance in velocity space between flux-weighted
-;     average emission wavelength and reddest wavelength
-      em_velmax = (wave[inds[3]] - em_lamwavg) / em_lamwavg * c_kms
+;     average emission wavelength and reddest wavelength, assuming the reddest 
+;     wavelength corresponds to NaD1
+      zdiff = wave[inds[3]]/linelist['NaD1']-1d - zsys
+      em_velmax = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
    endif else begin
       em_velwid=bad
       em_velwavg=bad

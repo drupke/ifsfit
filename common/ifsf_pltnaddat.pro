@@ -75,9 +75,9 @@ pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
    nad2 = (1d + z)*linelist['NaD2']
    hei = (1d + z)*linelist['HeI5876']
 
-   wave = normdat[*,0]
-   flux = normdat[*,1]
-   nflux = normdat[*,2]
+   wave = normdat.wave
+   nflux = normdat.nflux
+   flux = normdat.flux
    iplt = where(wave ge pltran[0] AND wave le pltran[1],ctplt)
 
    set_plot,'Z'
