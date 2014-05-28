@@ -64,7 +64,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 
 ;  NaD optical depth ratio (blue to red)
    tratio = 2.0093d
-   nad_emrat_init = 1d
+   nad_emrat_init = 1.5d
 
    starttime = systime(1)
    time = 0
@@ -72,7 +72,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 
    ; Get fit initialization
    initnad={dumy: 1}
-   initdat = call_function(initproc,initnad=initnad}
+   initdat = call_function(initproc,initnad=initnad)
 
    ; Get linelist
    linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
@@ -165,7 +165,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
                tauinit = (initnad.nadabs_tauinit)[i,j,0:nnadabs-1] $
             else tauinit = dblarr(nnadabs)+0.5d
             winit = reform(((initnad.nadabs_zinit)[i,j,0:nnadabs-1]$
-                            +1d)*linelist['NaD2'],nnadabs)
+                            +1d)*linelist['NaD1'],nnadabs)
             siginit = reform((initnad.nadabs_siginit)$
                               [i,j,0:nnadabs-1],nnadabs)
             initnadabs = [[cfinit],[tauinit],[winit],[siginit]]
@@ -173,9 +173,11 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 
 ;        Get NaD emission parameters
          nnadem = initnad.nnadem[i,j]
+         if tag_exist(initnad,'nadem_fix') then nademfix=initnad.nadem_fix $
+         else nademfix=0b
          if nnadem gt 0 then begin
             winit = reform(((initnad.nadem_zinit)[i,j,0:nnadem-1]+1d)$
-                           *linelist['NaD2'],nnadem)
+                           *linelist['NaD1'],nnadem)
             siginit = reform((initnad.nadem_siginit)[i,j,0:nnadem-1],nnadem)
             if tag_exist(initnad,'nadem_finit') then $
                finit = (initnad.nadem_finit)[i,j,0:nnadem-1] $
@@ -190,11 +192,12 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
          if tag_exist(initnad,'argsinitpar') then parinit = $
             call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
                           initnad.nadabs_siglim,initnad.nadem_siglim,$
-                          heifix=heifix,_extra=initnad.argsinitpar) $
+                          heifix=heifix,nademfix=nademfix,$
+                          _extra=initnad.argsinitpar) $
          else parinit = $
             call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
                           initnad.nadabs_siglim,initnad.nadem_siglim,$
-                          heifix=heifix)
+                          heifix=heifix,nademfix=nademfix)
 
          param = Mpfitfun(initnad.fcnfitnad,$
                           (nadcube.wave)[i,j,*],$

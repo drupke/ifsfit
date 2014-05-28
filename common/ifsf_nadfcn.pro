@@ -92,8 +92,8 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    for i=0,nnadem-1 do begin
       arg1 = ((wave-param[ilo+i*4])/$
              (2d*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
-      arg2 = ((wave-lratio*param[ilo+i*4])/$
-             (2d*lratio*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
+      arg2 = ((lratio * wave-param[ilo+i*4])/$
+             (2d*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
       mask1 = (arg1 lt 80)
       mask2 = (arg2 lt 80)
       modflux += param[2+ilo+i*4]*(mask1*exp(-arg1*mask1) + $
@@ -105,8 +105,8 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
          for i=0,nnadem-1 do begin
             arg1 = ((wave-param[ilo+i*4])/$
                    (2d*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
-            arg2 = ((wave-lratio*param[ilo+i*4])/$
-                   (2d*lratio*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
+            arg2 = ((lratio * wave-param[ilo+i*4])/$
+                   (2d*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
             mask1 = (arg1 lt 80)
             mask2 = (arg2 lt 80)
             modnadem[*,i] += $

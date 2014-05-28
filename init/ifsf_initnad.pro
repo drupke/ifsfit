@@ -30,6 +30,12 @@
 ; :Keywords:
 ;    taumax: in, optional, type=double, default=5d
 ;      Upper limit to optical depth.
+;    heifix: in, optional, type=bytarr(nhei,3)
+;      Input this array with parameters to be fixed set to 1.
+;    siglimhei: in, required, type=dblarr(2)
+;      Limits to sigma for HeI emission.
+;    nademfix: in, required, type=bytarr(nnadem,4)
+;      Input this array with parameters to be fixed set to 1.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -42,6 +48,7 @@
 ; :History:
 ;    ChangeHistory::      
 ;      2014may09, DSNR, created
+;      2014may28, DSNR, added NADEMFIX parameter
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -62,7 +69,9 @@
 ;
 ;-
 function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
-                      taumax=taumax,heifix=heifix,siglimhei=siglimhei
+                      taumax=taumax,heifix=heifix,siglimhei=siglimhei,$
+                      nademfix=nademfix
+                      
 
    c = 299792.458d
 ;  NaD optical depth ratio (blue to red)
@@ -165,7 +174,7 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_t].parname = 'optical_depth'
       parinfo[ind_w].parname = 'wavelength'
       parinfo[ind_s].parname = 'sigma'
-      parinfo[ilo:ilo+nnadabs*4-1].line = 'NaD2'
+      parinfo[ilo:ilo+nnadabs*4-1].line = 'NaD1'
       parinfo[ilo:ilo+nnadabs*4-1].comp = rebin(indgen(nnadabs)+1,nnadabs*4)
    endif
 
@@ -194,15 +203,18 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_f].limits[0]  = 0d
       parinfo[ind_r].limited[0] = 1B
       parinfo[ind_r].limited[1] = 1B
-      parinfo[ind_r].limits[0]  = 1d/tratio
-      parinfo[ind_r].limits[1]  = 1d
+      parinfo[ind_r].limits[0]  = 1d
+      parinfo[ind_r].limits[1]  = tratio
       parinfo[ind_r].fixed = 1b
+      if keyword_set(nademfix) then $
+         parinfo[ilo:ilo+nnadem*4-1].fixed = reform(rebin(nademfix,4,nnadem),$
+                                                    nnadem*4)
 ;     Labels
       parinfo[ind_w].parname = 'wavelength'
       parinfo[ind_s].parname = 'sigma'
       parinfo[ind_f].parname = 'flux_peak'
       parinfo[ind_r].parname = 'flux_ratio'
-      parinfo[ilo:ilo+nnadem*4-1].line = 'NaD2'
+      parinfo[ilo:ilo+nnadem*4-1].line = 'NaD1'
       parinfo[ilo:ilo+nnadem*4-1].comp = rebin(indgen(nnadem)+1,nnadem*4)
    endif
 

@@ -374,6 +374,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044
       nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
       nadem_siglim = [299792d/3000d/2.35d,750d]
+      nadem_fix = [0b,0b,0b,1b]
 
       initnad = {$
                  argsnadweq: {autowavelim: [6110,6160,6140,6180],$
@@ -396,6 +397,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                  nadem_zinit: nadem_zinit,$
                  nadem_siginit: nadem_siginit,$
                  nadem_siglim: nadem_siglim,$
+                 nadem_fix: nadem_fix,$
 ;                HeI
                  nhei: nhei,$
                  hei_zinit: hei_zinit,$
