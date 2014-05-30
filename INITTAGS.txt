@@ -301,6 +301,9 @@ INITNAD
     Number of NaD absorption components to fit.
   nnadem: in, required, type=dblarr(ncols,nrows)
     Number of NaD emission components to fit.
+  noemlinfit: in, optional, type=byte
+    Set this switch if the spectrum was not first processed with
+    IFSF.
   heitie: in, required, type=dblarr(ncols,nrows)
     Emission line to use for initializing fit of HeI 5876.
   nadabs_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)

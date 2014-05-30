@@ -339,42 +339,41 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       nad_maxncomp = 2
 
 ;     Initialize n_comps, z_inits, and sig_inits.
+;     Use 1 HeI component w/in a circular region
+      nhei = dblarr(ncols,nrows)+0      
+      heitie = strarr(ncols,nrows)
+      heitie[11,13:16]='HeI6678'
+      heitie[12,12:17]='HeI6678'
+      heitie[13,11:18]='HeI6678'
+      heitie[14,11:18]='HeI6678'
+      heitie[15,12:18]='HeI6678'
+      heitie[16,12:16]='HeI6678'
+      heitie[17,14:15]='HeI6678'
+      heitiecol = intarr(ncols,nrows)+14
+      heitierow = intarr(ncols,nrows)+14
+      hei_zinit = dblarr(ncols,nrows,nad_maxncomp)
+      hei_siginit = dblarr(ncols,nrows,nad_maxncomp)
 
-      nhei = dblarr(ncols,nrows)+1
-      heitie = strarr(ncols,nrows)+'HeI6678'
-      heitie[13,13]='HeI5876'
-      heitie[13,0:12]=''
-      heitie[16,14:18]='HeI5876'
-      heitie[19,*]=''
-      hei_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.041
-      hei_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
-
-      nnadabs = dblarr(ncols,nrows)+2
-      nnadabs[13,6]=1
-      nnadabs[13,0:5]=0
-      nnadabs[16,*]=0
-      nnadabs[16,4:21]=1
-      nnadabs[16,7:18]=2
-      nnadabs[19,19:nrows-1]=0
-      nnadabs[19,0:18]=1
-      nnadabs[21,*]=0
-      nnadabs[21,10:14]=1
+      nnadabs = dblarr(ncols,nrows)
+      nnadabs[11,6] = 1
+      nnadabs[11,7:19] = 2
       nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.043
-      nadabs_zinit[*,*,1] = 0.0415
+      nadabs_zinit[*,*,1] = 0.042
       nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
-      nadabs_siginit[*,*,1] = 200d
+      nadabs_siginit[*,*,1] = 300d
       nadabs_siglim = [299792d/3000d/2.35d,1000d]
 
       nnadem = dblarr(ncols,nrows)+0
       nnadem[13,0:7]=1
       nnadem[16,*]=1
       nnadem[16,8:14]=0
+      nnadem[18,*]=1
       nnadem[19,*]=1
       nnadem[21,*]=1
       nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044
       nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
       nadem_siglim = [299792d/3000d/2.35d,750d]
-      nadem_fix = [0b,0b,0b,1b]
+      nadem_fix = [0b,0b,0b,0b]
 
       initnad = {$
                  argsnadweq: {autowavelim: [6110,6160,6140,6180],$
@@ -402,6 +401,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                  nhei: nhei,$
                  hei_zinit: hei_zinit,$
                  hei_siginit: hei_siginit,$
+                 heitiecol: heitiecol,$
+                 heitierow: heitierow,$
                  heitie: heitie $
                 }
    endif

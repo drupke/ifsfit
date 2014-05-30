@@ -41,6 +41,8 @@
 ;      2010jul21, DSNR, created
 ;      2013nov22, DSNR, renamed, added license and copyright
 ;      2014may09, DSNR, completely re-written to use MPFIT 
+;      2014may30, DSNR, updated to allow use without previous emission-line fit
+;                       with IFSF
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -86,7 +88,8 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 ; Read data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   restore,file=initdat.outdir+initdat.label+'.lin.xdr'
+   if ~ tag_exist(initnad,'noemlinfit') then $
+      restore,file=initdat.outdir+initdat.label+'.lin.xdr'
    restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
    nadsize = size(nadcube.wave)
 
@@ -112,26 +115,48 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 
          print,'  Row ',j+1,' of ',nrows,format='(A,I0,A,I0)'
 
-;        Restore continuum + emission-line fit
-         lab = string(i+1,'_',j+1,format='(I04,A,I04)')
-         infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
-         outfile = initdat.outdir+initdat.label+'_'+lab
-         if ~ file_test(infile) then begin
-            print,'IFSF_FITNAD: No XDR file for ',i+1,', ',j+1,'.',$
-                  format='(A0,I4,A0,I4,A0)'
-            goto,nofit
+         if ~ tag_exist(initnad,'noemlinfit') then begin
+;           Restore continuum + emission-line fit
+            lab = string(i+1,'_',j+1,format='(I04,A,I04)')
+            infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
+            outfile = initdat.outdir+initdat.label+'_'+lab
+            if ~ file_test(infile) then begin
+               print,'IFSF_FITNAD: No XDR file for ',i+1,', ',j+1,'.',$
+                     format='(A0,I4,A0,I4,A0)'
+               goto,nofit
+            endif
+            restore,file=infile
          endif
-         restore,file=infile
 
 ;        Get HeI parameters
          refline = initnad.heitie[i,j]
          heifix=0
          if refline ne '' then begin
-            if refline ne 'HeI5876' then begin
+            if refline ne 'HeI5876' AND $
+               ~ tag_exist(initnad,'noemlinfit') then begin
 ;              Get reference line parameters
                reflinelist = ifsf_linelist([refline])
-               linepars = ifsf_sepfitpars(reflinelist,struct.param,struct.perror,$
-                                          struct.parinfo)
+               if tag_exist(initnad,'heitiecol') AND $
+                  tag_exist(initnad,'heitierow') then begin
+                  struct_tmp = struct
+;                 Restore continuum + emission-line fit for reference spaxel
+                  refi = initnad.heitiecol[i,j]-1
+                  refj = initnad.heitierow[i,j]-1
+                  lab = string(refi+1,'_',refj+1,format='(I04,A,I04)')
+                  infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
+                  if ~ file_test(infile) then begin
+                     print,'IFSF_FITNAD: No XDR file for ',i+1,', ',j+1,'.',$
+                           format='(A0,I4,A0,I4,A0)'
+                     goto,nofit
+                  endif
+                  restore,file=infile
+                  linepars = ifsf_sepfitpars(reflinelist,struct.param,$
+                                             struct.perror,struct.parinfo)
+                  struct = struct_tmp
+               endif else begin
+                  linepars = ifsf_sepfitpars(reflinelist,struct.param,$
+                                             struct.perror,struct.parinfo)                  
+               endelse
                iem = where(linepars.flux[refline,*] ne 0d,nhei)
                if nhei gt 0 then $
                   inithei = [[(linepars.wave)[refline,0:nhei-1]/$
@@ -215,6 +240,8 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
             goto,finish
          endif
 
+         if ~ tag_exist(initnad,'noemlinfit') then zuse = struct.zstar $
+         else zuse = initdat.zsys_gas
          if tag_exist(initnad,'argspltfitnad') then $
             ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
                            (nadcube.dat)[i,j,*],$
