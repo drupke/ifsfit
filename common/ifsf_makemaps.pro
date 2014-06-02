@@ -36,6 +36,8 @@
 ;                       errors
 ;      2014apr21, DSNR, added line ratio maps and VO plots
 ;      2014may23, DSNR, added NaD maps and continuum images
+;      2014jun02, DSNR, updated to allow use without previous emission-line fit
+;                       with IFSF
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -90,7 +92,8 @@ pro ifsf_makemaps,initproc,comprange=comprange
    endif
 
 ;  Get linelist
-   linelist = ifsf_linelist(initdat.lines)
+   if ~ tag_exist(initmaps,'noemlinfit') then $
+      linelist = ifsf_linelist(initdat.lines)
 
 ;  Get range file
 ;
@@ -114,19 +117,36 @@ pro ifsf_makemaps,initproc,comprange=comprange
    endif
 
 ;  Restore line maps
-   if not tag_exist(initdat,'outlines') then outlines = linelist->keys() $
-   else outlines = initdat.outlines
-   restore,file=initdat.outdir+initdat.label+'.lin.xdr'
+   if ~ tag_exist(initmaps,'noemlinfit') then begin
+      if not tag_exist(initdat,'outlines') then outlines = linelist->keys() $
+      else outlines = initdat.outlines
+      restore,file=initdat.outdir+initdat.label+'.lin.xdr'
 
-   size_tmp = size(linmaps[outlines[0]])
-   dx = size_tmp[1]
-   dy = size_tmp[2]
-   if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
-   if center_nuclei[0] eq -1 then center_nuclei = center_axes
+      size_tmp = size(linmaps[outlines[0]])
+      dx = size_tmp[1]
+      dy = size_tmp[2]
+      if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
+      if center_nuclei[0] eq -1 then center_nuclei = center_axes
+   endif
 
 ;  Get NaD equivalent widths (empirical)
-   if tag_exist(initdat,'donad') then $
+   if tag_exist(initdat,'donad') then begin
       restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
+      if tag_exist(initmaps,'noemlinfit') then begin
+         size_tmp = size(nadcube[outlines[0]])
+         dx = size_tmp[1]
+         dy = size_tmp[2]
+         if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
+         if center_nuclei[0] eq -1 then center_nuclei = center_axes
+      endif
+   endif
+   
+   if ~ tag_exist(initdat,'donad') AND $
+      ~ tag_exist(initmaps,'noemlinfit') then begin
+      print,'IFSF_MAKEMAPS: No emission line or absorption line data specified.'
+      print,'               Aborting.'
+      goto,badinput
+   endif
 
 ;  Data cube
    if not tag_exist(initdat,'datext') then datext=1 else datext=initdat.datext
@@ -574,161 +594,165 @@ pro ifsf_makemaps,initproc,comprange=comprange
 ; Plots of individual emission lines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Size of plot grid
-  npx = initdat.maxncomp
-  npy = 3
+   if ~ tag_exist(initmaps,'noemlinfit') then begin
 
-; Linemap indices to plot below: flux, wavelength (converted to velocity), sigma
-  ilinmap = [0,2,3]
+;     Size of plot grid
+      npx = initdat.maxncomp
+      npy = 3
 
-; Loop through emission lines
-  foreach line,outlines do begin
+;     Linemap indices to plot below: flux, wavelength (converted to velocity), sigma
+      ilinmap = [0,2,3]
 
-;   Get syntax of linelabel right; otherwise call to DEVICE chokes
-    linelab=line
-    ilb = strpos(linelab,'[')
-    if ilb ne -1 then $
-       linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
-    irb = strpos(linelab,']')
-    if irb ne -1 then $
-       linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
+;     Loop through emission lines
+      foreach line,outlines do begin
 
-    cgps_open,initdat.mapdir+initdat.label+linelab+'.eps',charsize=1,/encap,$
-              /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
-    pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
-                   xgap=0,ygap=0)
+;        Get syntax of linelabel right; otherwise call to DEVICE chokes
+         linelab=line
+         ilb = strpos(linelab,'[')
+         if ilb ne -1 then $
+            linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
+         irb = strpos(linelab,']')
+         if irb ne -1 then $
+            linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
 
-;   loop through plot types
-    for j=0,2 do begin
+         cgps_open,initdat.mapdir+initdat.label+linelab+'.eps',charsize=1,/encap,$
+                   /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
+         pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+                        xgap=0,ygap=0)
 
-;      Set up colorbar labeling
-       if j eq 0 then cbform = '(D0.1)' else cbform = '(I0)'
+;        loop through plot types
+         for j=0,2 do begin
+
+;           Set up colorbar labeling
+            if j eq 0 then cbform = '(D0.1)' else cbform = '(I0)'
 
 
-;      Set up ranges for all components at once
-       if ~ keyword_set(comprange) then begin
+;           Set up ranges for all components at once
+            if ~ keyword_set(comprange) then begin
         
-          mapallcomp = linmaps[line,*,*,0:initdat.maxncomp-1,ilinmap[j]]
-          ibd = where(mapallcomp eq bad,ctbd)
-          igd = where(mapallcomp ne bad AND mapallcomp ne 0,ctgd)
-          if j eq 1 then begin
-;            redshift with respect to galaxy systemic
-             zdiff = mapallcomp[igd]/linelist[line]-1d - initdat.zsys_gas
-;            relativistic velocity shift;
-;            see http://hyperphysics.phy-astr.gsu.edu/hbase/relativ/reldop2.html
-             mapallcomp[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-          endif
-          zran = [min(mapallcomp[igd]),max(mapallcomp[igd])]
-          if j eq 0 then begin
-             zmax_flux = zran[1]
-             zran=[0,1]
-             dzran = 1
-             ncbdiv = 5
-          endif else begin
-             divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-             ncbdiv = divarr[0]
-             dzran = zran[1]-zran[0]
-          endelse
+               mapallcomp = linmaps[line,*,*,0:initdat.maxncomp-1,ilinmap[j]]
+               ibd = where(mapallcomp eq bad,ctbd)
+               igd = where(mapallcomp ne bad AND mapallcomp ne 0,ctgd)
+               if j eq 1 then begin
+;                 redshift with respect to galaxy systemic
+                  zdiff = mapallcomp[igd]/linelist[line]-1d - initdat.zsys_gas
+;                 relativistic velocity shift;
+;                 see http://hyperphysics.phy-astr.gsu.edu/hbase/relativ/reldop2.html
+                  mapallcomp[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+               endif
+               zran = [min(mapallcomp[igd]),max(mapallcomp[igd])]
+               if j eq 0 then begin
+                  zmax_flux = zran[1]
+                  zran=[0,1]
+                  dzran = 1
+                  ncbdiv = 5
+               endif else begin
+                  divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+                  ncbdiv = divarr[0]
+                  dzran = zran[1]-zran[0]
+               endelse
 
-       endif
+            endif
 
-;      Loop through velocity components
-       for i=0,initdat.maxncomp-1 do begin
+;           Loop through velocity components
+            for i=0,initdat.maxncomp-1 do begin
 
-;         Plot index
-          iplot = j*npx+i
+;              Plot index
+               iplot = j*npx+i
 
-;         Get map and scale
-          map = linmaps[line,*,*,i,ilinmap[j]]
-          ibd = where(map eq bad AND ~ finite(map),ctbd)
-          inan = where(~finite(map),ctnan)
-          igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
+;              Get map and scale
+               map = linmaps[line,*,*,i,ilinmap[j]]
+               ibd = where(map eq bad AND ~ finite(map),ctbd)
+               inan = where(~finite(map),ctnan)
+               igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
 
-          if ctgd gt 0 then begin
+               if ctgd gt 0 then begin
             
-             if j eq 1 then begin
-                zdiff = map[igd]/linelist[line]-1d - initdat.zsys_gas
-                map[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-             endif
+                  if j eq 1 then begin
+                     zdiff = map[igd]/linelist[line]-1d - initdat.zsys_gas
+                     map[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+                  endif
 
-;            Set up ranges for each component separately
+;                 Set up ranges for each component separately
 
-;            Check for manual range first ...
-             hasrange = 0
-             if hasrangefile then begin
-                ithisline = where(line eq rangeline AND $
-                                  i+1 eq rangecomp AND $
-                                  plottypes[j] eq rangequant,ctthisline)
-                if ctthisline eq 1 then begin
-                   zran = [rangelo[ithisline],rangehi[ithisline]]
-                   dzran = zran[1]-zran[0]
-                   ncbdiv = rangencbdiv[ithisline]
-                   ncbdiv = ncbdiv[0]
-                   hasrange = 1
-                endif
-             endif
-;            otherwise set it automagically.
-             if keyword_set(comprange) AND ~hasrange then begin
-                zran = [min(map[igd]),max(map[igd])]
-                if j eq 0 then begin
-                   zmax_flux = zran[1]
-                   zran=[0,1]
-                   dzran = 1
-                   ncbdiv = 5
-                endif else begin
-                   divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-                   ncbdiv = divarr[0]
-                   dzran = zran[1]-zran[0]
-                endelse
-             endif
-
-             if j eq 0 then map[igd] = map[igd]/zmax_flux
-             if ctnan gt 0 then map[inan] = bad
-             mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-                             min=zran[0],max=zran[1])
-
-;            Plot image
-             if j eq 0 then begin
-                cgloadct,65,/reverse
-                title='c'+string(i+1,format='(I0)')+' flux'
-                title += ' ('+string(zmax_flux,format='(E0.2)')+')'
-             endif
-             if j eq 1 then begin
-                cgloadct,74,/reverse
-                title='c'+string(i+1,format='(I0)')+' velocity'
-             endif
-             if j eq 2 then begin
-                cgloadct,65,/reverse
-                title='c'+string(i+1,format='(I0)')+' sigma'
-             endif
-             cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
-                     noerase=iplot ne 0,missing_value=bad,missing_index=255,$
-                     missing_color='white'
-             cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                    /nodata,/noerase,title=title
-;            Plot axes in kpc
-             cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
-             cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
-             cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
-             cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
-;            Plot nuclei
-             cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
-;            Colorbar
-             cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-             ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-                                (dzran - zran[1]),format=cbform)
-             cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                        ticknames=ticknames,/ver,/right,charsize=0.6
-
-           endif
-
-        endfor
-
-     endfor
+;                 Check for manual range first ...
+                  hasrange = 0
+                  if hasrangefile then begin
+                     ithisline = where(line eq rangeline AND $
+                                       i+1 eq rangecomp AND $
+                                       plottypes[j] eq rangequant,ctthisline)
+                     if ctthisline eq 1 then begin
+                        zran = [rangelo[ithisline],rangehi[ithisline]]
+                        dzran = zran[1]-zran[0]
+                        ncbdiv = rangencbdiv[ithisline]
+                        ncbdiv = ncbdiv[0]
+                        hasrange = 1
+                     endif
+                  endif
+;                 otherwise set it automagically.
+                  if keyword_set(comprange) AND ~hasrange then begin
+                     zran = [min(map[igd]),max(map[igd])]
+                     if j eq 0 then begin
+                        zmax_flux = zran[1]
+                        zran=[0,1]
+                        dzran = 1
+                        ncbdiv = 5
+                     endif else begin
+                        divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+                        ncbdiv = divarr[0]
+                        dzran = zran[1]-zran[0]
+                     endelse
+                  endif
  
-     cgps_close
+                  if j eq 0 then map[igd] = map[igd]/zmax_flux
+                  if ctnan gt 0 then map[inan] = bad
+                  mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                                  min=zran[0],max=zran[1])
+   
+;                 Plot image
+                  if j eq 0 then begin
+                     cgloadct,65,/reverse
+                     title='c'+string(i+1,format='(I0)')+' flux'
+                     title += ' ('+string(zmax_flux,format='(E0.2)')+')'
+                  endif
+                  if j eq 1 then begin
+                     cgloadct,74,/reverse
+                     title='c'+string(i+1,format='(I0)')+' velocity'
+                  endif
+                  if j eq 2 then begin
+                     cgloadct,65,/reverse
+                     title='c'+string(i+1,format='(I0)')+' sigma'
+                  endif
+                  cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
+                          noerase=iplot ne 0,missing_value=bad,missing_index=255,$
+                          missing_color='white'
+                  cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                         /nodata,/noerase,title=title
+;                 Plot axes in kpc
+                  cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+                  cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+                  cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+                  cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+;                 Plot nuclei
+                  cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+;                 Colorbar
+                  cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+                  ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+                                     (dzran - zran[1]),format=cbform)
+                  cgcolorbar,position=cbpos,divisions=ncbdiv,$
+                             ticknames=ticknames,/ver,/right,charsize=0.6
 
-   endforeach
+               endif
+ 
+            endfor
+
+         endfor
+ 
+         cgps_close
+
+      endforeach
+
+   endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Plots of line ratios
@@ -1536,5 +1560,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
       cgps_close
 
    endif
+
+badinput:
 
 end

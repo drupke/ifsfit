@@ -172,6 +172,9 @@ INITMAPS
     [centcol,centrow]
   center_nuclei: in, optional, type=dblarr(2)
     [centcol,centrow]
+  noemlinfit: in, optional, type=byte
+    Set this switch if the spectrum was not first processed with
+    IFSF.
   rangefile:  in, optional, type=string
      Full path and file name for file to manually set color scale
      ranges for plots.
