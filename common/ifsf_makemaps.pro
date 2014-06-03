@@ -133,7 +133,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
    if tag_exist(initdat,'donad') then begin
       restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
       if tag_exist(initmaps,'noemlinfit') then begin
-         size_tmp = size(nadcube[outlines[0]])
+         size_tmp = size(nadcube.weq)
          dx = size_tmp[1]
          dy = size_tmp[2]
          if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
