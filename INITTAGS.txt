@@ -180,8 +180,11 @@ INITMAPS
      ranges for plots.
   argslinratmaps: in, optional, type=structure
      If set, line ratios are plotted. The following tags govern the
-     image:
-
+     image ...
+  applyebv: in, optional, type=dblarr(maxncomp)
+     If set, extinction correction is applied in IFSF_CMPLINSPECMAPS on a
+     component-by-component basis to the Balmer lines. Set each element to
+     1 (or 0) to apply (or not apply) the correction.
   col: in, optional, type=structure
      If set, IFS continuum color image is created. The following
      tags govern the image.

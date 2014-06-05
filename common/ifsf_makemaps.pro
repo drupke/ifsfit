@@ -38,6 +38,8 @@
 ;      2014may23, DSNR, added NaD maps and continuum images
 ;      2014jun02, DSNR, updated to allow use without previous emission-line fit
 ;                       with IFSF
+;      2014jun04, DSNR, updated to plot velocities using cumulative velocity
+;                       distributions
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -66,7 +68,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
    ncbdivmax = 7
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Load initialization parameters and data
+; Load initialization parameters and line data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;  Get fit initialization
@@ -147,6 +149,10 @@ pro ifsf_makemaps,initproc,comprange=comprange
       print,'               Aborting.'
       goto,badinput
    endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Load and process continuum data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;  Data cube
    if not tag_exist(initdat,'datext') then datext=1 else datext=initdat.datext
@@ -388,6 +394,36 @@ pro ifsf_makemaps,initproc,comprange=comprange
    center_nuclei_kpc_y = (center_nuclei[1,*] - center_axes[1]) $
                          * initdat.platescale * kpc_per_as
 
+;  Line ratios
+   if hasratpar then linrats = ifsf_lineratios(linmaps,linelist)
+
+;  Cumulative velocity distribution functions
+   if ~ tag_exist(initmaps,'noemlinfit') then begin
+      linspecmaps = hash()
+      linspecpars = hash()
+      foreach line,outlines do begin
+;        if requested, apply E(B-V) only to those components that are specified
+;        and tied to Halpha or to the same line as Halpha
+         if tag_exist(initmaps,'applyebv') then begin
+            if (initdat.linetie)[line] eq 'Halpha' OR $
+               (initdat.linetie)[line] eq (initdat.linetie)['Halpha'] then $
+                  doebv = $
+                     linrats['ebv'] * $
+                     rebin(reform(initmaps.applyebv,1,1,initdat.maxncomp),$
+                           dx,dy,initdat.maxncomp)
+         endif else doebv=0
+         linspecmaps[line] = $
+            ifsf_cmplinspecmaps(linmaps[line,*,*,*,4],$
+                                linmaps[line,*,*,*,2],$
+                                linmaps[line,*,*,*,3],$
+                                initdat.maxncomp,linelist[line],$
+                                initdat.zsys_gas,ebv=doebv)
+
+         linspecpars[line] = ifsf_cmplinspecpars(linspecmaps[line])
+      endforeach         
+      linspecpars_tags = tag_names(linspecpars[outlines[0]])
+   endif
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Continuum plots
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -522,7 +558,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
 
    if dohstcol then begin
       i = 0
-      cgloadct,65,/reverse
+      cgloadct,65
       cgimage,chst_big,/keep,pos=pos[*,i],opos=truepos,$
               noerase=i ne 0,missing_value=bad,missing_index=255,$
               missing_color='white'
@@ -534,7 +570,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
 
 
       i = 1
-      cgloadct,65,/reverse
+      cgloadct,65
       cgimage,chst_fov,/keep,pos=pos[*,i],opos=truepos,$
               noerase=i ne 0,missing_value=bad,missing_index=255,$
               missing_color='white'
@@ -549,7 +585,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
       i = 2
 ;     smoothed HST continuum, IFS FOV
       if dohstcolsm then begin
-         cgloadct,65,/reverse
+         cgloadct,65
          cgimage,cshst_fov,/keep,pos=pos[*,i],opos=truepos,$
                  noerase=i ne 0,missing_value=bad,missing_index=255,$
                  missing_color='white'
@@ -753,6 +789,157 @@ pro ifsf_makemaps,initproc,comprange=comprange
       endforeach
 
    endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Plots of individual emission lines, components summed
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if ~ tag_exist(initmaps,'noemlinfit') then begin
+
+;     Quantities to plot
+      vtags = ['sig','vpk','v50','v84','v98']
+      ftags = ['ftot','fpk','fv50','fv84','fv98']
+
+;     Size of plot grid
+      npx = n_elements(vtags)
+      npy = 2
+
+;     Loop through emission lines
+      foreach line,outlines do begin
+
+;        Get syntax of linelabel right; otherwise call to DEVICE chokes
+         linelab=line
+         ilb = strpos(linelab,'[')
+         if ilb ne -1 then $
+            linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
+         irb = strpos(linelab,']')
+         if irb ne -1 then $
+            linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
+
+         cgps_open,initdat.mapdir+initdat.label+linelab+'_c.eps',charsize=1,/encap,$
+                   /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
+         pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+                        xgap=0,ygap=0)
+
+;        loop through plot types
+         for j=0,npx-1 do begin
+
+;           FLUXES
+
+            cbform = '(D0.1)' ; colorbar syntax
+            iplot = j ; plot index
+;           Get map and scale
+            itag = where(strcmp(linspecpars_tags,ftags[j],/fold_case) eq 1)
+            map = linspecpars[line].(itag)
+            ibd = where(map eq bad AND ~ finite(map),ctbd)
+            inan = where(~finite(map),ctnan)
+            igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
+
+            if ctgd gt 0 then begin
+               zran=[0,1]
+               dzran = 1
+               ncbdiv = 5
+               zmax_flux = max(map[igd])
+               
+               map[igd] = map[igd]/zmax_flux
+               if ctnan gt 0 then map[inan] = bad
+               mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                               min=zran[0],max=zran[1])
+   
+;              Plot image
+               cgloadct,65,/reverse
+               title='flux'
+               title += ' ('+string(zmax_flux,format='(E0.2)')+')'
+               cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
+                       noerase=iplot ne 0,missing_value=bad,missing_index=255,$
+                       missing_color='white'
+               cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                         /nodata,/noerase,title=title
+;              Plot axes in kpc
+               cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+               cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+               cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+               cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+;              Plot nuclei
+               cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+;              Colorbar
+               cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+               ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+                                  (dzran - zran[1]),format=cbform)
+               cgcolorbar,position=cbpos,divisions=ncbdiv,$
+                          ticknames=ticknames,/ver,/right,charsize=0.6
+            
+            endif
+
+;           VELOCITIES
+                          
+            cbform = '(I0)' ; colorbar syntax
+            iplot = npx+j ; plot index
+
+;           Get map and scale
+            itag = where(strcmp(linspecpars_tags,vtags[j],/fold_case) eq 1)
+            map = linspecpars[line].(itag)
+            ibd = where(map eq bad AND ~ finite(map),ctbd)
+            inan = where(~finite(map),ctnan)
+            igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
+
+            if ctgd gt 0 then begin
+
+               hasrange = 0
+               if hasrangefile then begin
+                  ithisline = where(line eq rangeline AND $
+                                    vtags[j] eq rangequant,ctthisline)
+                  if ctthisline eq 1 then begin
+                     zran = [rangelo[ithisline],rangehi[ithisline]]
+                     dzran = zran[1]-zran[0]
+                     ncbdiv = rangencbdiv[ithisline]                   
+                     ncbdiv = ncbdiv[0]
+                     hasrange = 1
+                  endif
+               endif
+               if ~hasrange then begin
+                  zran = [min(map[igd]),max(map[igd])]
+                  divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+                  ncbdiv = divarr[0]
+                  dzran = zran[1]-zran[0]
+               endif
+ 
+               if ctnan gt 0 then map[inan] = bad
+               mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                               min=zran[0],max=zran[1])
+   
+;              Plot image
+               cgloadct,74,/reverse
+               title=vtags[j]
+               cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
+                       noerase=iplot ne 0,missing_value=bad,missing_index=255,$
+                       missing_color='white'
+               cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                         /nodata,/noerase,title=title
+;              Plot axes in kpc
+               cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+               cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+               cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+               cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+;              Plot nuclei
+               cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+;              Colorbar
+               cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+               ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+                                  (dzran - zran[1]),format=cbform)
+               cgcolorbar,position=cbpos,divisions=ncbdiv,$
+                          ticknames=ticknames,/ver,/right,charsize=0.6
+
+            endif
+ 
+         endfor
+ 
+         cgps_close
+
+      endforeach
+
+   endif
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Plots of line ratios

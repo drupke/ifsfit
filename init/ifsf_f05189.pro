@@ -68,6 +68,8 @@
 ;-
 function ifsf_f05189,initmaps=initmaps,initnad=initnad
 
+  bad=1d99
+
   gal = 'f05189'
   bin = 2d
   ncols = 28
@@ -171,7 +173,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
     siginit_gas[i,1] = 1000d
   endforeach
 ; Balmer lines, low-ion. colliosional lines
-  tmplines = ['Halpha','Hbeta','[OI]6300','[OI]6364',$
+  tmplines = ['Halpha','Hbeta',$
               '[NII]6548','[NII]6583',$
               '[SII]6716','[SII]6731']
   foreach i,tmplines do begin
@@ -182,6 +184,29 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
         ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 1
      if ctdisk0 gt 0 then for j=0,ctdisk0-1 do $
         ncomp[i,x_pix[idisk0[j]]-1,y_pix[idisk0[j]]-1] = 2
+  endforeach
+;; Note that if we want to allow Hbeta to vary independently of Halpha, we also
+;; have to turn off the line ratio constraint in IFSF_GMOS.
+;; Hbeta
+;  tmplines = ['Hbeta']
+;  foreach i,tmplines do begin
+;     linetie[i] = 'Hbeta'
+;     zinit_gas[i,*,*,1] = 0.041d
+;     zinit_gas[i,*,*,2] = 0.039d
+;     siginit_gas[i,2] = 1000d
+;     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
+;        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 1
+;     if ctdisk0 gt 0 then for j=0,ctdisk0-1 do $
+;        ncomp[i,x_pix[idisk0[j]]-1,y_pix[idisk0[j]]-1] = 2
+;  endforeach
+; [OI] lines
+  tmplines = ['[OI]6300','[OI]6364']
+  foreach i,tmplines do begin
+     linetie[i] = '[OI]6300'
+     ncomp[i,*,*] = 2
+     zinit_gas[i,*,*,1] = 0.041d
+     if ctdisk0 gt 0 then for j=0,ctdisk0-1 do $
+        ncomp[i,x_pix[idisk0[j]]-1,y_pix[idisk0[j]]-1] = 1
   endforeach
 ; [NI] lines
   tmplines = ['[NI]5198','[NI]5200']
@@ -198,13 +223,22 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 
 ; Parameters for continuum fit
   tweakcntfit = dblarr(ncols,nrows,3,10)
+; Default fitting order
   tweakcntfit[*,*,2,*] = 2
-  tweakcntfit[11:15,11:15,0,0:7] = $
-     rebin(reform([4950,5250,5850,6200,6500,6725,6925,7250],1,1,1,8),5,5,1,8)
-  tweakcntfit[11:15,11:15,1,0:7] = $
-     rebin(reform([5100,5450,6000,6400,6700,6925,7100,7400],1,1,1,8),5,5,1,8)
-  tweakcntfit[11:15,11:15,2,0:7] = $
-     rebin(reform([2,2,2,2,2,1,1,2],1,1,1,8),5,5,1,8)
+; Number of wavelength regions to re-fit
+  nregions = 7
+; Lower wavelength for re-fit
+  tweakcntfit[*,*,0,0:nregions-1] = $
+     rebin(reform([4950,5250,5850,6200,6500,6725,6925],1,1,1,nregions),$
+           ncols,nrows,1,nregions)
+; Upper wavelength for re-fit
+  tweakcntfit[*,*,1,0:nregions-1] = $
+     rebin(reform([5100,5450,6000,6400,6700,6925,7100],1,1,1,nregions),$
+           ncols,nrows,1,nregions)
+; Order for re-fit
+  tweakcntfit[*,*,2,0:nregions-1] = $
+     rebin(reform([2,2,2,2,2,1,1],1,1,1,nregions),$
+           ncols,nrows,1,nregions)
 
 ; Parameters for emission line plotting
   linoth = strarr(2,6)
@@ -233,6 +267,9 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
   siglim_gas = [299792d/3000d/2.35d,2000d]
   sigfix=hash()
   sigfix['[FeVII]6087'] = 725d
+  lratfix=hash()
+  lratfix['[NI]5200/5198'] = [1.5d]
+  lratfix['[NII]6583/Ha'] = [bad,bad,2.14]
   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Output structure
@@ -259,7 +296,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 ; Optional pars
 ;         argscheckcomp: {sigcut: 2},$
          argsinitpar: {siglim: siglim_gas,$
-                       sigfix: sigfix},$
+                       sigfix: sigfix,$
+                       lratfix: lratfix},$
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
          donad: 1,$
@@ -293,7 +331,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   center_nuclei: [centcol,centrow],$
                   rangefile: '/Users/drupke/ifs/gmos/maps/'+$
                              'f05189/rb2/ranges.txt',$
-;                 argslinratmaps: argslinratmaps,$
+                  argslinratmaps: argslinratmaps,$
+;                  applyebv: [1,0,0],$
                   col: {sumrange: [4900,5000,6650,6750],$
                         scllim: [-0.1,0.2],$
                         stretch: 1},$

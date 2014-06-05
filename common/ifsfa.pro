@@ -57,6 +57,9 @@
 ;                       properly with case of 1d data "cube"
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;      2014apr15, DSNR, bugfix in file sanity check
+;      2014mayXY, DSNR, added NaD outputs
+;      2014jun04, DSNR, added extra dimension to output LINMAP hash to get
+;                       peak flux in emission lines
 ;
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -121,7 +124,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
   linmaps = hash()
   foreach line,outlines do $
-    linmaps[line] = dblarr(cube.ncols,cube.nrows,initdat.maxncomp,4) + bad
+    linmaps[line] = dblarr(cube.ncols,cube.nrows,initdat.maxncomp,5) + bad
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
@@ -181,7 +184,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                    struct.parinfo)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Plot
+; Plot emission-line data and print data to a file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
         if not keyword_set(noplots) then begin
@@ -208,17 +211,22 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;       Print fit parameters to a text file
         ifsf_printfitpar,fitlun,i+1,j+1,struct
 
+;       Save fit parameters to an array
         foreach line,outlines do $
            linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
-                                   [linepars.fluxerr[line,*]],$
-                                   [linepars.wave[line,*]],$
-                                   [linepars.sigma[line,*]]]
+                                    [linepars.fluxerr[line,*]],$
+                                    [linepars.wave[line,*]],$
+                                    [linepars.sigma[line,*]],$
+                                    [linepars.fluxpk[line,*]]]
 
 ;       Print line fluxes and Halpha Weq to a text file
         if not linepars.nolines then $ 
            ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
 
-;       Normalize data around NaD and plot
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Process NaD (normalize, plot, compute quantities, and save)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
         if tag_exist(initdat,'donad') then begin
            if tag_exist(initnad,'argsnormnad') then begin
               normnad = ifsf_normnad(struct.wave,$

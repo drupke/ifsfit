@@ -8,7 +8,7 @@
 ;    IFSFIT/INIT
 ;
 ; :Returns:
-;    
+;    PARINFO structure for input into MPFIT.
 ;
 ; :Params:
 ;    linelist: in, required, type=hash(lines)
@@ -28,6 +28,10 @@
 ;      Number of velocity components.
 ;      
 ; :Keywords:
+;    lratfix: in, optional, type=hash(lineratios,ncomp)
+;      For each line ratio that should be fixed, input an array with each 
+;      element set to either the BAD value (do not fix that component) or the 
+;      value to which the line ratio will be fixed for that component.
 ;    siglim: in, optional, type=dblarr(2)
 ;      Lower and upper sigma limits in km/s.
 ;    sigfix: in, optional, type=hash(lines\,maxncomp)
@@ -51,8 +55,9 @@
 ;      2014jan13, DSNR, updated to use hashes, and to add parname, line, and 
 ;                       comp tags into output parinfo structure
 ;      2014apr10, DSNR, added if statements to remove IEEE exceptions
-;      2015apr17, DSNR, adjusted upper limits for Ha/Hb and [NII]/Ha
-;      2015apr23, DSNR, added SIGFIX keyword
+;      2014apr17, DSNR, adjusted upper limits for Ha/Hb and [NII]/Ha
+;      2014apr23, DSNR, added SIGFIX keyword
+;      2014jun05, DSNR, added LRATFIX keyword
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -74,8 +79,9 @@
 ;-
 function ifsf_gmos,linelist,linelistz,linetie,$
                    initflux,initsig,maxncomp,ncomp,$
-                   siglim=siglim,sigfix=sigfix
+                   lratfix=lratfix,siglim=siglim,sigfix=sigfix
 
+  bad = 1d99
   c = 299792.458d
 
 ; Sigma limits
@@ -106,8 +112,11 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   parinfo[1].fixed = 1B
   parinfo[1].parname = 'Maximum no. of velocity components'
 
+  if ~ keyword_set(lratfix) then lratfix = hash()
+     
 ; [SII] ratio
   ilratlim = 0
+  lratlab = '[SII]6716/6731'
   if ncomp->haskey('[SII]6716') then tmp_ncomp = ncomp['[SII]6716'] $
   else tmp_ncomp=0
   if tmp_ncomp gt 0 then begin
@@ -123,20 +132,31 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      parinfo[ip1:ip2].limits  = rebin([0.44d,1.43d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[SII]6716/6731 line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
+;    Check to see if line ratio is fixed
+     ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
      for i=0,tmp_ncomp-1 do begin
-;;       case of both lines getting zero-ed        
-;        if finite(parinfo[ip1+i].value,/nan) then parinfo[ip1+i].value = $
-;           (parinfo[ip1+i].limits[0] + parinfo[ip1+i].limits[0])/2d
-;       case of pegging at or exceeding upper limit
-        if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
-           parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
-                                  (parinfo[ip1+i].limits[1] - $
-                                   parinfo[ip1+i].limits[0])*0.1
-;       case of pegging at or dipping below lower limit
-        if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
-           parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
-                                  (parinfo[ip1+i].limits[1] - $
-                                   parinfo[ip1+i].limits[0])*0.1
+;       If line ratio is fixed, then fix it
+        lratfixed = 0b
+        if ctlratfix gt 0 then begin
+           if lratfix[lratlab,i] ne bad then begin
+              parinfo[ip1+i].value = lratfix[lratlab,i]
+              parinfo[ip1+i].fixed = 1b
+              parinfo[ip1+i].limited = [0b,0b]
+              lratfixed = 1b
+           endif
+        endif
+        if ~ lratfixed then begin
+;          case of pegging at or exceeding upper limit
+           if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
+                                     (parinfo[ip1+i].limits[1] - $
+                                      parinfo[ip1+i].limits[0])*0.1
+;          case of pegging at or dipping below lower limit
+           if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
+                                     (parinfo[ip1+i].limits[1] - $
+                                      parinfo[ip1+i].limits[0])*0.1
+        endif
      endfor
   endif
   
@@ -144,9 +164,10 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ; See Ferland+12 for collisional case, Bautista99 for other cases. Upper limit 
 ; was originally 3, but found that it would peg at that and then the error for 
 ; [NI]5200 would be artificially large, and it would be removed from the fit. 
-; For now, fix to 1.5 (low density collisional limit, applicable to n <~ 10^3 
-; cm^-3; Ferland+12 Appendix A.3), to solve artificially large errors in [NI]5200. 
+; Can fix to 1.5 (low density collisional limit, applicable to n <~ 10^3 
+; cm^-3; Ferland+12 Appendix A.3) to solve artificially large errors in [NI]5200. 
   ilratlim = 1
+  lratlab = '[NI]5200/5198'
   if ncomp->haskey('[NI]5198') then tmp_ncomp = ncomp['[NI]5198'] $
   else tmp_ncomp = 0
   if tmp_ncomp gt 0 then begin
@@ -157,29 +178,42 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      frat = dblarr(tmp_ncomp)+2d ; default if initial n1a flux = 0
      inz = where(fb gt 0,ctnz)
      if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
-     parinfo[ip1:ip2].value = 1.5
-     parinfo[ip1:ip2].fixed = 1b
-;     parinfo[ip1:ip2].value = frat
-;     parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
-;     parinfo[ip1:ip2].limits  = rebin([0.6d,4d],2,tmp_ncomp)
+     parinfo[ip1:ip2].value = frat
+     parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
+     parinfo[ip1:ip2].limits  = rebin([0.6d,4d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NI]5200/5198 line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
-;     for i=0,tmp_ncomp-1 do begin
-;;        if finite(parinfo[ip1+i].value,/nan) then parinfo[ip1+i].value = $
-;;           (parinfo[ip1+i].limits[0] + parinfo[ip1+i].limits[0])/2d
-;        if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
-;           parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
-;                                  (parinfo[ip1+i].limits[1] - $
-;                                   parinfo[ip1+i].limits[0])*0.1
-;        if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
-;           parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
-;                                  (parinfo[ip1+i].limits[1] - $
-;                                   parinfo[ip1+i].limits[0])*0.1
-;     endfor
+;    Check to see if line ratio is fixed
+     ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
+     for i=0,tmp_ncomp-1 do begin
+;       If line ratio is fixed, then fix it
+        lratfixed = 0b
+        if ctlratfix gt 0 then begin
+           if lratfix[lratlab,i] ne bad then begin
+              parinfo[ip1+i].value = lratfix[lratlab,i]
+              parinfo[ip1+i].fixed = 1b
+              parinfo[ip1+i].limited = [0b,0b]
+              lratfixed = 1b
+           endif
+        endif
+        if ~ lratfixed then begin
+;          case of pegging at or exceeding upper limit
+           if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
+                                     (parinfo[ip1+i].limits[1] - $
+                                      parinfo[ip1+i].limits[0])*0.1
+;          case of pegging at or dipping below lower limit
+           if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
+                                     (parinfo[ip1+i].limits[1] - $
+                                      parinfo[ip1+i].limits[0])*0.1
+        endif
+     endfor
   endif
 
 ; [NII]/Ha ratio
   ilratlim = 2
+  lratlab = '[NII]6583/Ha'
   if ncomp->haskey('Halpha') then tmp_ncomp = ncomp['Halpha'] $
   else tmp_ncomp = 0
   if tmp_ncomp gt 0 then begin
@@ -198,22 +232,37 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      parinfo[ip1:ip2].limits  = rebin([0.1d,4d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NII]/Halpha line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
+;    Check to see if line ratio is fixed
+     ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
      for i=0,tmp_ncomp-1 do begin
-;        if finite(parinfo[ip1+i].value,/nan) then parinfo[ip1+i].value = $
-;           (parinfo[ip1+i].limits[0] + parinfo[ip1+i].limits[0])/2d
-        if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
-           parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
-                                  (parinfo[ip1+i].limits[1] - $
-                                   parinfo[ip1+i].limits[0])*0.1
-        if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
-           parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
-                                  (parinfo[ip1+i].limits[1] - $
-                                   parinfo[ip1+i].limits[0])*0.1
+;       If line ratio is fixed, then fix it
+        lratfixed = 0b
+        if ctlratfix gt 0 then begin
+           if lratfix[lratlab,i] ne bad then begin
+              parinfo[ip1+i].value = lratfix[lratlab,i]
+              parinfo[ip1+i].fixed = 1b
+              parinfo[ip1+i].limited = [0b,0b]
+              lratfixed = 1b
+           endif
+        endif
+        if ~ lratfixed then begin
+;          case of pegging at or exceeding upper limit
+           if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
+                                     (parinfo[ip1+i].limits[1] - $
+                                      parinfo[ip1+i].limits[0])*0.1
+;          case of pegging at or dipping below lower limit
+           if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
+                                     (parinfo[ip1+i].limits[1] - $
+                                      parinfo[ip1+i].limits[0])*0.1
+        endif
      endfor
   endif
 
 ; Ha/Hb ratio
   ilratlim = 3
+  lratlab = 'Ha/Hb'
   if ncomp->haskey('Halpha') then tmp_ncomp = ncomp['Halpha'] $
   else tmp_ncomp = 0
   if tmp_ncomp gt 0 then begin
@@ -230,17 +279,31 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      parinfo[ip1:ip2].limits  = rebin([2.86d,50d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = 'Halpha/Hbeta line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
+;    Check to see if line ratio is fixed
+     ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
      for i=0,tmp_ncomp-1 do begin
-        if finite(parinfo[ip1+i].value,/nan) then parinfo[ip1+i].value = $
-           parinfo[ip1+i].limits[0]
-        if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
-           parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
-                                  (parinfo[ip1+i].limits[1] - $
-                                   parinfo[ip1+i].limits[0])*0.1
-        if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
-           parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
-                                  (parinfo[ip1+i].limits[1] - $
-                                   parinfo[ip1+i].limits[0])*0.1
+;       If line ratio is fixed, then fix it
+        lratfixed = 0b
+        if ctlratfix gt 0 then begin
+           if lratfix[lratlab,i] ne bad then begin
+              parinfo[ip1+i].value = lratfix[lratlab,i]
+              parinfo[ip1+i].fixed = 1b
+              parinfo[ip1+i].limited = [0b,0b]
+              lratfixed = 1b
+           endif
+        endif
+        if ~ lratfixed then begin
+;          case of pegging at or exceeding upper limit
+           if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
+                                     (parinfo[ip1+i].limits[1] - $
+                                      parinfo[ip1+i].limits[0])*0.1
+;          case of pegging at or dipping below lower limit
+           if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
+                                     (parinfo[ip1+i].limits[1] - $
+                                      parinfo[ip1+i].limits[0])*0.1
+        endif
      endfor
   endif
 
