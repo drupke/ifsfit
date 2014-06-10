@@ -2,7 +2,7 @@
 ;
 ;+
 ;
-; Compute Na D profile.
+; Compute Na D profile. (Presently, absorption only.)
 ;
 ; :Categories:
 ;    IFSFIT
@@ -30,7 +30,7 @@
 ;
 ; :History:
 ;    ChangeHistory::
-;      10jul22  DSNR  created
+;      2010jul22, DSNR, created
 ;      2013nov21, DSNR, documented, renamed, added license and copyright
 ;      2014may13, DSNR, now uses sigma parameter instead of b (Doppler param).
 ;      2014may14, DSNR, fixed floating underflow
@@ -53,7 +53,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_cmpnad,wave,pars,emission=emission
+function ifsf_cmpnad,wave,pars
   
    c = 299792.458d
 ;  wavelength ratio (red to blue)

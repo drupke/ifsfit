@@ -86,7 +86,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 ; Regions for setting components
   inuc0  = where(rad_pix le 3d,ctnuc0)
   inuc1  = where(rad_pix gt 3d AND rad_pix le 6d,ctnuc1)
-  idisk0 = where(rad_pix gt 6d AND rad_pix lt 12d,ctdisk0)
+  idisk0 = where(rad_pix gt 8d,ctdisk0)
   iedge0 = where(rad_pix ge 12d,ctedge0)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -148,10 +148,10 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
         zinit_gas[i,x_pix[inuc0[j]]-1,y_pix[inuc0[j]]-1,1] = 0.039d
         siginit_gas[i,1] = 1000d
      endfor
-     if ctnuc1 gt 0 then for j=0,ctnuc1-1 do $
-       ncomp[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1] = 1
-     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
-        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
+;     if ctnuc1 gt 0 then for j=0,ctnuc1-1 do $
+;       ncomp[i,x_pix[inuc1[j]]-1,y_pix[inuc1[j]]-1] = 1
+;     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
+;        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
 ; HeI lines
   tmplines = ['HeI6678','HeI7065']
@@ -180,8 +180,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
      zinit_gas[i,*,*,1] = 0.041d
      zinit_gas[i,*,*,2] = 0.039d
      siginit_gas[i,2] = 1000d
-     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
-        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 1
+;     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
+;        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 1
      if ctdisk0 gt 0 then for j=0,ctdisk0-1 do $
         ncomp[i,x_pix[idisk0[j]]-1,y_pix[idisk0[j]]-1] = 2
   endforeach
@@ -213,8 +213,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
   foreach i,tmplines do begin
      linetie[i] = '[NI]5200'
      ncomp[i,*,*] = 1
-     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
-        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
+;     if ctedge0 gt 0 then for j=0,ctedge0-1 do $
+;        ncomp[i,x_pix[iedge0[j]]-1,y_pix[iedge0[j]]-1] = 0
   endforeach
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -269,7 +269,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
   sigfix['[FeVII]6087'] = 725d
   lratfix=hash()
   lratfix['[NI]5200/5198'] = [1.5d]
-  lratfix['[NII]6583/Ha'] = [bad,bad,2.14]
+  lratfix['[NII]6583/Ha'] = [bad,1.80,2.14]
   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Output structure
@@ -394,25 +394,46 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       hei_siginit = dblarr(ncols,nrows,nad_maxncomp)
 
       nnadabs = dblarr(ncols,nrows)
-      nnadabs[11,6] = 1
-      nnadabs[11,7:19] = 2
+;      nnadabs[11,6] = 1
+;      nnadabs[11,7:19] = 2
+      nnadabs[12,4:19] = 2
+      nnadabs[12,20:21] = 1
+      nnadabs[13,4] = 1
+      nnadabs[13,5:18] = 2
+      nnadabs[13,19:20] = 1
       nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.043
       nadabs_zinit[*,*,1] = 0.042
       nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
       nadabs_siginit[*,*,1] = 300d
       nadabs_siglim = [299792d/3000d/2.35d,1000d]
 
-      nnadem = dblarr(ncols,nrows)+0
-      nnadem[13,0:7]=1
-      nnadem[16,*]=1
-      nnadem[16,8:14]=0
-      nnadem[18,*]=1
-      nnadem[19,*]=1
-      nnadem[21,*]=1
-      nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044
+      nnadem = dblarr(ncols,nrows)
+      nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044d
       nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
+      nadem_finit = dblarr(ncols,nrows,nad_maxncomp)+0.1d
+      nadem_rinit = dblarr(ncols,nrows,nad_maxncomp)+1.5d
       nadem_siglim = [299792d/3000d/2.35d,750d]
-      nadem_fix = [0b,0b,0b,0b]
+      nadem_fix = bytarr(ncols,nrows,nad_maxncomp,4)
+
+      nnadem[12,0:5]=1
+      nnadem[12,22:26]=1
+;     Initialization from spaxel [13,5]
+      nadem_fix[12,5,0,*] = [0b,1b,1b,1b]
+      nadem_siginit[12,5,0] = 219.40d
+      nadem_finit[12,5,0] = 0.0843d
+      nadem_rinit[12,5,0] = 1d
+      nnadem[13,0:4]=1
+      nnadem[13,21:26]=1
+;     Initialization from spaxel [14,4]
+      nadem_fix[13,4,0,*] = [0b,1b,1b,1b]
+      nadem_siginit[13,4,0] = 200.98d
+      nadem_finit[13,4,0] = 0.0644d
+      nadem_rinit[13,4,0] = 2.0093d
+;      nnadem[16,*]=1
+;      nnadem[16,8:14]=0
+;      nnadem[18,*]=1
+;      nnadem[19,*]=1
+;      nnadem[21,*]=1
 
       initnad = {$
                  argsnadweq: {autowavelim: [6110,6160,6140,6180],$
@@ -434,6 +455,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                  nnadem: nnadem,$
                  nadem_zinit: nadem_zinit,$
                  nadem_siginit: nadem_siginit,$
+                 nadem_finit: nadem_finit,$
+                 nadem_rinit: nadem_rinit,$
                  nadem_siglim: nadem_siglim,$
                  nadem_fix: nadem_fix,$
 ;                HeI

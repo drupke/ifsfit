@@ -43,6 +43,8 @@
 ;      2014may09, DSNR, completely re-written to use MPFIT 
 ;      2014may30, DSNR, updated to allow use without previous emission-line fit
 ;                       with IFSF
+;      2014jun10, DSNR, compute equivalent widths and print NaD parameters to 
+;                       XDR file
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -64,9 +66,11 @@
 ;-
 pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 
-;  NaD optical depth ratio (blue to red)
-   tratio = 2.0093d
+   bad = 1d99
+   tratio = 2.0093d ; NaD optical depth ratio (blue to red)
    nad_emrat_init = 1.5d
+   maxabscomp = 3
+   maxemcomp = 3
 
    starttime = systime(1)
    time = 0
@@ -100,6 +104,9 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;  Switch to track when first fit done
+   firstfit=1
 
    if not keyword_set(cols) then cols=[1,ncols] $
    else if n_elements(cols) eq 1 then cols = [cols,cols]
@@ -178,7 +185,10 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
                      ' not properly specified.'
                goto,nofit
             endelse
-         endif else inithei=0
+         endif else begin
+            nhei=0
+            inithei=0
+         endelse
 
 ;        Get NaD absorption parameters
          nnadabs = initnad.nnadabs[i,j]
@@ -198,8 +208,6 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
 
 ;        Get NaD emission parameters
          nnadem = initnad.nnadem[i,j]
-         if tag_exist(initnad,'nadem_fix') then nademfix=initnad.nadem_fix $
-         else nademfix=0b
          if nnadem gt 0 then begin
             winit = reform(((initnad.nadem_zinit)[i,j,0:nnadem-1]+1d)$
                            *linelist['NaD1'],nnadem)
@@ -211,7 +219,13 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
                rinit = (initnad.nadem_rinit)[i,j,0:nnadem-1] $
             else rinit = dblarr(nnadem)+nad_emrat_init
             initnadem = [[winit],[siginit],[finit],[rinit]]
-         endif else initnadem=0
+            if tag_exist(initnad,'nadem_fix') then $
+               nademfix=reform((initnad.nadem_fix)[i,j,0:nnadem-1,*],nnadem,4) $
+            else nademfix=0b
+         endif else begin
+            initnadem=0
+            nademfix=0b
+         endelse
 
 ;        Fill out parameter structure with initial guesses and constraints
          if tag_exist(initnad,'argsinitpar') then parinit = $
@@ -251,8 +265,43 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,verbose=verbose
             ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
                            (nadcube.dat)[i,j,*],$
                            param,outfile+'_nad_fit',struct.zstar
-      
-         ifsf_printnadpar,nadparlun,i+1,j+1,param                  
+
+;        Compute equivalent widths
+         weq=1
+         dumy = ifsf_nadfcn((nadcube.wave)[i,j,*],param,weq=weq)
+         
+         ifsf_printnadpar,nadparlun,i+1,j+1,param
+
+         if firstfit then begin
+            nadfit = $
+               {weqabs: dblarr(ncols,nrows,1+maxabscomp)+bad,$
+                weqem: dblarr(ncols,nrows,1+maxemcomp)+bad,$
+                cf: dblarr(ncols,nrows,maxabscomp)+bad,$
+                tau: dblarr(ncols,nrows,maxabscomp)+bad,$
+                waveabs: dblarr(ncols,nrows,maxabscomp)+bad,$
+                sigmaabs: dblarr(ncols,nrows,maxabscomp)+bad,$
+                waveem: dblarr(ncols,nrows,maxemcomp)+bad,$
+                sigmaem: dblarr(ncols,nrows,maxemcomp)+bad,$
+                flux: dblarr(ncols,nrows,maxemcomp)+bad,$
+                frat: dblarr(ncols,nrows,maxemcomp)+bad}
+            firstfit = 0
+         endif
+         nadfit.weqabs[i,j,0:nnadabs]=weq.abs
+         nadfit.weqem[i,j,0:nnadem]=weq.em
+         if nnadabs gt 0 then begin
+            iarr = 3+nhei*3 + dindgen(nnadabs)*nnadabs
+            nadfit.cf[i,j,0:nnadabs-1]=param[iarr]
+            nadfit.tau[i,j,0:nnadabs-1]=param[iarr+1]
+            nadfit.waveabs[i,j,0:nnadabs-1]=param[iarr+2]
+            nadfit.sigmaabs[i,j,0:nnadabs-1]=param[iarr+3]
+         endif
+         if nnadem gt 0 then begin
+            iarr = 3+nhei*3+nnadabs*4 + dindgen(nnadem)*nnadem
+            nadfit.waveem[i,j,0:nnadem-1]=param[iarr]
+            nadfit.sigmaem[i,j,0:nnadem-1]=param[iarr+1]
+            nadfit.flux[i,j,0:nnadem-1]=param[iarr+2]
+            nadfit.frat[i,j,0:nnadem-1]=param[iarr+3]
+         endif
 
 nofit:
 
@@ -262,6 +311,8 @@ nofit:
 
 
 finish:
+
+   save,nadfit,file=initdat.outdir+initdat.label+'.nadfit.xdr'
 
    free_lun,nadparlun
 

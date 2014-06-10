@@ -8,7 +8,20 @@
 ;    IFSFIT/INIT
 ;
 ; :Returns:
-;    Parameter array (PARINFO) for input to MPFIT.
+;    Parameter array (PARINFO) for input to MPFIT. Contents of PARINFO:
+;      Elements 1-3: Number of HeI emission, NaD absorption, and NaD emission 
+;        components.
+;      If HeI present, first set of elements is triplets of HeI parameters:
+;        central wavelength (in A), sigma (in km/s), and peak flux.
+;      The next set of elements (or the first set if HeI is not present) is
+;        quadruplets of NaD abs. parameters: covering factor, optical depth, 
+;        central wavelength (A), and sigma (km/s), all applying to the D1 (red)
+;        line.
+;      The next set of elements (or the first set if HeI and NaD absorption are 
+;        both absent) is quadruplets of NaD emission parameters: 
+;        central wavelength (A), and sigma (km/s), flux (all applying to the D1
+;        line), and the D2/D1 flux ratio
+;        
 ;
 ; :Params:
 ;    inithei: in, required, type=dblarr(N,3)
@@ -20,7 +33,7 @@
 ;      M components.
 ;    initnadem: in, required, type=dblarr(L,3)
 ;      Initial values for NaD emission line parameters (wavelength in A of D2, 
-;      sigma in km/s, peak flux of D2, and flux ratio D1/D2) for each of L 
+;      sigma in km/s, peak flux of D2, and flux ratio D2/D1) for each of L 
 ;      components.
 ;    siglimnadabs: in, required, type=dblarr(2)
 ;      Limits to sigma for NaD absorption.
@@ -207,13 +220,12 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_r].limits[1]  = tratio
       parinfo[ind_r].fixed = 1b
       if keyword_set(nademfix) then $
-         parinfo[ilo:ilo+nnadem*4-1].fixed = reform(rebin(nademfix,4,nnadem),$
-                                                    nnadem*4)
+         parinfo[ilo:ilo+nnadem*4-1].fixed = reform(transpose(nademfix),nnadem*4)
 ;     Labels
       parinfo[ind_w].parname = 'wavelength'
       parinfo[ind_s].parname = 'sigma'
       parinfo[ind_f].parname = 'flux_peak'
-      parinfo[ind_r].parname = 'flux_ratio'
+      parinfo[ind_r].parname = 'flux_ratio_D2D1'
       parinfo[ilo:ilo+nnadem*4-1].line = 'NaD1'
       parinfo[ilo:ilo+nnadem*4-1].comp = rebin(indgen(nnadem)+1,nnadem*4)
    endif

@@ -73,7 +73,7 @@ pro ifsf_printnadpar,lun,col,row,param,outfile=outfile
       collabstr = string('#Col','Row','Cmp',$
                          'Wave','Sigma','Flux',$
                          'C_f','tau','Wave','sigma',$
-                         'Wave','Sigma','Flux','D1/D2',$
+                         'Wave','Sigma','Flux','D2/D1',$
                          format='(A-4,2A4,2A12,2A8,A10,4A12,2A8)')
       printf,lun,linestr,collabstr
 

@@ -131,9 +131,10 @@ pro ifsf_makemaps,initproc,comprange=comprange
       if center_nuclei[0] eq -1 then center_nuclei = center_axes
    endif
 
-;  Get NaD equivalent widths (empirical)
+;  Get NaD parameters
    if tag_exist(initdat,'donad') then begin
       restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
+      restore,file=initdat.outdir+initdat.label+'.nadfit.xdr'
       if tag_exist(initmaps,'noemlinfit') then begin
          size_tmp = size(nadcube.weq)
          dx = size_tmp[1]
@@ -698,9 +699,10 @@ pro ifsf_makemaps,initproc,comprange=comprange
 
 ;              Get map and scale
                map = linmaps[line,*,*,i,ilinmap[j]]
+               fluxmap = linmaps[line,*,*,i,0]
                ibd = where(map eq bad AND ~ finite(map),ctbd)
                inan = where(~finite(map),ctnan)
-               igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
+               igd = where(map ne bad AND fluxmap ne 0 AND finite(map),ctgd)
 
                if ctgd gt 0 then begin
             
@@ -1198,7 +1200,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
       igd = where(abs(map) ge nademweq_snrthresh*nadcube.weq[*,*,3] AND $
                   abs(map) gt 0d AND map ne bad)
       ibd = where(abs(map) lt nademweq_snrthresh*nadcube.weq[*,*,3] OR $
-                  map eq 0d AND map ne bad)
+                  map eq 0d OR map eq bad)
 
 ;     Set up range
 ;     Check for manual range first ...
@@ -1347,6 +1349,182 @@ pro ifsf_makemaps,initproc,comprange=comprange
          (dzran - zran[1]),format=cbform)
       cgcolorbar,position=cbpos,divisions=ncbdiv,$
          ticknames=ticknames,/ver,/right,charsize=0.6
+
+
+      cgps_close
+
+   endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; NaD EQUIVALENT WIDTH (FITS)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if tag_exist(initdat,'donad') then begin
+
+      nadabsweq_snrthresh=4d
+      nademweq_snrthresh=4d
+
+      cgps_open,initdat.mapdir+initdat.label+'NaDweqfit.eps',charsize=1,/encap,$
+         /inches,xs=plotquantum*2,ys=plotquantum*3,/qui
+
+      pos = cglayout([2,3],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+         xgap=0,ygap=0)
+      cbform = '(I0)'
+
+;
+;     ABSORPTION
+;
+      map = nadfit.weqabs[*,*,0]
+      igd = where(map gt 0d AND map ne bad)
+      ibd = where(map eq 0d OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDabs' AND $
+                           rangequant eq 'weqfit',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with 0
+      map[ibd] = 0d
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                      min=zran[0],max=zran[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos[*,0],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='W$\down eq$(NaD abs, $\angstrom$)'
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+;
+;     EMISSION
+;
+      map = nadfit.weqem[*,*,0]
+      igd = where(abs(map) gt 0d AND map ne bad)
+      ibd = where(map eq 0d OR map eq bad)
+
+;     Set up range
+;     Check for manual range first ...
+      hasrange = 0
+      if hasrangefile then begin
+         ithisline = where(rangeline eq 'NaDem' AND $
+            rangequant eq 'weq',ctthisline)
+         if ctthisline eq 1 then begin
+            zran = [rangelo[ithisline],rangehi[ithisline]]
+            dzran = zran[1]-zran[0]
+            ncbdiv = rangencbdiv[ithisline]
+            ncbdiv = ncbdiv[0]
+            hasrange = 1
+         endif
+      endif
+;     otherwise set it automagically.
+      if ~hasrange then begin
+         zran = [min(map[igd]),max(map[igd])]
+         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
+      endif
+
+;     replace bad points with 0
+      map[ibd] = 0d
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+         min=zran[0],max=zran[1])
+      cgloadct,65
+      cgimage,mapscl,/keep,pos=pos[*,2],opos=truepos,$
+         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+         /nodata,/noerase,title='W$\down eq$(NaD em, $\angstrom$)'
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+         (dzran - zran[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,/ver,/right,charsize=0.6
+
+
+;;     Flux
+;      cbform = '(D0.2)'
+;      map = nadfit.flux[*,*,0]
+;      igd = where(abs(map) gt 0d AND map ne bad)
+;      ibd = where(map eq 0d OR map eq bad)
+;
+;;     Set up range
+;;     Check for manual range first ...
+;      hasrange = 0
+;      if hasrangefile then begin
+;         ithisline = where(rangeline eq 'NaDem' AND $
+;            rangequant eq 'flux',ctthisline)
+;         if ctthisline eq 1 then begin
+;            zran = [rangelo[ithisline],rangehi[ithisline]]
+;            dzran = zran[1]-zran[0]
+;            ncbdiv = rangencbdiv[ithisline]
+;            ncbdiv = ncbdiv[0]
+;            hasrange = 1
+;         endif
+;      endif
+;;     otherwise set it automagically.
+;      if ~hasrange then begin
+;         zran = [min(map[igd]),max(map[igd])]
+;         zmax_flux = zran[1]
+;         zran=[0,1]
+;         dzran = 1
+;         ncbdiv = 5
+;      endif
+;      
+;;     replace bad points with 0
+;      map[ibd] = 0d
+;;     normalize good points
+;      map[igd] /= zmax_flux
+;
+;      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+;         min=zran[0],max=zran[1])
+;      cgloadct,65,/reverse
+;      cgimage,mapscl,/keep,pos=pos[*,4],opos=truepos,$
+;         noerase=i ne 0,missing_value=bad,missing_index=255,$
+;         missing_color='white'
+;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+;         /nodata,/noerase,title='Flux (NaD em)'
+;      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+;      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+;      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+;      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
+;      cgoplot,center_nuclei_kpc_x,center_nuclei_kpc_y,psym=1
+;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+;         (dzran - zran[1]),format=cbform)
+;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+;         ticknames=ticknames,/ver,/right,charsize=0.6
 
 
       cgps_close
