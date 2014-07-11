@@ -19,14 +19,16 @@
 #   2014may15, DSNR, added ARGSNADWEQ
 #   2014may23, DSNR, moved ARGSMAKEMAP structure and NaD parameters 
 #                    to their own variables
+#   2014jul11, DSNR, updates to INITNAD and INITMAP structures
+#
 
-This file describes the parameters that are contained in the INITDAT
-and INITMAP structures. These structures are created in the
-initialization procedure and passed to IFSF, IFSFA, and other
-routines, and contain parameters that apply to the dataset as a whole
-(e.g., the lines to be fit or an array containing the initial redshift
-guesses for all spaxels). IFSF passes INITDAT to IFSF_FITSPEC without
-changing it.
+This file describes the parameters that are contained in the INITDAT,
+INITMAPS, and INITNAD structures. These structures are created in the
+initialization procedure and passed to IFSF, IFSFA, IFSF_MAKEMAPS,
+IFSF_FITNAD, and other routines, and contain parameters that apply to
+the dataset as a whole (e.g., the lines to be fit or an array
+containing the initial redshift guesses for all spaxels). IFSF passes
+INITDAT to IFSF_FITSPEC without changing it.
 
 =======
 INITDAT
@@ -87,7 +89,7 @@ Optional structure tags from initialization procedure:
   argspltlin1: in, optional, type=structure
     Arguments for first line plot
   argspltlin2: in, optional, type=structure
-    Arguments for first line plot
+    Arguments for second line plot
   datext: in, optional, type=integer, default=1
     Extension # for data plane in data cube.
   dividecont: in, optional, type=byte
@@ -168,23 +170,52 @@ Optional structure tags from initialization procedure:
 INITMAPS
 ========
 
+Required tags:
+  nadabsweq_snrthresh: in, required, type=double
+    Per-spaxel signal-to-noise threshold for plotting/analysis of NaD
+    absorption line data. Required only if DONAD is set in INITDAT.
+  nademweq_snrthresh: in, required, type=double
+    The same as above, but for emission line data. Required only if
+    DONAD is set in INITDAT and emission-line data is present.
+  nademflux_cbint: in, required, type=double
+    Color bar interval for mapping NaD emission line data. Required
+    only if DONAD is set in INITDAT and emission-line data is present.
+
+Misc. optional tags:
+  argslinratmaps: in, optional, type=structure
+    If set, line ratios are plotted. The following tags govern the
+    image ...
+  applyebv: in, optional, type=dblarr(maxncomp)
+    If set, extinction correction is applied in IFSF_CMPLINSPECMAPS on a
+    component-by-component basis to the Balmer lines. Set each element to
+    1 (or 0) to apply (or not apply) the correction.
   center_axes: in, optional, type=dblarr(2)
-    [centcol,centrow]
+    Coordinates of the 0-point of the map axes. Defaults to the map
+    center. Also used to define the radius maps (MAP_R, etc).
   center_nuclei: in, optional, type=dblarr(2)
-    [centcol,centrow]
+    Coordinates of the galaxy nucleus, for plotting and computation of
+    the rotation center for aligning continuum images with the IFS
+    data. Defaults to CENTER_AXES.
+  fcn_oplots: in, optional, type=string
+    Name of ancillary procedure for further plotting. This routine has
+    INITDAT, INITMAPS, and PLOTINFO as its required parameters. (See
+    IFSF_MAKEMAPS for contents of PLOTINFO.) Data can be passed from
+    IFSF_MAKEMAPS to this routine by specifying the names of variables
+    in IFSF_MAKEMAPS as keyword parameters and by listing them as
+    string variables in the array TAGS_OPLOTS (see below).
+  fluxfactor: in, optional, type=double
+    Factor by which emission-line fluxes are multiplied.
   noemlinfit: in, optional, type=byte
     Set this switch if the spectrum was not first processed with
     IFSF.
   rangefile:  in, optional, type=string
-     Full path and file name for file to manually set color scale
-     ranges for plots.
-  argslinratmaps: in, optional, type=structure
-     If set, line ratios are plotted. The following tags govern the
-     image ...
-  applyebv: in, optional, type=dblarr(maxncomp)
-     If set, extinction correction is applied in IFSF_CMPLINSPECMAPS on a
-     component-by-component basis to the Balmer lines. Set each element to
-     1 (or 0) to apply (or not apply) the correction.
+    Full path and file name for file to manually set color scale
+    ranges for plots.
+  tags_oplots: in, optional, type=strarr
+    See FCN_OPLOTS.
+
+Optional tags for continuum images:
+
   col: in, optional, type=structure
      If set, IFS continuum color image is created. The following
      tags govern the image.
@@ -193,7 +224,7 @@ INITMAPS
        and red continuum regions.
      scllim: in, required, type=dblarr(2)
        Lower and upper flux limits for byte scaling.
-     stretch: in, required, type=long
+     stretch: in, required, type=int
        Function for byte scaling data. See CGIMGSCL for a list of
        possible values.
   ct: in, optional, type=structure
@@ -203,13 +234,13 @@ INITMAPS
        Lower and upper wavelength limits for summing the continuum.
      scllim: in, required, type=dblarr(2)
        Lower and upper flux limits for byte scaling.
-     stretch: in, required, type=long
+     stretch: in, required, type=int
        Function for byte scaling data. See CGIMGSCL for a list of
        possible values.
   hst: in, optional, type=structure
      If set (along with hstbl and/or hstrd), HST continuum image is
      loaded and plotted. The following tags govern the image.
-     refcoords: in, required, type=longarr(2)
+     refcoords: in, required, type=intarr(2)
        Coordinates of reference point for aligning HST and IFS images.
      subim_sm: in, required, type=double
        Size of one side of (square) small subimage in arcseconds.
@@ -226,6 +257,12 @@ INITMAPS
      sclargs: in, required, type=structure
        Optional arguments for byte scaling routine (CGIMGSCL). If no
        arguments, then input a dummy tag.
+     photflam: in, required, type=double
+       Value for computing photometric parameters; from image header.
+       Presently required only for computing a color image.
+     photplam: in, required, type=double
+       Value for computing photometric parameters; from image header.
+       Presently required only for computing a color image.
   hstblsm: in, optional, type=structure
      If set (along with hstbl and hst), smoothed blue HST continuum
      image is created and plotted. The following tags govern the
@@ -235,7 +272,7 @@ INITMAPS
      sclargs: in, required, type=structure
        Optional arguments for byte scaling routine (CGIMGSCL). If no
        arguments, then input a dummy tag.
-     stretch: in, required, type=long
+     stretch: in, required, type=int
        Function for byte scaling data. See CGIMGSCL for a list of
        possible values.
   hstrd: in, optional, type=structure
@@ -247,6 +284,12 @@ INITMAPS
      sclargs: in, required, type=structure
        Optional arguments for byte scaling routine (CGIMGSCL). If no
        arguments, then input a dummy tag.
+     photflam: in, required, type=double
+       Value for computing photometric parameters; from image header.
+       Presently required only for computing a color image.
+     photplam: in, required, type=double
+       Value for computing photometric parameters; from image header.
+       Presently required only for computing a color image.
   hstrdsm: in, optional, type=structure
      If set (along with hstrd and hst), smoothed red HST continuum
      image is created and plotted. The following tags govern the
@@ -256,7 +299,7 @@ INITMAPS
      sclargs: in, required, type=structure
        Optional arguments for byte scaling routine (CGIMGSCL). If no
        arguments, then input a dummy tag.
-     stretch: in, required, type=long
+     stretch: in, required, type=int
        Function for byte scaling data. See CGIMGSCL for a list of
        possible values.
   hstcol: in, optional, type=structure
@@ -268,10 +311,12 @@ INITMAPS
      sclargs: in, required, type=structure
        Optional arguments for byte scaling routine (CGIMGSCL). If no
        arguments, then input a dummy tag.
-     stretch: in, required, type=long
+     stretch: in, required, type=int
        Function for byte scaling data. See CGIMGSCL for a list of
        possible values.
-  hstcol: in, optional, type=structure
+     ncbdiv: in, required, type=int
+       Number of color bar divisions for color maps.
+  hstcolsm: in, optional, type=structure
      If set (along with hstrd, hstbl, hstrdsm, and hstblsm), smoothed
      HST continuum color image is created and plotted. The following
      tags govern the image.
@@ -280,49 +325,109 @@ INITMAPS
      sclargs: in, required, type=structure
        Optional arguments for byte scaling routine (CGIMGSCL). If no
        arguments, then input a dummy tag.
-     stretch: in, required, type=long
+     stretch: in, required, type=int
        Function for byte scaling data. See CGIMGSCL for a list of
        possible values.
+     ncbdiv: in, required, type=int
+       Number of color bar divisions for color maps.
 
 
 =======
 INITNAD
 =======
 
+Required parameters:
+  fcninitpar: in, required, type=string
+    Name of function for initializing NaD + HeI fit.
+  heitie: in, required, type=dblarr(ncols,nrows)
+    Emission line to use for initializing fit of HeI 5876. If set to a
+    null string (''), no line is fit. If set to 'HeI5876', the fit is
+    not tied to another line. If set to another line that was fit with
+    IFSF (using the string name specified in IFSF_LINELIST), the
+    number of components, central line wavelength(s), and line
+    width(s) are fixed and the line fluxes are allowed to vary.
+  maxncomp: in, required, type=int
+    Maximum number of HeI, NaD absorption, or NaD emission components.
+  nadabs_siginit: in, required, type=dblarr(ncols,nrows,maxncomp)
+    Initial sigma guesses for NaD absorption line fits.
+  nadabs_siglim: in, required, type=dblarr(2)
+    Limits to sigma for NaD absorption.
+  nadabs_zinit: in, required, type=dblarr(ncols,nrows,maxncomp)
+    Initial redshift guesses for NaD absorption line fits.
+  nadem_siginit: in, required, type=dblarr(ncols,nrows,maxncomp)
+    Initial sigma guesses for NaD emission line fits.
+  nadem_siglim: in, required, type=dblarr(2)
+    Limits to sigma for NaD emission.
+  nadem_zinit: in, required, type=dblarr(ncols,nrows,maxncomp)
+    Initial redshift guesses for NaD emission line fits.
+  nnadabs: in, required, type=intarr(ncols,nrows)
+    Number of NaD absorption components to fit.
+  nnadem: in, required, type=intarr(ncols,nrows)
+    Number of NaD emission components to fit.
+
+Optional parameters:
   argsinitpar: in, optional, type=structure
     Arguments for initializing NaD + HeI fit.
   argsnadweq: in, optional, type=structure
-    Arguments for computing NaD equivalent width
+    Arguments for computing NaD equivalent width.
+    autoindices: out, optional, type=intarr(4)
+      Array indices for lower and upper wavelength limits for
+      automatically discovered NaD absorption and emission lines. Set
+      to 1 as input to retrieve output.
+    autowavelim: in, optional, type=dblarr(4)
+      Lower and upper wavelength limits for automatically searching
+      for NaD absorption and emission lines.
   argsnormnad: in, optional, type=structure
-    Arguments for normalization of NaD continuum.
+    Arguments for normalization of NaD continuum. 
+    fitranlo: in, optional, type=dblarr(2)
+      Lower and upper wavelength limits of lower range for NaD
+      continuum fit. Presently, lower limit of HeI+NaD profile fit
+      range defaults to lower limit of this range. Default:
+      (1+z)*[5810,5865]
+    fitranhi: in, optional, type=dblarr(2)
+      Lower and upper wavelength limits of upper range for NaD
+      continuum fit. Presently, upper limit of HeI+NaD profile fit
+      range defaults to lower limit of this range. Default:
+      (1+z)*[5905,5960]
   argspltfitnad: in, optional, type=structure
     Arguments for plotting NaD fit.
+    yran: in, optional, dblarr(2)
+      Flux range to plot.
   argspltnormnad: in, optional, type=structure
     Arguments for plotting normalization of NaD continuum.
-  fcninitpar: in, required, type=string
+    fitranlo: in, optional, type=dblarr(2)
+      See argsnormnad.
+    fitranhi: in, optional, type=dblarr(2)
+      See argsnormnad.
+    pltran: in, optional, dblarr(2)
+      Wavelength range to plot.
+  fcnfitnad: in, optional, type=string
     Name of function for initializing NaD + HeI fit.
-  maxncomp: in, required, type=double
-    Maximum number of HeI, NaD absorption, or NaD emission components.
-  nnadabs: in, required, type=dblarr(ncols,nrows)
-    Number of NaD absorption components to fit.
-  nnadem: in, required, type=dblarr(ncols,nrows)
-    Number of NaD emission components to fit.
+  hei_siginit: in, optional, type=dblarr(ncols,nrows,maxncomp)
+    Initial sigma guesses for HeI emission line fits. Needed if HeI
+    is fit without being tied to fits of other lines.
+  hei_zinit: in, optional, type=dblarr(ncols,nrows,maxncomp)
+    Initial redshift guesses for HeI emission line fits. Needed if HeI
+    is fit without being tied to fits of other lines.
+  heitiecol: in, optional, type=intarr(ncols,nrows)
+    Column number of spaxel to which to tie the HeI fit.
+  heitierow: in, optional, type=intarr(ncols,nrows)
+    Row number of spaxel to which to tie the HeI fit.
+  nadem_finit: in, optional, type=dblarr(ncols,nrows,maxncomp), default=0.1d
+    Initial flux peak guesses for NaD emission line fits.
+  nadem_fitinit: in, optional, type=byte
+    Flag to enable a "first fit" of NaD emission only; wavelengths
+    blueward of the emission region detected with IFSF_CMPNADWEQ are
+    set to 1.
+  nadem_fix: in, optional, type=bytarr(ncols,nrows,maxncomp,4)
+    Array of fix/free flags for NaD emission line parameters. 0=free, 1=fix
+  nadem_rinit: in, optional, type=dblarr(ncols,nrows,maxncomp), default=1.5d
+    Initial flux ratio guesses for NaD emission line fits.
+  nhei: in, optional, type=intarr(ncols,nrows)
+    Number of HeI components to fit. Needed if HeI is fit without
+    being tied to fits of other lines.
   noemlinfit: in, optional, type=byte
     Set this switch if the spectrum was not first processed with
     IFSF.
-  heitie: in, required, type=dblarr(ncols,nrows)
-    Emission line to use for initializing fit of HeI 5876.
-  nadabs_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
-    Initial redshift guesses for NaD absorption line fits.
-  nadem_zinit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
-    Initial redshift guesses for NaD emission line fits.
-  nadabs_siginit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
-    Initial sigma guesses for NaD absorption line fits.
-  nadem_siginit: in, required, type=dblarr(ncols,nrows,nad_maxncomp)
-    Initial sigma guesses for NaD emission line fits.
-  nadabs_siglim: in, required, type=dblarr(2)
-    Limits to sigma for NaD absorption.
-  nadem_siglim: in, required, type=dblarr(2)
-    Limits to sigma for NaD emission.
   taumax: in, optional, type=double, default=5
     Optical depth upper limit for NaD fitting.

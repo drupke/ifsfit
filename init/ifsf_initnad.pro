@@ -27,11 +27,11 @@
 ;    inithei: in, required, type=dblarr(N,3)
 ;      Initial values for HeI 5876 line parameters (wavelength in A, sigma in 
 ;      km/s, and peak flux) for each of N components.
-;    initnadabs: in, required, type=dblarr(M,3)
+;    initnadabs: in, required, type=dblarr(M,4)
 ;      Initial values for NaD absorption line parameters (covering factor, 
 ;      optical depth of D2, wavelength in A of D2, sigma in km/s) for each of 
 ;      M components.
-;    initnadem: in, required, type=dblarr(L,3)
+;    initnadem: in, required, type=dblarr(L,4)
 ;      Initial values for NaD emission line parameters (wavelength in A of D2, 
 ;      sigma in km/s, peak flux of D2, and flux ratio D2/D1) for each of L 
 ;      components.
@@ -136,13 +136,11 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_w].limited[1] = 1B
       parinfo[ind_w].limits[0] = inithei[*,0]-10d
       parinfo[ind_w].limits[1]  = inithei[*,0]+10d
-      parinfo[ind_w].fixed = 1B
       parinfo[ind_s].limited[0] = 1B
       parinfo[ind_s].limited[1] = 1B
       if ~ keyword_set(siglimhei) then siglimhei=[50d,1000d]
       parinfo[ind_s].limits[0] = siglimhei[0]
       parinfo[ind_s].limits[1]  = siglimhei[1]
-      parinfo[ind_s].fixed = 1B
       if keyword_set(heifix) then $
          parinfo[ilo:ilo+nhei*3-1].fixed = reform(transpose(heifix),nhei*3)
 ;     Labels
@@ -218,7 +216,6 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_r].limited[1] = 1B
       parinfo[ind_r].limits[0]  = 1d
       parinfo[ind_r].limits[1]  = tratio
-      parinfo[ind_r].fixed = 1b
       if keyword_set(nademfix) then $
          parinfo[ilo:ilo+nnadem*4-1].fixed = reform(transpose(nademfix),nnadem*4)
 ;     Labels

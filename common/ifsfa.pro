@@ -258,14 +258,15 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     outfile+'_nad_norm'
 ;          Compute empirical equivalent widths and emission-line fluxes
            emflux=dblarr(2)
+           emul=dblarr(4)+bad
            if tag_exist(initnad,'argsnadweq') then $
               weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
                                    snflux=normnadem.nflux,unerr=normnadem.nerr,$
-                                   emflux=emflux,$
+                                   emflux=emflux,emul=emul,$
                                    _extra=initnad.argsnadweq) $
            else weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
                                      snflux=normnadem.nflux,unerr=normnadem.nerr,$
-                                     emflux=emflux)
+                                     emflux=emflux,emul=emul)
 ;          Compute empirical velocities
            size_weq = size(weq)
            if size_weq[0] eq 2 then begin
@@ -279,18 +280,24 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            if firstnadnorm then begin
               nadcube = $
                  {wave: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
+                  cont: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
                   dat: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
                   err: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
                   weq: dblarr(cube.ncols,cube.nrows,4)+bad,$
+                  iweq: dblarr(cube.ncols,cube.nrows,4)+bad,$
                   emflux: dblarr(cube.ncols,cube.nrows,2)+bad,$
+                  emul: dblarr(cube.ncols,cube.nrows,4)+bad,$
                   vel: dblarr(cube.ncols,cube.nrows,6)+bad}
               firstnadnorm = 0
            endif
            nadcube.wave[i,j,*] = normnad.wave
+           nadcube.cont[i,j,*] = struct.cont_fit[normnad.ind]
            nadcube.dat[i,j,*] = normnad.nflux
            nadcube.err[i,j,*] = normnad.nerr
            nadcube.weq[i,j,*] = weq[*,0]
+           nadcube.iweq[i,j,*] = weq[*,1]
            nadcube.emflux[i,j,*] = emflux
+           nadcube.emul[i,j,*] = emul
            nadcube.vel[i,j,*] = vel
         endif
 

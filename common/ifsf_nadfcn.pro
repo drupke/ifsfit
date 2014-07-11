@@ -29,7 +29,10 @@
 ;      subsequent elements being the equivalent widths of separate components.
 ;    nademflux: in, optional, type=dblarr(nnadem+1)
 ;      Returns flux of NaD emission. The first element is the total flux and
-;      subsequent elements are the fluxes of separate components.
+;      subsequent elements are the fluxes of separate components. Requires 
+;      continuum, as well.
+;    cont: in, optional, type=dblarr(N)
+;      Continuum used to originally normalize data for fits.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -44,7 +47,8 @@
 ;      2014may09, DSNR, created
 ;      2014may14, DSNR, removed floating underflow
 ;      2014jun10, DSNR, cleaned up treatment of optional individual component 
-;                       outputs; added optional computation of Weq
+;                       outputs; added optional computation of Weq and emission
+;                       line flux
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -65,7 +69,8 @@
 ;
 ;-
 function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
-                      modnadem=modnadem, weq=weq
+                      modnadem=modnadem, weq=weq, nademflux=nademflux, $
+                      cont=cont
 
    c = 299792.458d
 ;  NaD wavelength ratio (red to blue)
@@ -128,19 +133,22 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
          absweq = dblarr(nnadabs+1)
          for i=0,nnadabs-1 do $
             absweq[i+1] = total((1d - modnadabs[1:nwave-1,i])*dwave)
-         absweq[0] = total(absweq[1:nnadabs])
+;        Total NaD equivalent width has to be calculated from full absorption
+;        spectrum, rather than taken as the total of separate components.
+         absweq[0] = total((1d - modtmp[1:nwave-1])*dwave)
       endif else absweq=0d
       weq = {em: emweq,abs: absweq}
    endif
-;   if keyword_set(nademflux) then begin
-;      dwave = wave[1:nwave-1] - wave[0:nwave-2]
-;      if nnadem gt 0 then begin
-;         nademflux = dblarr(nnadem+1)
-;         for i=0,nnadem-1 do $
-;            nademflux[i+1] = total((modnadem[1:nwave-1,i])*dwave)
-;         emweq[0] = total(emweq[1:nnadem])
-;      endif else nademflux=0d
-;   endif
+   if keyword_set(nademflux) AND keyword_set(cont) then begin
+      dwave = wave[1:nwave-1] - wave[0:nwave-2]
+      if nnadem gt 0 then begin
+         nademflux = dblarr(nnadem+1)
+         for i=0,nnadem-1 do $
+            nademflux[i+1] = $
+               total((modnadem[1:nwave-1,i]*cont[1:nwave-1]-cont[1:nwave-1])*dwave)
+         nademflux[0] = total(nademflux[1:nnadem])
+      endif else nademflux=0d
+   endif else nademflux=0d
    
    return,modflux
 

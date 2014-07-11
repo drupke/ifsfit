@@ -39,7 +39,22 @@
 ;      resolution element of ~5 pixels at 6000 A (based on 0.46 A dispersion 
 ;      and interpolating blaze resolutions of 1688 and 3744 at 461 and 926 nm, 
 ;      respectively).
-; 
+;    emflux: out, optional, type=dblarr(2)
+;      Emission line flux and error. The former also requires the subtraction-
+;      normalized spectrum (SNFLUX) and the latter the un-normalized flux
+;      (UNERR).
+;    emul: out, optional, type=dblarr(4)
+;      Estimates for upper limits to emission line equivalent width, error, 
+;      flux, and error. If absorption line is detected but no emission line, 
+;      integrate over specified wavelength range to get upper limits.
+;    emwid: in, optional, type=double, default=15d
+;      Wavelength range over which to integrate to estimate upper limit for 
+;      emission line equivalent width and flux.
+;    snflux: in, optional, type=dblarr(N)
+;      Subtraction-normalized flux array.
+;    unerr: in, optional, type=dblarr(N)
+;      Un-normalized error array.
+;      
 ; :Author:
 ;    David S. N. Rupke::
 ;      Rhodes College
@@ -51,6 +66,8 @@
 ; :History:
 ;    ChangeHistory::
 ;      2014may14, DSNR, created
+;      2014junXY, DSNR, added ability to output emission line flux
+;      2014jun18, DSNR, added ability to output emission line flux upper limits
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -70,10 +87,10 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_cmpnadweq,wave,flux,err,wavelim=wavelim,$
-                        autowavelim=autowavelim,$
-                        smoothkernel=smoothkernel,$
-                        snflux=snflux,unerr=unerr,emflux=emflux
+function ifsf_cmpnadweq,wave,flux,err,$
+                        autowavelim=autowavelim,emflux=emflux,emul=emul,$
+                        smoothkernel=smoothkernel,snflux=snflux,unerr=unerr,$
+                        wavelim=wavelim,emwid=emwid
    
    
    if ~ keyword_set(smoothkernel) then smoothkernel=5l
@@ -170,6 +187,24 @@ function ifsf_cmpnadweq,wave,flux,err,wavelim=wavelim,$
                                  (wave[iemlo:iemup]-wave[iemlo-1:iemup-1]))) $
          else fl_em_e = 0d
          emflux = [fl_em,fl_em_e]
+      endif
+   endif else if keyword_set(emul) AND ctabs gt 1 then begin
+      weq_em = 0d
+      weq_em_e = 0d
+      emul=dblarr(4)
+      ilo = iabsup+2
+      if ~ keyword_set(emwid) then emwid = 15d
+      iup = value_locate(wave,wave[ilo]+emwid)
+      emul[0] = total((1d -flux[ilo:iup])*$
+                      (wave[ilo:iup]-wave[ilo-1:iup-1]))
+      emul[1] = sqrt(total(err[ilo:iup]^2*$
+                           (wave[ilo:iup]-wave[ilo-1:iup-1])))
+      if keyword_set(snflux) AND keyword_set(emflux) then begin
+         emul[2] = total(snflux[ilo:iup]*$
+                         (wave[ilo:iup]-wave[ilo-1:iup-1]))
+         if keyword_set(unerr) then $
+            emul[3] = sqrt(total(unerr[ilo:iup]^2*$
+                                 (wave[ilo:iup]-wave[ilo-1:iup-1])))
       endif
    endif else begin
       weq_em = 0d

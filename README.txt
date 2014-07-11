@@ -10,7 +10,8 @@ stellar continuum (using a user-defined library of stellar templates
 and including additive polynomials), or optionally a user-defined
 method to find the best fit continuum. It uses MPFIT to simultaneously
 fit Gaussians to any number of emission lines and emission line
-velocity components.
+velocity components. It will also fit the NaI D feature using analytic
+absorption and/or emission-line profiles.
 
 -------------------------------------------------------------------------
 REQUIREMENTS
@@ -19,15 +20,25 @@ REQUIREMENTS
 IDL v8.0 or higher (tested with v8.3)
 
 IDL libraries:
-- IDL Astronomy User's Library
+- IDL Astronomy User's Library, for various routines
   http://idlastro.gsfc.nasa.gov
-- MPFIT
+- MPFIT, for non-linear least-squares fitting
   http://www.physics.wisc.edu/~craigm/idl/idl.html
-- Coyote
+- Coyote, for graphics
   http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
   [or from the subversion repository: https://code.google.com/p/idl-coyote/]
 - PPXF
   http://www-astro.physics.ox.ac.uk/~mxc/software/#ppxf
+- IDLUTILS, primarily for structure manipulation tasks (e.g.,
+  STRUCT_ADDTAGS).
+  http://www.sdss3.org/dr8/software/idlutils.php
+
+Note that the IDL Astronomy User's Library ships with some Coyote
+routines, and IDLUTILS ships with the IDL Astronomy User's Library and
+MPFIT. However, it's not clear how well these libraries keep track of
+each other, so it may be preferable to download each package
+separately and delete the redundant routines that ship within other
+packages.
 
 To fit stellar continua, templates are required. E.g., the population
 synthesis models from Gonzalez-Delgado et al. (2005, MNRAS, 357, 945)
@@ -42,8 +53,8 @@ into a form readable by IFSF.
 USAGE
 -------------------------------------------------------------------------
 
-Usage is in principle straigtforward. The routine is run from the
-command line as
+Usage is in principle straigtforward. The continuum and emission-line
+fitting is run from the command line as
 
 > IFSF,'initialization_file' [,cols=[low,high],rows=[low,high], etc.]
 
@@ -53,16 +64,34 @@ and then the results are processed using
 
 The latter produces plots of the lines fit, a table of emission line
 parameters and a table of fit results, and an IDL save file containing
-a "data cube" of emission line parameters.
+a "data cube" of emission line parameters. If desired, it will also
+normalize the continuum around NaI D 5890, 5896 and estimate various
+parameters of this feature.
 
 The initialization file defines an IDL function that returns an
-initialization structure. The tags of this structure, and a
+initialization structure, INITDAT. The tags of this structure, and a
 description of each one, are found in INITTAGS.txt. Several tags are
 required, but most are optional.
 
-In practice, there are a considerable number of knobs that can be
-turned to optimize/customize the fit and customize the output. An
-example initialization file is included (init/IFSF_F05189.pro).
+The output of IFSFA can be further processed into parameter maps using
+IFSF_MAKEMAPS. This routine produces various emission-line, continuum,
+and absorption-line maps. IFSF_MAKEMAPS looks for an initialization
+structure, INITMAPS, which is also defined in the initialization
+file. The possible tags for INITMAPS are described in INITTAGS.txt.
+
+Finally, the region around the NaI D feature can be fit using
+IFSF_FITNAD. This routine fits emission and absorption-line models to
+HeI 5876 and NaI D 5890, 5896 and produces plots of the fits and a
+"data cube" with fit parameters. The routine also estimates errors
+using Monte Carlo methods. The error estimation can be sped up using
+multi-core parallel processing. IFSF_FITNAD looks for an
+initialization structure, INITNAD, which is also defined in the
+initialization file. The possible tags for INITNAD are described in
+INITTAGS.txt.
+
+There are a considerable number of knobs that can be turned to
+optimize/customize the fits and customize the outputs. An example
+initialization file is included (init/IFSF_F05189.pro).
 
 The other user-modifiable initialization procedure that is required is
 one that sets the initial emission-line parameter structure for input
@@ -100,7 +129,7 @@ Modifications are encouraged, but subject to the license.
 LICENSE AND COPYRIGHT
 -------------------------------------------------------------------------
 
-Copyright (C) 2014 David S. N. Rupke
+Copyright (C) 2013-2014 David S. N. Rupke
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

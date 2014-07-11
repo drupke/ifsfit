@@ -332,7 +332,21 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   rangefile: '/Users/drupke/ifs/gmos/maps/'+$
                              'f05189/rb2/ranges.txt',$
                   argslinratmaps: argslinratmaps,$
+                  fluxfactor: 100d/3.5d,$
 ;                  applyebv: [1,0,0],$
+                  nadabsweq_snrthresh: 1d,$
+                  nademweq_snrthresh: 1d,$
+                  nademflux_cbint: 0.5d,$
+                  fcn_oplots: 'ifsf_makemaps_f05189',$
+                  tags_oplots: ['nadcube',$
+                                'nadfit',$
+                                'cshst_fov_rb',$
+                                'nadabsnhdat',$
+                                'nadabsnherr',$
+                                'nadabsncomp',$
+                                'map_rkpc_hst',$
+                                'cshst_fov_ns',$
+                                'map_rkpc_ifs'],$
                   col: {sumrange: [4900,5000,6650,6750],$
                         scllim: [-0.1,0.2],$
                         stretch: 1},$
@@ -346,23 +360,29 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   hstbl: {file: '/Users/drupke/ifs/gmos/ancillary/hst/'+$
                                 'f05189/f05189_acs_435w.fits',$
                           scllim: [0.01,100],$
-                          sclargs: {beta: 0.05}},$
+                          sclargs: {beta: 0.05},$
+                          photflam: 3.1840413d-19,$
+                          photplam: 4318.8672},$
                   hstblsm: {scllim: [0,10],$
                             sclargs: {beta: 0.5},$
                             stretch: 5},$
                   hstrd: {file: '/Users/drupke/ifs/gmos/ancillary/hst/'+$
                                 'f05189/f05189_acs_814w.fits',$
                           scllim: [0.01,100],$
-                          sclargs: {beta: 0.05}},$
+                          sclargs: {beta: 0.05},$
+                          photflam: 7.0331898e-20,$
+                          photplam: 8056.944},$
                   hstrdsm: {scllim: [0,20],$
                             sclargs: {beta: 0.5},$
                             stretch: 5}, $
-                  hstcol: {scllim: [0,1],$
+                  hstcol: {scllim: [0.5,2.5],$
                            stretch: 1,$
-                           sclargs: {dumy: 1}},$
-                  hstcolsm: {scllim: [0.3,0.8],$
+                           sclargs: {dumy: 1},$
+                           ncbdiv: 4},$
+                  hstcolsm: {scllim: [0.8,1.8],$
                              stretch: 1,$
-                             sclargs: {dumy: 1}}$
+                             sclargs: {dumy: 1},$
+                             ncbdiv: 5}$
                  }
    endif
 
@@ -379,7 +399,6 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 
 ;     Initialize n_comps, z_inits, and sig_inits.
 ;     Use 1 HeI component w/in a circular region
-      nhei = dblarr(ncols,nrows)+0      
       heitie = strarr(ncols,nrows)
       heitie[11,13:16]='HeI6678'
       heitie[12,12:17]='HeI6678'
@@ -394,18 +413,58 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       hei_siginit = dblarr(ncols,nrows,nad_maxncomp)
 
       nnadabs = dblarr(ncols,nrows)
-;      nnadabs[11,6] = 1
-;      nnadabs[11,7:19] = 2
-      nnadabs[12,4:19] = 2
-      nnadabs[12,20:21] = 1
-      nnadabs[13,4] = 1
-      nnadabs[13,5:18] = 2
-      nnadabs[13,19:20] = 1
-      nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.043
-      nadabs_zinit[*,*,1] = 0.042
+      nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.042
+      nadabs_zinit[*,*,1] = 0.041
       nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
       nadabs_siginit[*,*,1] = 300d
       nadabs_siglim = [299792d/3000d/2.35d,1000d]
+
+      nnadabs[3,8:17] = 1
+      nnadabs[4,6:11] = 1
+      nnadabs[4,12:15] = 2
+      nnadabs[4,16:17] = 1
+      nnadabs[5,5:10] = 1
+      nnadabs[5,11:17] = 2
+      nnadabs[5,18:19] = 1
+      nnadabs[6,5:7] = 1
+      nnadabs[6,8:17] = 2
+      nnadabs[6,18:19] = 1
+      nnadabs[7,5:7] = 1
+      nnadabs[7,8:18] = 2
+      nnadabs[7,19:20] = 1
+      nnadabs[8,4:5] = 1
+      nnadabs[8,6:19] = 2
+      nnadabs[8,20] = 1
+      nnadabs[9,3:5] = 1
+      nnadabs[9,6:20] = 2
+      nnadabs[9,21] = 1
+      nnadabs[10,3:5] = 1
+      nnadabs[10,6:19] = 2
+      nnadabs[10,20:21] = 1
+      nnadabs[11,3:5] = 1
+      nnadabs[11,6:19] = 2
+      nnadabs[11,20:21] = 1
+      nnadabs[12,4:19] = 2
+      nnadabs[12,20:21] = 1      
+      nnadabs[13,4] = 1
+      nnadabs[13,5:18] = 2
+      nnadabs[13,19:20] = 1
+      nnadabs[14,3:6] = 1
+      nnadabs[14,7:18] = 2
+      nnadabs[14,19] = 1
+      nnadabs[15,3:5] = 1
+      nnadabs[15,6:18] = 2
+      nnadabs[15,19] = 1
+      nnadabs[16,2:5] = 1
+      nnadabs[16,6:17] = 2
+      nnadabs[16,18:19] = 1
+      nnadabs[17,1:6] = 1
+      nnadabs[17,7:16] = 2
+      nnadabs[17,17:18] = 1
+      nnadabs[18,2:18] = 1
+      nnadabs[19,6:16] = 1
+      nnadabs[20,6:15] = 1
+      nnadabs[21,8:13] = 1
 
       nnadem = dblarr(ncols,nrows)
       nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044d
@@ -415,25 +474,42 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       nadem_siglim = [299792d/3000d/2.35d,750d]
       nadem_fix = bytarr(ncols,nrows,nad_maxncomp,4)
 
-      nnadem[12,0:5]=1
-      nnadem[12,22:26]=1
-;     Initialization from spaxel [13,5]
-      nadem_fix[12,5,0,*] = [0b,1b,1b,1b]
-      nadem_siginit[12,5,0] = 219.40d
-      nadem_finit[12,5,0] = 0.0843d
-      nadem_rinit[12,5,0] = 1d
-      nnadem[13,0:4]=1
-      nnadem[13,21:26]=1
-;     Initialization from spaxel [14,4]
-      nadem_fix[13,4,0,*] = [0b,1b,1b,1b]
-      nadem_siginit[13,4,0] = 200.98d
-      nadem_finit[13,4,0] = 0.0644d
-      nadem_rinit[13,4,0] = 2.0093d
-;      nnadem[16,*]=1
-;      nnadem[16,8:14]=0
-;      nnadem[18,*]=1
-;      nnadem[19,*]=1
-;      nnadem[21,*]=1
+;      nadem_rinit[*,*,*] = 2.0093d
+      nadem_rinit[*,*,*] = 1d
+      nadem_fix[*,*,*,3] = 1
+
+      nnadem[0,9:15]=1
+      nnadem[1,12:17]=1
+      nnadem[2,9:19]=1
+      nnadem[3:9,*]=1
+      nnadem[1:5,26]=0
+      nnadem[10:15,0:6]=1
+      nnadem[10:15,22:26]=1
+      nnadem[13,20:21]=1
+      nnadem[14,7]=1
+      nnadem[14,18:21]=1
+      nnadem[15,15:21]=1
+      nnadem[16,0:2]=1
+      nnadem[16,4:5]=1
+      nnadem[16,13]=1
+      nnadem[16,15:26]=1
+      nnadem[17,0:5]=1
+      nnadem[17,13:26]=1
+      nnadem[18,0:5]=1
+      nnadem[18,12:26]=1
+      nnadem[19,0:4]=1
+      nnadem[19,12:26]=1
+      nnadem[20,0:5]=1
+      nnadem[20,11:26]=1
+      nnadem[21,2:7]=1
+      nnadem[21,11:26]=1
+      nnadem[22,2:4]=1
+      nnadem[22,11:26]=1
+      nnadem[23,3:26]=1
+      nnadem[24,5:8]=1
+      nnadem[24,12:26]=1
+      nnadem[25,16:22]=1
+      nnadem[26,15:24]=1
 
       initnad = {$
                  argsnadweq: {autowavelim: [6110,6160,6140,6180],$
@@ -443,9 +519,10 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                  argspltnormnad: {fitranlo: normnadlo,$
                                   fitranhi: normnadhi,$
                                   pltran: pltnormnad},$
+                 argspltfitnad: {yran: [0,2]},$
                  fcnfitnad: 'ifsf_nadfcn',$
                  fcninitpar: 'ifsf_initnad',$
-                 fitran: [6080,6180],$
+                 maxncomp: nad_maxncomp,$
 ;                NaD absorption
                  nnadabs: nnadabs,$
                  nadabs_zinit: nadabs_zinit,$
@@ -453,6 +530,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                  nadabs_siglim: nadabs_siglim,$
 ;                NaD emission
                  nnadem: nnadem,$
+                 nadem_fitinit: 1,$
                  nadem_zinit: nadem_zinit,$
                  nadem_siginit: nadem_siginit,$
                  nadem_finit: nadem_finit,$
@@ -460,7 +538,6 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                  nadem_siglim: nadem_siglim,$
                  nadem_fix: nadem_fix,$
 ;                HeI
-                 nhei: nhei,$
                  hei_zinit: hei_zinit,$
                  hei_siginit: hei_siginit,$
                  heitiecol: heitiecol,$

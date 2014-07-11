@@ -48,6 +48,7 @@
 ;      2014may27, DSNR, added output of un-normalized error and 
 ;                       subtraction-normalized flux; converted output to a 
 ;                       structure
+;      2014jun10, DSNR, now outputs indices into original arrays, as well
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -68,7 +69,7 @@
 ;
 ;-
 function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
-                     fitranlo=fitranlo,fitranhi=fitranhi,subtract=subtract
+                      fitranlo=fitranlo,fitranhi=fitranhi,subtract=subtract
 
    if ~ keyword_set(fitord) then fitord=2
    if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
@@ -96,7 +97,8 @@ function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
          flux: unflux,$
          err: unerr,$
          nflux: nflux,$
-         nerr: nerr}
+         nerr: nerr,$
+         ind: igd}
          
   return,out
 
