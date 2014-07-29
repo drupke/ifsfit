@@ -92,6 +92,8 @@ function ifsf_cmpnadweq,wave,flux,err,$
                         smoothkernel=smoothkernel,snflux=snflux,unerr=unerr,$
                         wavelim=wavelim,emwid=emwid
    
+   snrabsthresh=1.6d
+   snremthresh=-1.6d
    
    if ~ keyword_set(smoothkernel) then smoothkernel=5l
    
@@ -134,8 +136,8 @@ function ifsf_cmpnadweq,wave,flux,err,$
       serr_em=serr[i1em:i2em]
       snr_em=snr[i1em:i2em]
 ;     find significant absorption/emission features
-      iabs = where(snr_abs ge 1d,ctabs)
-      iem = where(snr_em le -1d,ctem)
+      iabs = where(snr_abs ge snrabsthresh,ctabs)
+      iem = where(snr_em le snremthresh,ctem)
 ;     Make sure more than one point is found, and then assign lower and upper
 ;     indices of range based on lowest wavelength and highest wavelength points
 ;     found. The extra bit of logic makes sure that the indices don't stray

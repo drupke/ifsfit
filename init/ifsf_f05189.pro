@@ -332,21 +332,29 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   rangefile: '/Users/drupke/ifs/gmos/maps/'+$
                              'f05189/rb2/ranges.txt',$
                   argslinratmaps: argslinratmaps,$
-                  fluxfactor: 100d/3.5d,$
+                  fluxfactor: 100d,$
 ;                  applyebv: [1,0,0],$
-                  nadabsweq_snrthresh: 1d,$
-                  nademweq_snrthresh: 1d,$
+                  nadabsweq_snrthresh: 3d,$
+                  nademweq_snrthresh: 3d,$
                   nademflux_cbint: 0.5d,$
                   fcn_oplots: 'ifsf_makemaps_f05189',$
                   tags_oplots: ['nadcube',$
                                 'nadfit',$
+                                'initnad',$
                                 'cshst_fov_rb',$
-                                'nadabsnhdat',$
-                                'nadabsnherr',$
                                 'nadabsncomp',$
                                 'map_rkpc_hst',$
                                 'cshst_fov_ns',$
-                                'map_rkpc_ifs'],$
+                                'map_rkpc_ifs',$
+                                'ctcube',$
+                                'nadabsnh','errnadabsnh',$
+                                'nadabscnh','errnadabscnh',$
+                                'nadabssig','nademsig',$
+                                'nadabsvel','nademvel',$
+                                'nadabsv98','nademv98',$
+                                'errnadabsvel','errnademvel',$
+                                'nadabscf','errnadabscf',$
+                                'nadabstau','errnadabstau'],$
                   col: {sumrange: [4900,5000,6650,6750],$
                         scllim: [-0.1,0.2],$
                         stretch: 1},$
@@ -418,6 +426,23 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
       nadabs_siginit[*,*,1] = 300d
       nadabs_siglim = [299792d/3000d/2.35d,1000d]
+      nadabs_fix = bytarr(ncols,nrows,nad_maxncomp,4)
+      nadabs_cfinit = dblarr(ncols,nrows,nad_maxncomp)+0.5d
+      nadabs_tauinit = dblarr(ncols,nrows,nad_maxncomp)+0.5d
+
+;     These parameters are from the average of spaxels [17,13], [17,14],
+;     [16,14], and [16,15]. Note that one also has to set nadem_fitinit=0 for 
+;     this to work properly.
+;      nadabs_fix[16,17,*,*]=1b
+;      nadabs_cfinit[16,17,0:1]=[0.15d,0.25d]
+;      nadabs_tauinit[16,17,0:1]=[1.48,0.1d]
+;      nadabs_zinit[16,17,0:1]=[0.0424d,0.0414d]
+;      nadabs_siginit[16,17,0:1]=[69d,288d]
+      
+      nadabs_zinit[17,10:12,0] = 0.0425d
+      nadabs_siginit[17,10:12,0] = 75d
+      nadabs_zinit[18,9:13,0] = 0.0425d
+      nadabs_siginit[18,9:13,0] = 75d
 
       nnadabs[3,8:17] = 1
       nnadabs[4,6:11] = 1
@@ -461,55 +486,99 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       nnadabs[17,1:6] = 1
       nnadabs[17,7:16] = 2
       nnadabs[17,17:18] = 1
-      nnadabs[18,2:18] = 1
+      nnadabs[18,2:8] = 1
+      nnadabs[18,9:13] = 2
+      nnadabs[18,14:18] = 1
       nnadabs[19,6:16] = 1
       nnadabs[20,6:15] = 1
       nnadabs[21,8:13] = 1
 
       nnadem = dblarr(ncols,nrows)
       nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.044d
-      nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
+;      nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
+      nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+75d
       nadem_finit = dblarr(ncols,nrows,nad_maxncomp)+0.1d
       nadem_rinit = dblarr(ncols,nrows,nad_maxncomp)+1.5d
       nadem_siglim = [299792d/3000d/2.35d,750d]
       nadem_fix = bytarr(ncols,nrows,nad_maxncomp,4)
 
-;      nadem_rinit[*,*,*] = 2.0093d
+;      nadem_rinit[*,*,*] = 2.005d
       nadem_rinit[*,*,*] = 1d
-      nadem_fix[*,*,*,3] = 1
+      nadem_fix[*,*,*,3] = 1b
 
-      nnadem[0,9:15]=1
+;     Regions where we don't fix the emission line ratio
+      nadem_fix[5:6,2,*,3] = 0b
+      nadem_fix[6:8,1,*,3] = 0b
+
+      nadem_fix[3,22:25,*,3] = 0b
+      nadem_fix[4,20:24,*,3] = 0b
+      nadem_fix[5,21:24,*,3] = 0b
+      nadem_fix[6,21:24,*,3] = 0b
+      nadem_fix[7,22:25,*,3] = 0b
+      nadem_fix[8,22:23,*,3] = 0b
+      nadem_fix[8:10,25,*,3] = 0b
+
+;      nadem_fix[13,23,*,3] = 0b
+;      nadem_fix[15,24,*,3] = 0b
+;      nadem_fix[17,22,*,3] = 0b
+      nadem_fix[19,23,*,3] = 0b
+      nadem_fix[20,20:23,*,3] = 0b
+      nadem_fix[21,21:22,*,3] = 0b
+      nadem_fix[22,15:17,*,3] = 0b
+      nadem_fix[22,19:20,*,3] = 0b
+      nadem_fix[22,22,*,3] = 0b
+      nadem_fix[23,17:18,*,3] = 0b
+      nadem_fix[24,16:21,*,3] = 0b
+      nadem_fix[20:24,24,*,3] = 0b
+
+      nadem_zinit[0:8,0:2,0]=0.043d
+      nadem_zinit[0:4,0:5,0]=0.043d
+      nadem_zinit[0:8,19:nrows-1,0]=0.043d
+      nadem_zinit[9:11,24:nrows-1,0]=0.043d
+      nadem_zinit[12:14,23:nrows-1,0]=0.043d
+      nadem_zinit[15:17,20:nrows-1,0]=0.043d
+      nadem_zinit[18:22,18:nrows-1,0]=0.043d
+      nadem_zinit[23:26,*,0]=0.043d
+
+;      nnadem[0,9:15]=1
       nnadem[1,12:17]=1
       nnadem[2,9:19]=1
-      nnadem[3:9,*]=1
-      nnadem[1:5,26]=0
+      nnadem[3:9,0:25]=1
+      nnadem[4:8,1]=0
       nnadem[10:15,0:6]=1
-      nnadem[10:15,22:26]=1
+      nnadem[14,6]=0
+      nnadem[10:15,22:25]=1
       nnadem[13,20:21]=1
-      nnadem[14,7]=1
+;      nnadem[14,7]=1
       nnadem[14,18:21]=1
       nnadem[15,15:21]=1
       nnadem[16,0:2]=1
       nnadem[16,4:5]=1
       nnadem[16,13]=1
-      nnadem[16,15:26]=1
+      nnadem[16,15:25]=1
       nnadem[17,0:5]=1
-      nnadem[17,13:26]=1
+      nnadem[17,13:25]=1
       nnadem[18,0:5]=1
-      nnadem[18,12:26]=1
+      nnadem[18,12:25]=1
       nnadem[19,0:4]=1
-      nnadem[19,12:26]=1
+      nnadem[19,12:25]=1
       nnadem[20,0:5]=1
-      nnadem[20,11:26]=1
+      nnadem[20,11:25]=1
       nnadem[21,2:7]=1
-      nnadem[21,11:26]=1
+      nnadem[21,11:25]=1
       nnadem[22,2:4]=1
-      nnadem[22,11:26]=1
-      nnadem[23,3:26]=1
+      nnadem[22,11:25]=1
+      nnadem[23,3:25]=1
       nnadem[24,5:8]=1
-      nnadem[24,12:26]=1
+      nnadem[24,12:25]=1
       nnadem[25,16:22]=1
-      nnadem[26,15:24]=1
+;      nnadem[26,15:24]=1
+
+;     Trying to understand upper limits for errors due to 
+;     absorption/emission mixing
+;      nadem_zinit[16,*,0]=0.043d
+;      nadem_fix[16,*,0,0]=1b
+;      nnadabs[16,*]=1
 
       initnad = {$
                  argsnadweq: {autowavelim: [6110,6160,6140,6180],$
@@ -523,19 +592,27 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                  fcnfitnad: 'ifsf_nadfcn',$
                  fcninitpar: 'ifsf_initnad',$
                  maxncomp: nad_maxncomp,$
+                 mcniter: 1000,$
+;                 outxdr: '/Users/drupke/specfits/gmos/f05189/rb2/'+$
+;                          'f05189.nadfit_emoptthin.xdr',$
+;                 outxdr: '/Users/drupke/specfits/gmos/f05189/rb2/'+$
+;                          'f05189.nadfit_emoptthick.xdr',$
 ;                NaD absorption
                  nnadabs: nnadabs,$
+                 nadabs_cfinit: nadabs_cfinit,$
+                 nadabs_tauinit: nadabs_tauinit,$
                  nadabs_zinit: nadabs_zinit,$
                  nadabs_siginit: nadabs_siginit,$
                  nadabs_siglim: nadabs_siglim,$
+                 nadabs_fix: nadabs_fix,$
 ;                NaD emission
                  nnadem: nnadem,$
                  nadem_fitinit: 1,$
                  nadem_zinit: nadem_zinit,$
                  nadem_siginit: nadem_siginit,$
+                 nadem_siglim: nadem_siglim,$
                  nadem_finit: nadem_finit,$
                  nadem_rinit: nadem_rinit,$
-                 nadem_siglim: nadem_siglim,$
                  nadem_fix: nadem_fix,$
 ;                HeI
                  hei_zinit: hei_zinit,$

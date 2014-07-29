@@ -348,6 +348,8 @@ Required parameters:
     width(s) are fixed and the line fluxes are allowed to vary.
   maxncomp: in, required, type=int
     Maximum number of HeI, NaD absorption, or NaD emission components.
+  mcniter: in, required, type=int
+    Number of iterations in Monte Carlo error simulations.
   nadabs_siginit: in, required, type=dblarr(ncols,nrows,maxncomp)
     Initial sigma guesses for NaD absorption line fits.
   nadabs_siglim: in, required, type=dblarr(2)
@@ -413,6 +415,10 @@ Optional parameters:
     Column number of spaxel to which to tie the HeI fit.
   heitierow: in, optional, type=intarr(ncols,nrows)
     Row number of spaxel to which to tie the HeI fit.
+  nadabs_cfinit: in, required, type=dblarr(ncols,nrows,maxncomp), default=0.5d
+    Initial covering factor guesses for NaD absorption line fits.
+  nadabs_tauinit: in, required, type=dblarr(ncols,nrows,maxncomp), default=0.5d
+    Initial tau guesses for NaD absorption line fits.
   nadem_finit: in, optional, type=dblarr(ncols,nrows,maxncomp), default=0.1d
     Initial flux peak guesses for NaD emission line fits.
   nadem_fitinit: in, optional, type=byte

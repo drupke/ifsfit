@@ -59,6 +59,8 @@
 ;      Function to fit; input to MPFIT.
 ;    niter: in, optional, type=integer, default=1000
 ;      Number of Monte Carlo realizations.
+;    noplot: in, optional, type=byte
+;      Do not produce plots.
 ;    nsplit: in, optional, type=integer, default=1
 ;      Number of independent child processes into which the Monte Carlo 
 ;      computation is split.
@@ -68,6 +70,8 @@
 ;    nademfix: in, optional, type=bytarr(Ncomp_NaDem,3)
 ;      Array of fix/free flags for NaD emission parameters; same as that used 
 ;      in the fit to the data.
+;    plotonly: in, optional, type=boolean
+;      Do not re-run MC simulations; grab previous outputs from file.
 ;    quiet: in, optional, type=byte
 ;      Suppress error and progress messages. Preently controls only SPLIT_FOR
 ;      messages; MPFIT messages are suppressed b/c of number of times it is
@@ -115,8 +119,10 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
                         first_modflux=first_modflux,$
                         first_parinit=first_parinit,$
                         fitfcn=fitfcn,niter=niter,nsplit=nsplit,$
-                        heifix=heifix,nademfix=nademfix,quiet=quiet,$
-                        weqerr=weqerr,nademfluxerr=nademfluxerr
+                        heifix=heifix,nadabsfix=nadabsfix,nademfix=nademfix,$
+                        quiet=quiet,noplot=noplot,$
+                        weqerr=weqerr,nademfluxerr=nademfluxerr,$
+                        plotonly=plotonly
 
    bad = 1d99
    plotquantum = 2.5 ; in inches
@@ -126,7 +132,9 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
    if ~ keyword_set(niter) then niter = 1000
    if ~ keyword_set(nsplit) then nsplit = 1
    if ~ keyword_set(quiet) then quiet=0
+   if ~ keyword_set(noplot) then noplot=0
    if ncomp[0] gt 0 AND ~ keyword_set(heifix) then heifix=bytarr(ncomp[0],3)  
+   if ncomp[1] gt 0 AND ~ keyword_set(nadabsfix) then nadabsfix=bytarr(ncomp[2],4)
    if ncomp[2] gt 0 AND ~ keyword_set(nademfix) then nademfix=bytarr(ncomp[2],4)
    nwave = n_elements(wave)
 
@@ -138,6 +146,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Monte Carlo
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if ~ keyword_set(plotonly) then begin
 
    if keyword_set(dofirstemfit) then nfits=2 else nfits=1
    for j=0,nfits-1 do begin
@@ -255,8 +265,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
                       'cont'],$
             struct2pass1=parinituse,struct2pass2=argslinefit,$
             outvar=['heipar','abspar','empar','weq','nademflux'],$
-            nsplit=nsplit,silent=quiet,$
-            quietchild=quiet
+            nsplit=nsplit,silent=quiet,quietchild=quiet
          heipar=heipar0
          abspar=abspar0
          empar=empar0
@@ -288,15 +297,27 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
    endfor
 
 ;  Save MC results to a file.
-   nadmc = {hei: heipar, nadabs: abspar, nadem: empar}
+   nadmc = {hei: heipar, nadabs: abspar, nadem: empar, nadweq: weq, $
+            nademflux: nademflux}
    save,nadmc,file=outfile
+
+   endif else begin
+
+      restore,file=outfile
+      heipar=nadmc.hei
+      abspar=nadmc.nadabs
+      empar=nadmc.nadem
+      weq=nadmc.nadweq
+      nademflux=nadmc.nademflux
+
+   endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Compute errors from distributions and plot results
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   cgps_open,outplot,charsize=1,/inches,xs=7.5,ys=7.5,/qui,$
-             /nomatch
+   if noplot then set_plot,'x' $
+   else cgps_open,outplot,charsize=1,/inches,xs=7.5,ys=7.5,/qui,/nomatch
    pos = cglayout([2,2],ixmar=[3,3],iymar=[4,4],oxmar=[0,0],oymar=[4,1],$
                    xgap=0,ygap=4,aspect=1d)
 ;
@@ -364,51 +385,68 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
 ;
    for i=0,ncomp[1]-1 do begin
 ;     covering factor x optical depth
-      dat = abspar[*,0,i]*abspar[*,1,i]
-      cghistoplot,abspar[*,0,i]*abspar[*,1,i],pos=pos[*,0],missing=bad*bad,$
-                  ytit='',xtit='C$\down$f x $\tau$',xticks=2,histdata=h
-      stat = ifsf_lohisig(dat)
-      cgoplot,[stat[0],stat[0]],[0,max(h)]
-      cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
-      cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
-      errors[ncomp[0]*3+i*4,*]=[stat[1]/2d,stat[2]/2d]
+      if (~ nadabsfix[i,0] OR ~ nadabsfix[i,1]) then begin
+         dat = abspar[*,0,i]*abspar[*,1,i]
+         cghistoplot,abspar[*,0,i]*abspar[*,1,i],pos=pos[*,0],missing=bad*bad,$
+                     ytit='',xtit='C$\down$f x $\tau$',xticks=2,histdata=h
+         stat = ifsf_lohisig(dat)
+         cgoplot,[stat[0],stat[0]],[0,max(h)]
+         cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
+         cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
+         errors[ncomp[0]*3+i*4,*]=[stat[1]/2d,stat[2]/2d]
+      endif else $
+         cghistoplot,abspar[*,0,i]*abspar[*,1,i],pos=pos[*,0],missing=bad*bad,$
+                     ytit='',xtit='C$\down$f x $\tau$',xticks=2,nbins=1,$
+                     bins=0.1d
 ;     optical depth
-      dat = abspar[*,1,i]
-      cghistoplot,dat,pos=pos[*,1],/noerase,missing=bad,$
-                  ytit='',xtit='$\tau$',xticks=2,histdata=h
-      stat = ifsf_lohisig(dat)
-      cgoplot,[stat[0],stat[0]],[0,max(h)]
-      cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
-      cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
-      errors[ncomp[0]*3+i*4+1,*]=[stat[1],stat[2]]
+      if ~ nadabsfix[i,1] then begin
+         dat = abspar[*,1,i]
+         cghistoplot,dat,pos=pos[*,1],/noerase,missing=bad,$
+                     ytit='',xtit='$\tau$',xticks=2,histdata=h
+         stat = ifsf_lohisig(dat)
+         cgoplot,[stat[0],stat[0]],[0,max(h)]
+         cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
+         cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
+         errors[ncomp[0]*3+i*4+1,*]=[stat[1],stat[2]]
+      endif else $
+         cghistoplot,dat,pos=pos[*,1],/noerase,missing=bad,$
+                     ytit='',xtit='$\tau$',xticks=2,nbins=1,bins=0.1d
 ;     wavelength
-      bins=[]
-      dat=abspar[*,2,i]
-      cghistoplot,dat,pos=pos[*,2],missing=bad,/noerase,ytit='',$
-                  xtit='$\lambda$ ($\Angstrom$)',xticks=2,histdata=h,$
-                  locations=loc,binsize=bins
-      binc = loc + (bins/2d)
-      yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
-      cgoplot,binc,yfit
-      stat = ifsf_lohisig(dat)
-      cgoplot,[stat[0],stat[0]],[0,max(h)]
-      cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
-      cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
-      errors[ncomp[0]*3+i*4+2,*]=[stat[1],stat[2]]
+      if ~ nadabsfix[i,2] then begin
+         bins=[]
+         dat=abspar[*,2,i]
+         cghistoplot,dat,pos=pos[*,2],missing=bad,/noerase,ytit='',$
+                     xtit='$\lambda$ ($\Angstrom$)',xticks=2,histdata=h,$
+                     locations=loc,binsize=bins
+         binc = loc + (bins/2d)
+         yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
+         cgoplot,binc,yfit
+         stat = ifsf_lohisig(dat)
+         cgoplot,[stat[0],stat[0]],[0,max(h)]
+         cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
+         cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
+         errors[ncomp[0]*3+i*4+2,*]=[stat[1],stat[2]]
+      endif else $
+         cghistoplot,dat,pos=pos[*,2],missing=bad,/noerase,ytit='',$
+                     xtit='$\lambda$ ($\Angstrom$)',xticks=2,nbins=1,bins=1d
 ;     sigma
-      bins=[]
-      dat = abspar[*,3,i]
-      cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
-                  xtit='$\sigma$ (km/s)',xticks=2,histdata=h,$
-                  locations=loc,binsize=bins
-      binc = loc + (bins/2d)
-      yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
-      cgoplot,binc,yfit
-      stat = ifsf_lohisig(dat)
-      cgoplot,[stat[0],stat[0]],[0,max(h)]
-      cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
-      cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
-      errors[ncomp[0]*3+i*4+3,*]=[stat[1],stat[2]]
+      if ~ nadabsfix[i,3] then begin
+         bins=[]
+         dat = abspar[*,3,i]
+         cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
+                     xtit='$\sigma$ (km/s)',xticks=2,histdata=h,$
+                     locations=loc,binsize=bins
+         binc = loc + (bins/2d)
+         yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
+         cgoplot,binc,yfit
+         stat = ifsf_lohisig(dat)
+         cgoplot,[stat[0],stat[0]],[0,max(h)]
+         cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
+         cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
+         errors[ncomp[0]*3+i*4+3,*]=[stat[1],stat[2]]
+      endif else $
+         cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
+                     xtit='$\sigma$ (km/s)',xticks=2,nbins=1,bins=10d
 ;
       cgtext,0.5,0.98,'NaI D abs., c'+string(i+1,format='(I0)'),/norm
    endfor
@@ -545,7 +583,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
       
    endif
    
-   cgps_close,/pdf,/delete_ps
+   if ~ noplot then cgps_close,/pdf,/delete_ps
 
 
 finish:

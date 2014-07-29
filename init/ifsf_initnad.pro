@@ -47,6 +47,8 @@
 ;      Input this array with parameters to be fixed set to 1.
 ;    siglimhei: in, required, type=dblarr(2)
 ;      Limits to sigma for HeI emission.
+;    nadabsfix: in, required, type=bytarr(nnadabs,4)
+;      Input this array with parameters to be fixed set to 1.
 ;    nademfix: in, required, type=bytarr(nnadem,4)
 ;      Input this array with parameters to be fixed set to 1.
 ; 
@@ -83,7 +85,7 @@
 ;-
 function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
                       taumax=taumax,heifix=heifix,siglimhei=siglimhei,$
-                      nademfix=nademfix
+                      nadabsfix=nadabsfix,nademfix=nademfix
                       
 
    c = 299792.458d
@@ -180,6 +182,9 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
          parinfo[ilo+2+i*4].limits[0] = initnadabs[i,2]-10d
          parinfo[ilo+2+i*4].limits[1] = initnadabs[i,2]+10d
       endfor
+      if keyword_set(nadabsfix) then $
+         parinfo[ilo:ilo+nnadabs*4-1].fixed = $
+            reform(transpose(nadabsfix),nnadabs*4)
 ;     Labels
       parinfo[ind_c].parname = 'covering_factor'
       parinfo[ind_t].parname = 'optical_depth'

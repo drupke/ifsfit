@@ -23,6 +23,15 @@
 ;    rows: in, optional, type=intarr, default=all
 ;      Rows to fit, in 1-offset format. Either a scalar or a
 ;      two-element vector listing the first and last rows to fit.
+;    noerr: in, optional, type=byte
+;      Do not Monte Carlo the errors.
+;    nomc: in, optional, type=byte
+;      Do not re-run Monte Carlo error simulations, but do grab old outputs
+;      and append them to the output structure.
+;    noplot: in, optional, type=byte
+;      Do not produce plots.
+;    noxdr: in, optional, type=byte
+;      Do no write XDR file with fit parameters.
 ;    nsplit: in, optional, type=integer, default=1
 ;      Number of independent child processes into which the Monte Carlo 
 ;      computation of errors is split.
@@ -48,6 +57,8 @@
 ;      2014jun10, DSNR, compute equivalent widths and print NaD parameters to 
 ;                       XDR file
 ;      2014jul07, DSNR, added error computation
+;      2014jul22, DSNR, added option to not re-run MC simulations but grab old
+;                       outputs
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -67,16 +78,18 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose
+pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
+                noerr=noerr,noplot=noplot,noxdr=noxdr,nomc=nomc
 
    bad = 1d99
-   tratio = 2.0093d ; NaD optical depth ratio (blue to red)
+   tratio = 2.005d ; NaD optical depth ratio (blue to red)
    nad_emrat_init = 1.5d
 
    starttime = systime(1)
    time = 0
    if ~ keyword_set(nsplit) then nsplit=1
    if keyword_set(verbose) then quiet=0 else quiet=1
+   if ~ keyword_set(noplot) then noplot=0 else noplot=1
 
    ; Get fit initialization
    initnad={dumy: 1}
@@ -206,10 +219,10 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose
          nnadabs = initnad.nnadabs[i,j]
          if nnadabs gt 0 then begin
             if tag_exist(initnad,'nadabs_cfinit') then $
-               cfinit = (initnad.nadabs_cfinit)[i,j,0:nnadabs-1] $
+               cfinit = reform((initnad.nadabs_cfinit)[i,j,0:nnadabs-1],nnadabs) $
             else cfinit = dblarr(nnadabs)+0.5d
             if tag_exist(initnad,'nadabs_tauinit') then $
-               tauinit = (initnad.nadabs_tauinit)[i,j,0:nnadabs-1] $
+               tauinit = reform((initnad.nadabs_tauinit)[i,j,0:nnadabs-1],nnadabs) $
             else tauinit = dblarr(nnadabs)+0.5d
             winit = reform(((initnad.nadabs_zinit)[i,j,0:nnadabs-1]$
                             +1d)*linelist['NaD1'],nnadabs)
@@ -281,8 +294,10 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose
                                 tmpdat,$
                                 (nadcube.err)[i,j,*],$
                                 parinfo=parinit,perror=perror,maxiter=100,$
-                                bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
-                                nfev=nfev,niter=niter,status=status,quiet=quiet,$
+                                bestnorm=chisq_emonly,covar=covar,$
+                                yfit=specfit,dof=dof_emonly,$
+                                nfev=nfev,niter=niter_emonly,status=status,$
+                                quiet=quiet,$
                                 npegged=npegged,ftol=1D-6,errmsg=errmsg)
                if status eq 5 then print,'IFSF_FITNAD: Max. iterations reached.'
                if status eq 0 OR status eq -16 then begin
@@ -309,15 +324,19 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose
             goto,nofit
          endif
 
+         if nnadabs gt 0 AND tag_exist(initnad,'nadabs_fix') then $
+            nadabsfix=reform((initnad.nadabs_fix)[i,j,0:nnadabs-1,*],nnadabs,4) $
+         else nadabsfix=0b
+
          if tag_exist(initnad,'argsinitpar') then parinit = $
             call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
                           initnad.nadabs_siglim,initnad.nadem_siglim,$
-                          heifix=heifix,nademfix=nademfix,$
+                          heifix=heifix,nadabsfix=nadabsfix,nademfix=nademfix,$
                           _extra=initnad.argsinitpar) $
          else parinit = $
             call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
                           initnad.nadabs_siglim,initnad.nadem_siglim,$
-                          heifix=heifix,nademfix=nademfix)
+                          heifix=heifix,nadabsfix=nadabsfix,nademfix=nademfix)
 
          param = Mpfitfun(initnad.fcnfitnad,$
                           (nadcube.wave)[i,j,*],$
@@ -335,15 +354,17 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose
 
          if ~ tag_exist(initnad,'noemlinfit') then zuse = struct.zstar $
          else zuse = initdat.zsys_gas
-         if tag_exist(initnad,'argspltfitnad') then $
-            ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
-                           (nadcube.dat)[i,j,*],$
-                           param,outfile+'_nad_fit',struct.zstar,$
-                           _extra=initnad.argspltfitnad $
-         else $
-            ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
-                           (nadcube.dat)[i,j,*],$
-                           param,outfile+'_nad_fit',struct.zstar
+         if ~ noplot then begin
+            if tag_exist(initnad,'argspltfitnad') then $
+               ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
+                              (nadcube.dat)[i,j,*],$
+                              param,outfile+'_nad_fit',struct.zstar,$
+                              _extra=initnad.argspltfitnad $
+            else $
+               ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
+                              (nadcube.dat)[i,j,*],$
+                              param,outfile+'_nad_fit',struct.zstar
+         endif
 
 ;        Compute model equivalent widths
          weq=1
@@ -352,24 +373,35 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose
                                nademflux=nademflux,cont=(nadcube.cont)[i,j,*])
 
 ;        Compute errors in fit
-         if dofirstemfit then nademfix_use = first_nademfix $
-         else nademfix_use = nademfix
-         errors = ifsf_fitnaderr([nhei,nnadabs,nnadem],(nadcube.wave)[i,j,*],$
-                                 modspec,(nadcube.err)[i,j,*],$
-                                 (nadcube.cont)[i,j,*],parinit,$
-                                 outfile+'_nad_errs.ps',outfile+'_nad_mc.xdr',$
-                                 dofirstemfit=dofirstemfit,$
-                                 first_parinit=first_parinit,$
-                                 first_modflux=first_modflux,$
-                                 heifix=heifix,nademfix=nademfix_use,niter=1000,$
-                                 nsplit=nsplit,quiet=quiet,weqerr=weqerr,$
-                                 nademfluxerr=nademfluxerr)
+         if ~ keyword_set(noerr) then begin
+            if dofirstemfit then nademfix_use = first_nademfix $
+            else nademfix_use = nademfix
+            if keyword_set(nomc) then plotonly=1b else plotonly=0b
+            errors = ifsf_fitnaderr([nhei,nnadabs,nnadem],(nadcube.wave)[i,j,*],$
+                                    modspec,(nadcube.err)[i,j,*],$
+                                    (nadcube.cont)[i,j,*],parinit,$
+                                    outfile+'_nad_errs.ps',outfile+'_nad_mc.xdr',$
+                                    dofirstemfit=dofirstemfit,$
+                                    first_parinit=first_parinit,$
+                                    first_modflux=first_modflux,$
+                                    heifix=heifix,nadabsfix=nadabsfix,$
+                                    nademfix=nademfix_use,$
+                                    niter=initnad.mcniter,$
+                                    nsplit=nsplit,quiet=quiet,weqerr=weqerr,$
+                                    nademfluxerr=nademfluxerr,noplot=noplot,$
+                                    plotonly=plotonly)
+         endif
          
          ifsf_printnadpar,nadparlun,i+1,j+1,param
 
          if firstfit then begin
             nadfit = $
-               {weqabs: dblarr(ncols,nrows,1+maxncomp)+bad,$
+               {chisq: dblarr(ncols,nrows)+bad,$
+                chisq_emonly: dblarr(ncols,nrows)+bad,$
+                dof: dblarr(ncols,nrows)+bad,$
+                niter: dblarr(ncols,nrows)+bad,$
+;                
+                weqabs: dblarr(ncols,nrows,1+maxncomp)+bad,$
                 weqabserr: dblarr(ncols,nrows,2)+bad,$
                 weqem: dblarr(ncols,nrows,1+maxncomp)+bad,$
                 weqemerr: dblarr(ncols,nrows,2)+bad,$
@@ -393,35 +425,44 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose
                 fraterr: dblarr(ncols,nrows,maxncomp,2)+bad}
             firstfit = 0
          endif
+         nadfit.chisq[i,j]=chisq
+         if dofirstemfit then nadfit.chisq_emonly[i,j]=chisq_emonly
+         nadfit.dof[i,j]=dof
+         nadfit.niter[i,j]=niter
          nadfit.weqabs[i,j,0:nnadabs]=weq.abs
-         nadfit.weqabserr[i,j,*]=weqerr[0,*]
          nadfit.weqem[i,j,0:nnadem]=weq.em
-         nadfit.weqemerr[i,j,*]=weqerr[1,*]
          nadfit.totfluxem[i,j,0:nnadem]=nademflux
-         nadfit.totfluxemerr[i,j,*]=nademfluxerr
+         if ~ keyword_set(noerr) then begin
+            nadfit.weqabserr[i,j,*]=weqerr[0,*]
+            nadfit.weqemerr[i,j,*]=weqerr[1,*]
+            nadfit.totfluxemerr[i,j,*]=nademfluxerr
+         endif
          if nnadabs gt 0 then begin
-            iarr = 3+nhei*3 + dindgen(nnadabs)*nnadabs
+            iarr = 3+nhei*3 + dindgen(nnadabs)*4
             nadfit.cf[i,j,0:nnadabs-1]=param[iarr]
-            nadfit.cferr[i,j,0:nnadabs-1,*]=errors[iarr-3,*]
             nadfit.tau[i,j,0:nnadabs-1]=param[iarr+1]
-            nadfit.tauerr[i,j,0:nnadabs-1,*]=errors[iarr-3+1,*]
             nadfit.waveabs[i,j,0:nnadabs-1]=param[iarr+2]
-            nadfit.waveabserr[i,j,0:nnadabs-1,*]=errors[iarr-3+2,*]
             nadfit.sigmaabs[i,j,0:nnadabs-1]=param[iarr+3]
-            nadfit.sigmaabserr[i,j,0:nnadabs-1,*]=errors[iarr-3+3,*]
+            if ~ keyword_set(noerr) then begin
+               nadfit.cferr[i,j,0:nnadabs-1,*]=errors[iarr-3,*]
+               nadfit.tauerr[i,j,0:nnadabs-1,*]=errors[iarr-3+1,*]
+               nadfit.waveabserr[i,j,0:nnadabs-1,*]=errors[iarr-3+2,*]
+               nadfit.sigmaabserr[i,j,0:nnadabs-1,*]=errors[iarr-3+3,*]
+            endif
          endif
          if nnadem gt 0 then begin
-            iarr = 3+nhei*3+nnadabs*4 + dindgen(nnadem)*nnadem
+            iarr = 3+nhei*3+nnadabs*4 + dindgen(nnadem)*4
             nadfit.waveem[i,j,0:nnadem-1]=param[iarr]
-            nadfit.waveemerr[i,j,0:nnadem-1,*]=errors[iarr-3,*]
             nadfit.sigmaem[i,j,0:nnadem-1]=param[iarr+1]
-            nadfit.sigmaemerr[i,j,0:nnadem-1,*]=errors[iarr-3+1,*]
             nadfit.flux[i,j,0:nnadem-1]=param[iarr+2]
-            nadfit.fluxerr[i,j,0:nnadem-1,*]=errors[iarr-3+2,*]
             nadfit.frat[i,j,0:nnadem-1]=param[iarr+3]
-            nadfit.fraterr[i,j,0:nnadem-1,*]=errors[iarr-3+3,*]
+            if ~ keyword_set(noerr) then begin
+               nadfit.waveemerr[i,j,0:nnadem-1,*]=errors[iarr-3,*]
+               nadfit.sigmaemerr[i,j,0:nnadem-1,*]=errors[iarr-3+1,*]
+               nadfit.fluxerr[i,j,0:nnadem-1,*]=errors[iarr-3+2,*]
+               nadfit.fraterr[i,j,0:nnadem-1,*]=errors[iarr-3+3,*]               
+            endif
          endif
-
 
 nofit:
 
@@ -432,7 +473,11 @@ nofit:
 
 finish:
 
-   save,nadfit,file=initdat.outdir+initdat.label+'.nadfit.xdr'
+   if ~ keyword_set(noxdr) then begin
+      if tag_exist(initnad,'outxdr') then outxdr=initnad.outxdr $
+      else outxdr=initdat.outdir+initdat.label+'.nadfit.xdr'
+      save,nadfit,file=outxdr
+   endif
 
    free_lun,nadparlun
 
