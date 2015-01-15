@@ -73,21 +73,23 @@ initialization structure, INITDAT. The tags of this structure, and a
 description of each one, are found in INITTAGS.txt. Several tags are
 required, but most are optional.
 
-The output of IFSFA can be further processed into parameter maps using
-IFSF_MAKEMAPS. This routine produces various emission-line, continuum,
-and absorption-line maps. IFSF_MAKEMAPS looks for an initialization
-structure, INITMAPS, which is also defined in the initialization
-file. The possible tags for INITMAPS are described in INITTAGS.txt.
+The initialization function should also define two other structures,
+INITMAPS and INITNAD, and also call these as keyword arguments. The
+first of these, INITMAPS, controls how IFSF_MAKEMAPS processes the
+output of IFSFA into parameter maps. This routine produces various
+emission-line, continuum, and absorption-line maps. The possible tags
+for INITMAPS are described in INITTAGS.txt. If IFSF_MAKEMAPS is not
+used, INITMAPS can be set to an empty structure.
 
-Finally, the region around the NaI D feature can be fit using
-IFSF_FITNAD. This routine fits emission and absorption-line models to
-HeI 5876 and NaI D 5890, 5896 and produces plots of the fits and a
-"data cube" with fit parameters. The routine also estimates errors
-using Monte Carlo methods. The error estimation can be sped up using
-multi-core parallel processing. IFSF_FITNAD looks for an
-initialization structure, INITNAD, which is also defined in the
-initialization file. The possible tags for INITNAD are described in
-INITTAGS.txt.
+The second of these other initialization structures, INITNAD, controls
+how the region around the NaI D feature is fit using IFSF_FITNAD. This
+routine fits emission and absorption-line models to HeI 5876 and NaI D
+5890, 5896 and produces plots of the fits and a "data cube" with fit
+parameters. The routine also estimates errors using Monte Carlo
+methods. The error estimation can be sped up using multi-core parallel
+processing. The possible tags for INITNAD are described in
+INITTAGS.txt. If IFSF_MAKEMAPS is not used, INITNAD can be set to an
+empty structure.
 
 There are a considerable number of knobs that can be turned to
 optimize/customize the fits and customize the outputs. An example
