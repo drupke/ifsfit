@@ -116,6 +116,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 
    ncols = nadsize[1]
    nrows = nadsize[2]
+   if nrows eq 1 then oned=1b else oned=0b
    nz = nadsize[3]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -141,7 +142,8 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 
          if ~ tag_exist(initnad,'noemlinfit') then begin
 ;           Restore continuum + emission-line fit
-            lab = string(i+1,'_',j+1,format='(I04,A,I04)')
+            if oned then lab = string(i+1,format='(I04)') $
+            else lab = string(i+1,'_',j+1,format='(I04,A,I04)')
             infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
             outfile = initdat.outdir+initdat.label+'_'+lab
             if ~ file_test(infile) then begin
@@ -203,7 +205,9 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                            linelist['HeI5876']],$
                           [(initnad.hei_siginit)[i,j,0:nhei-1]],$
                           [dblarr(nhei)+0.1d]]
-               heifix = bytarr(nhei,3)
+               if tag_exist(initnad,'hei_fix') then $
+                  heifix=reform((initnad.hei_fix)[i,j,0:nhei-1,*],nhei,3) $
+               else heifix=bytarr(nhei,3)
             endif else begin
                print,'IFSF_FITNAD: HeI5876 initialization parameters'+$
                      ' not properly specified.'
@@ -244,10 +248,10 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                            *linelist['NaD1'],nnadem)
             siginit = reform((initnad.nadem_siginit)[i,j,0:nnadem-1],nnadem)
             if tag_exist(initnad,'nadem_finit') then $
-               finit = (initnad.nadem_finit)[i,j,0:nnadem-1] $
+               finit = reform((initnad.nadem_finit)[i,j,0:nnadem-1],nnadem) $
             else finit = dblarr(nnadem)+0.1d
             if tag_exist(initnad,'nadem_rinit') then $
-               rinit = (initnad.nadem_rinit)[i,j,0:nnadem-1] $
+               rinit = reform((initnad.nadem_rinit)[i,j,0:nnadem-1],nnadem) $
             else rinit = dblarr(nnadem)+nad_emrat_init
             initnadem = [[winit],[siginit],[finit],[rinit]]
             if tag_exist(initnad,'nadem_fix') then $
@@ -308,7 +312,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                first_nademfix = nademfix
                first_parinit = parinit
                first_modflux = tmpdat
-               initnadem = reform(param[3:2+nnadem*4],nnadem,4)
+               initnadem = transpose(reform(param[3:2+nnadem*4],4,nnadem))
                nademfix=rebin(transpose([1b,1b,1b,1b]),nnadem,4)
                            
             endif
@@ -352,6 +356,11 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             goto,finish
          endif
 
+;        Plot fit
+;        
+;        If the data was not first processed with IFSF, then set the redshift
+;        for plotting to be the systemic redshift. Otherwise, use the stellar 
+;        redshift determined from the fit.
          if ~ tag_exist(initnad,'noemlinfit') then zuse = struct.zstar $
          else zuse = initdat.zsys_gas
          if ~ noplot then begin
@@ -394,19 +403,26 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
          
          ifsf_printnadpar,nadparlun,i+1,j+1,param
 
+;        Initialize cubes to hold physical quantities
          if firstfit then begin
             nadfit = $
+;               Fit properties
                {chisq: dblarr(ncols,nrows)+bad,$
                 chisq_emonly: dblarr(ncols,nrows)+bad,$
                 dof: dblarr(ncols,nrows)+bad,$
                 niter: dblarr(ncols,nrows)+bad,$
-;                
+;               Equivalent widths and fluxes
                 weqabs: dblarr(ncols,nrows,1+maxncomp)+bad,$
                 weqabserr: dblarr(ncols,nrows,2)+bad,$
                 weqem: dblarr(ncols,nrows,1+maxncomp)+bad,$
                 weqemerr: dblarr(ncols,nrows,2)+bad,$
                 totfluxem: dblarr(ncols,nrows,1+maxncomp)+bad,$
                 totfluxemerr: dblarr(ncols,nrows,2)+bad,$
+;               HeI line parameters
+                wavehei: dblarr(ncols,nrows,maxncomp)+bad,$
+                sigmahei: dblarr(ncols,nrows,maxncomp)+bad,$
+                fluxhei: dblarr(ncols,nrows,maxncomp)+bad,$
+;               NaD absorption line parameters
                 cf: dblarr(ncols,nrows,maxncomp)+bad,$
                 cferr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 tau: dblarr(ncols,nrows,maxncomp)+bad,$
@@ -415,6 +431,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                 waveabserr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 sigmaabs: dblarr(ncols,nrows,maxncomp)+bad,$
                 sigmaabserr: dblarr(ncols,nrows,maxncomp,2)+bad,$
+;               NaD emission line parameters
                 waveem: dblarr(ncols,nrows,maxncomp)+bad,$
                 waveemerr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 sigmaem: dblarr(ncols,nrows,maxncomp)+bad,$
@@ -425,6 +442,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                 fraterr: dblarr(ncols,nrows,maxncomp,2)+bad}
             firstfit = 0
          endif
+;        Populate cubes of physical properties
          nadfit.chisq[i,j]=chisq
          if dofirstemfit then nadfit.chisq_emonly[i,j]=chisq_emonly
          nadfit.dof[i,j]=dof
@@ -436,6 +454,12 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             nadfit.weqabserr[i,j,*]=weqerr[0,*]
             nadfit.weqemerr[i,j,*]=weqerr[1,*]
             nadfit.totfluxemerr[i,j,*]=nademfluxerr
+         endif
+         if nhei gt 0 then begin
+            iarr = 3 + dindgen(nhei)*3
+            nadfit.wavehei[i,j,0:nhei-1]=param[iarr]
+            nadfit.sigmahei[i,j,0:nhei-1]=param[iarr+1]
+            nadfit.fluxhei[i,j,0:nhei-1]=param[iarr+2]
          endif
          if nnadabs gt 0 then begin
             iarr = 3+nhei*3 + dindgen(nnadabs)*4

@@ -301,6 +301,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
          argspltlin1: argspltlin1,$
          argspltlin2: argspltlin2,$
          donad: 1,$
+;         dored: 1,$
          fcncheckcomp: 'ifsf_checkcomp',$
          fcncontfit: 'ppxf',$
          mapcent: [centcol,centrow],$
@@ -326,13 +327,23 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                                   '3_n2ha_vs_o3hb']]
       argslinratmaps['ebv'] = ['1_ebv','2_ebv','3_ebv']
 
+      badnademp = bytarr(ncols,nrows)
+      badnademp[0,*]=1b
+      badnademp[*,nrows-1]=1b
+      badnademp[5:8,1]=1b
+      badnademp[1:2,2]=1b
+
       initmaps = {$
                   center_axes: [centcol,centrow],$
                   center_nuclei: [centcol,centrow],$
                   rangefile: '/Users/drupke/ifs/gmos/maps/'+$
                              'f05189/rb2/ranges.txt',$
                   argslinratmaps: argslinratmaps,$
-                  fluxfactor: 100d,$
+                  badnademp: badnademp,$
+;                 Base units are 10^-15 erg/s/cm^2/spaxel
+;                 Multiplying fluxes by 10 gives fluxes in units of 10^-16 erg/s/cm^2/spaxel
+;                 Dividing fluxes by 20 gives fluxes in units of 10^-16 erg/s/cm^2/arcsecond
+                  fluxfactor: 10d*20d,$
 ;                  applyebv: [1,0,0],$
                   nadabsweq_snrthresh: 3d,$
                   nademweq_snrthresh: 3d,$
@@ -341,12 +352,21 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   tags_oplots: ['nadcube',$
                                 'nadfit',$
                                 'initnad',$
-                                'cshst_fov_rb',$
                                 'nadabsncomp',$
                                 'map_rkpc_hst',$
+                                'map_rkpc_bhst',$
+                                'map_rkpc_rhst',$
+                                'bhst_fov_ns',$
+                                'rhst_fov_ns',$
+                                'bhst_big',$
+                                'rhst_big',$
+                                'hst_big_ifsfov',$
+                                'cshst_fov_s',$
+                                'chst_fov_ns',$
                                 'cshst_fov_ns',$
-                                'map_rkpc_ifs',$
+                                'cshst_fov_rb',$
                                 'ctcube',$
+                                'contcube',$
                                 'nadabsnh','errnadabsnh',$
                                 'nadabscnh','errnadabscnh',$
                                 'nadabssig','nademsig',$
@@ -361,35 +381,44 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   ct: {sumrange: [5600,6400],$
                        scllim: [0,1],$
                        stretch: 1},$
-                  hst: {refcoords: [3261,2708],$
+; This coordinate is in single-offset pixels; i.e., the central pixel as measured in
+; DS9. It is chosen to align the two continuum maps in *cont.eps, and to center 
+; the HST map for plotting. The nuclear offsets below give the nuclear 
+; coordinates of the red and blue maps for making galactocentric radius arrays, 
+; also in single-offset pixels.
+                  hst: {refcoords: [3262,2709],$
                         subim_sm: 7d,$
                         subim_big: 25d,$
                         smoothfwhm: 12},$
                   hstbl: {file: '/Users/drupke/ifs/gmos/ancillary/hst/'+$
                                 'f05189/f05189_acs_435w.fits',$
                           scllim: [0.01,100],$
-                          sclargs: {beta: 0.05},$
+                          sclargs_sm: {beta: 0.05,stretch: 5},$
+                          sclargs_big: {beta: 0.05,stretch: 5},$
+                          sclargs_fov: {beta: 1,stretch: 5},$
                           photflam: 3.1840413d-19,$
-                          photplam: 4318.8672},$
+                          photplam: 4318.8672,$
+                          platescale: 0.05d,$
+                          nucoffset: [-0.5d,0d]},$
                   hstblsm: {scllim: [0,10],$
-                            sclargs: {beta: 0.5},$
-                            stretch: 5},$
+                            sclargs: {beta: 0.5, stretch: 5}},$
                   hstrd: {file: '/Users/drupke/ifs/gmos/ancillary/hst/'+$
                                 'f05189/f05189_acs_814w.fits',$
                           scllim: [0.01,100],$
-                          sclargs: {beta: 0.05},$
+                          sclargs_sm: {beta: 0.05,stretch: 5},$
+                          sclargs_big: {beta: 0.05,stretch: 5},$
+                          sclargs_fov: {beta: 1,stretch: 5},$
                           photflam: 7.0331898e-20,$
-                          photplam: 8056.944},$
+                          photplam: 8056.944,$
+                          platescale: 0.05d,$
+                          nucoffset: [-0.75d,-0.75d]},$
                   hstrdsm: {scllim: [0,20],$
-                            sclargs: {beta: 0.5},$
-                            stretch: 5}, $
+                            sclargs: {beta: 0.5,stretch: 5}}, $
                   hstcol: {scllim: [0.5,2.5],$
-                           stretch: 1,$
-                           sclargs: {dumy: 1},$
+                           sclargs: {stretch: 1},$
                            ncbdiv: 4},$
                   hstcolsm: {scllim: [0.8,1.8],$
-                             stretch: 1,$
-                             sclargs: {dumy: 1},$
+                             sclargs: {stretch: 1},$
                              ncbdiv: 5}$
                  }
    endif
@@ -438,7 +467,9 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 ;      nadabs_tauinit[16,17,0:1]=[1.48,0.1d]
 ;      nadabs_zinit[16,17,0:1]=[0.0424d,0.0414d]
 ;      nadabs_siginit[16,17,0:1]=[69d,288d]
-      
+
+      nadabs_zinit[15,8,0] = 0.0425d
+      nadabs_siginit[15,8,0] = 75d      
       nadabs_zinit[17,10:12,0] = 0.0425d
       nadabs_siginit[17,10:12,0] = 75d
       nadabs_zinit[18,9:13,0] = 0.0425d
@@ -461,8 +492,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       nnadabs[8,6:19] = 2
       nnadabs[8,20] = 1
       nnadabs[9,3:5] = 1
-      nnadabs[9,6:20] = 2
-      nnadabs[9,21] = 1
+      nnadabs[9,6:19] = 2
+      nnadabs[9,20:21] = 1
       nnadabs[10,3:5] = 1
       nnadabs[10,6:19] = 2
       nnadabs[10,20:21] = 1

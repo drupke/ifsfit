@@ -50,6 +50,8 @@
 ;    emwid: in, optional, type=double, default=15d
 ;      Wavelength range over which to integrate to estimate upper limit for 
 ;      emission line equivalent width and flux.
+;    iabsoff: in, optional, type=long, default=4l
+;      Index offset from absorption line for calculating emission line upper limit.
 ;    snflux: in, optional, type=dblarr(N)
 ;      Subtraction-normalized flux array.
 ;    unerr: in, optional, type=dblarr(N)
@@ -68,6 +70,7 @@
 ;      2014may14, DSNR, created
 ;      2014junXY, DSNR, added ability to output emission line flux
 ;      2014jun18, DSNR, added ability to output emission line flux upper limits
+;      2014jul29, DSNR, updated input keywords for emission line limits
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -91,11 +94,14 @@ function ifsf_cmpnadweq,wave,flux,err,$
                         autowavelim=autowavelim,emflux=emflux,emul=emul,$
                         smoothkernel=smoothkernel,snflux=snflux,unerr=unerr,$
                         wavelim=wavelim,emwid=emwid
-   
+
+;  Thresholds for line detection   
    snrabsthresh=1.6d
    snremthresh=-1.6d
    
    if ~ keyword_set(smoothkernel) then smoothkernel=5l
+   if ~ keyword_set(iabsoff) then iabsoff = 4l
+   if ~ keyword_set(emwid) then emwid = 20d 
    
 ;  If wavelength limits not set, then integration defaults to entire wavelength 
 ;  range and absorption only.
@@ -162,7 +168,7 @@ function ifsf_cmpnadweq,wave,flux,err,$
          iemlo=-1l
          iemup=-1l
       endelse
-   endif
+   endif else ctabs=0
       
 ;  Compute equivalent widths.
    if iabslo ne -1l AND iabsup ne -1l then begin
@@ -194,8 +200,7 @@ function ifsf_cmpnadweq,wave,flux,err,$
       weq_em = 0d
       weq_em_e = 0d
       emul=dblarr(4)
-      ilo = iabsup+2
-      if ~ keyword_set(emwid) then emwid = 15d
+      ilo = iabsup+iabsoff
       iup = value_locate(wave,wave[ilo]+emwid)
       emul[0] = total((1d -flux[ilo:iup])*$
                       (wave[ilo:iup]-wave[ilo-1:iup-1]))

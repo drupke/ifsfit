@@ -400,9 +400,11 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
                      bins=0.1d
 ;     optical depth
       if ~ nadabsfix[i,1] then begin
-         dat = abspar[*,1,i]
+         dat_tmp = abspar[*,1,i]
+         igd_tmp = where(dat_tmp ne 0 AND dat_tmp ne bad)
+         dat = alog10(dat_tmp[igd_tmp])
          cghistoplot,dat,pos=pos[*,1],/noerase,missing=bad,$
-                     ytit='',xtit='$\tau$',xticks=2,histdata=h
+                     ytit='',xtit='log($\tau$)',xticks=2,histdata=h
          stat = ifsf_lohisig(dat)
          cgoplot,[stat[0],stat[0]],[0,max(h)]
          cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
@@ -410,7 +412,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          errors[ncomp[0]*3+i*4+1,*]=[stat[1],stat[2]]
       endif else $
          cghistoplot,dat,pos=pos[*,1],/noerase,missing=bad,$
-                     ytit='',xtit='$\tau$',xticks=2,nbins=1,bins=0.1d
+                     ytit='',xtit='log($\tau$)',xticks=2,nbins=1,bins=0.1d
 ;     wavelength
       if ~ nadabsfix[i,2] then begin
          bins=[]

@@ -190,10 +190,7 @@ fit:
 ;          Initialize starting wavelengths
            linelistz = hash(initdat.lines)
            foreach line,initdat.lines do $
-              if keyword_set(oned) then linelistz[line] = $
-                 reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
-                        initdat.maxncomp) $
-              else linelistz[line] = $
+              linelistz[line] = $
                  reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
                         initdat.maxncomp)
                  

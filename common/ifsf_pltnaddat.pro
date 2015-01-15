@@ -24,6 +24,13 @@
 ;      Full path and name of output plot.
 ;
 ; :Keywords:
+;    autoindices: in, optional, type=lonarr(4)
+;      Locations of boundaries for empirically finding lines.
+;    emwid: in, optional, type=double, default=15d
+;      Wavelength range over which flux was integrated to estimate upper limit for 
+;      emission line equivalent width and flux.
+;    iabsoff: in, optional, type=long, default=4l
+;      Index offset from absorption line for calculating emission line upper limit.
 ;    pltran: in, optional, type=double
 ;      Plot range.
 ;    fitranlo: in, optional, type=dblarr(2), default=[5810\,5865]*(1+z)
@@ -44,6 +51,7 @@
 ;      2010jul19, DSNR, created
 ;      2013nov21, DSNR, documented, renamed, added license and copyright
 ;      2014may08, DSNR, tweaked for clarity
+;      2014jul29, DSNR, added AUTOINDICES, IABSOFF, EMWID keywords, and legend
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -64,7 +72,11 @@
 ;
 ;-
 pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
-                   fitranlo=fitranlo,fitranhi=fitranhi
+                   fitranlo=fitranlo,fitranhi=fitranhi,$
+                   autoindices=autoindices,emwid=emwid,iabsoff=iabsoff
+
+   if ~ keyword_set(iabsoff) then iabsoff = 4l
+   if ~ keyword_set(emwid) then emwid = 20d 
 
    if ~ keyword_set(pltran) then pltran = (1d +z)*[5810d,5960d]
    if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
@@ -81,29 +93,92 @@ pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
    iplt = where(wave ge pltran[0] AND wave le pltran[1],ctplt)
 
    set_plot,'Z'
-   device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
+   erase
+   cgdisplay,1280,960
    !P.charsize=1
    !P.charthick=1
-   erase
+   !P.thick=2
+
+   autocol='Red'
+   cntcol='Yellow'
+   lincol='Cyan'
    
    yran = [min(flux[iplt]),max(flux[iplt])]
    cgplot,wave[iplt],flux[iplt],xran=pltran,yran=yran,/xsty,/ysty,$
-          color='White',axisc='White',layout=[1,2,1]
-   cgoplot,wave[iplt],poly(wave[iplt],fitpars),color='Red'
-   cgoplot,[nad1,nad1],yran,color='Green',linesty=2
-   cgoplot,[nad2,nad2],yran,color='Green',linesty=2
-   cgoplot,[hei,hei],yran,color='Green',linesty=2
+          color='White',axisc='White',layout=[1,2,1],backg='Black',$
+          ytit='Actual Flux',xtit='Observed Wavelength ($\Angstrom$)'
+   cgoplot,wave[iplt],poly(wave[iplt],fitpars),color=cntcol
+   cgoplot,[nad1,nad1],yran,color=lincol,linesty=2
+   cgoplot,[nad2,nad2],yran,color=lincol,linesty=2
+   cgoplot,[hei,hei],yran,color=lincol,linesty=2
    ytmp = yran[0]+(yran[1]-yran[0])*0.05
-   cgoplot,fitranlo,[ytmp,ytmp],color='Cyan',linesty=2
-   cgoplot,fitranhi,[ytmp,ytmp],color='Cyan',linesty=2
+   cgoplot,fitranlo,[ytmp,ytmp],color=cntcol,linesty=2
+   cgoplot,fitranhi,[ytmp,ytmp],color=cntcol,linesty=2
+   if keyword_set(autoindices) then begin
+      doabs=0
+;     Absorption line region
+      if autoindices[0] ne -1l AND autoindices[1] ne -1l then begin
+         cgoplot,[wave[autoindices[0]],wave[autoindices[0]]],yran,$
+                 color=autocol,linesty=1
+         cgoplot,[wave[autoindices[1]],wave[autoindices[1]]],yran,$
+                 color=autocol,linesty=1
+         doabs=1
+      endif
+;     Emission line region, case of detection
+      if autoindices[2] ne -1l AND autoindices[3] ne -1l then begin
+         cgoplot,[wave[autoindices[2]],wave[autoindices[2]]],yran,$
+                 color=autocol,linesty=1
+         cgoplot,[wave[autoindices[3]],wave[autoindices[3]]],yran,$
+                 color=autocol,linesty=1
+;     Emission line region, case of upper limit
+      endif else if doabs then begin
+         cgoplot,[wave[autoindices[1]+iabsoff],wave[autoindices[1]+iabsoff]],yran,$
+                 color=autocol,linesty=1
+         iup = value_locate(wave,wave[autoindices[1]+iabsoff]+$
+                            emwid)
+         cgoplot,[wave[iup],wave[iup]],yran,$
+                 color=autocol,linesty=1
+      endif
+   endif
+   al_legend,['Normalization region','Galaxy rest frame','Abs/Em Ranges'],$
+             col=[cntcol,lincol,autocol],linesty=[2,2,1],/left,/top
+
 
    yran = [0,1.3]
    cgplot,wave[iplt],nflux[iplt],xran=pltran,yran=yran,/xsty,/ysty,$
-          color='White',axisc='White',layout=[1,2,2]
-   cgoplot,pltran,[1,1],color='Red'
-   cgoplot,[nad1,nad1],yran,color='Green',linesty=2
-   cgoplot,[nad2,nad2],yran,color='Green',linesty=2
-   cgoplot,[hei,hei],yran,color='Green',linesty=2
+          color='White',axisc='White',layout=[1,2,2],ytit='Normalized Flux'
+   cgoplot,pltran,[1,1],color=cntcol
+   cgoplot,[nad1,nad1],yran,color=lincol,linesty=2
+   cgoplot,[nad2,nad2],yran,color=lincol,linesty=2
+   cgoplot,[hei,hei],yran,color=lincol,linesty=2
+   if keyword_set(autoindices) then begin
+      doabs=0
+;     Absorption line region
+      if autoindices[0] ne -1l AND autoindices[1] ne -1l then begin
+         cgoplot,[wave[autoindices[0]],wave[autoindices[0]]],yran,$
+                 color=autocol,linesty=1
+         cgoplot,[wave[autoindices[1]],wave[autoindices[1]]],yran,$
+                 color=autocol,linesty=1
+         doabs=1
+      endif
+;     Emission line region, case of detection
+      if autoindices[2] ne -1l AND autoindices[3] ne -1l then begin
+         cgoplot,[wave[autoindices[2]],wave[autoindices[2]]],yran,$
+                 color=autocol,linesty=1
+         cgoplot,[wave[autoindices[3]],wave[autoindices[3]]],yran,$
+                 color=autocol,linesty=1
+;     Emission line region, case of upper limit
+      endif else if doabs then begin
+         cgoplot,[wave[autoindices[1]+iabsoff],wave[autoindices[1]+iabsoff]],yran,$
+                 color=autocol,linesty=1
+         iup = value_locate(wave,wave[autoindices[1]+iabsoff]+$
+                            emwid)
+         cgoplot,[wave[iup],wave[iup]],yran,$
+                 color=autocol,linesty=1
+      endif
+   endif
+   al_legend,['Continuum fit','Galaxy rest frame','Abs/Em Ranges'],$
+             col=[cntcol,lincol,autocol],linesty=[0,2,1],/left,/bottom
 
    img = cgsnapshot(filename=outfile,/jpeg,/nodialog,quality=100)
  

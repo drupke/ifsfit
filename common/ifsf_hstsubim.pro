@@ -5,7 +5,8 @@
 ; Extract subimages from HST images, with an option to extract the
 ; full IFS FOV and rotate the HST data so that the HST pixels are
 ; oriented the same way as the IFS spaxels. Byte scale the data using
-; CGIMGSCL.
+; CGIMGSCL. Default stretch is ASINH; select different stretch using SCLARGS
+; keyword.
 ; 
 ; NOTE: This procedure requires IDLUTILS because of the SSHIFTROTATE
 ; routine.
@@ -45,10 +46,7 @@
 ;      will be rotated to align its pixels with the IFS spaxels.
 ;    noscl: in, optional, type=byte
 ;      Skip byte scaling.
-;    stretch: in, optional, type=long, default=5
-;      Function for byte scaling data. See CGIMGSCL for a list of
-;      possible values.
-;    sclargs: in, optional, type=string
+;    sclargs: in, optional, type=structure
 ;      Optional arguments to byte scaling function.
 ;    
 ;    
@@ -63,6 +61,7 @@
 ; :History:
 ;    ChangeHistory::
 ;      2014may20, DSNR, created
+;      2014dec15, DSNR, removed STRETCH keyword; use SCLARGS to change stretch
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -84,12 +83,10 @@
 ;-
 function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
                        hstrefcoords,scllim,hstps=hstps,ifsbounds=ifsbounds,$
-                       fov=fov,stretch=stretch,sclargs=sclargs,noscl=noscl
+                       fov=fov,sclargs=sclargs,noscl=noscl
 
 ;  HST platescale, in arcseconds
    if ~ keyword_set(hstps) then hstps = 0.05d
-;  Function for byte scaling data
-   if ~ keyword_set(stretch) then stretch = 5
 
 ;  Rotation matrix to transform from sky coordinate system to instrument 
 ;  coordinate system:
@@ -157,9 +154,9 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
    if ~ keyword_set(noscl) then $                       
       if keyword_set(sclargs) then $
          hst_subim = call_function('cgimgscl',hst_subim,minval=scllim[0],$
-                                   max=scllim[1],stretch=stretch,_extra=sclargs) $
+                                   max=scllim[1],_extra=sclargs) $
       else hst_subim = call_function('cgimgscl',hst_subim,minval=scllim[0],$
-                                     max=scllim[1],stretch=stretch)
+                                     max=scllim[1],stretch=5)
 
 ;  rotate and trim image
    if keyword_set(fov) then begin

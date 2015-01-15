@@ -189,6 +189,8 @@ Misc. optional tags:
     If set, extinction correction is applied in IFSF_CMPLINSPECMAPS on a
     component-by-component basis to the Balmer lines. Set each element to
     1 (or 0) to apply (or not apply) the correction.
+  badnademp: in, optional, type=dblarr(ncols,nrows)
+    Flags to ignore empirical NaD results. 0 = keep, 1 = ignore
   center_axes: in, optional, type=dblarr(2)
     Coordinates of the 0-point of the map axes. Defaults to the map
     center. Also used to define the radius maps (MAP_R, etc).
@@ -405,6 +407,8 @@ Optional parameters:
       Wavelength range to plot.
   fcnfitnad: in, optional, type=string
     Name of function for initializing NaD + HeI fit.
+  hei_fix: in, optional, type=bytarr(ncols,nrows,maxncomp,3)
+    Array of fix/free flags for HeI line parameters. 0=free, 1=fix
   hei_siginit: in, optional, type=dblarr(ncols,nrows,maxncomp)
     Initial sigma guesses for HeI emission line fits. Needed if HeI
     is fit without being tied to fits of other lines.
@@ -415,6 +419,8 @@ Optional parameters:
     Column number of spaxel to which to tie the HeI fit.
   heitierow: in, optional, type=intarr(ncols,nrows)
     Row number of spaxel to which to tie the HeI fit.
+  nadabs_fix: in, optional, type=bytarr(ncols,nrows,maxncomp,4)
+    Array of fix/free flags for NaD absorption line parameters. 0=free, 1=fix
   nadabs_cfinit: in, required, type=dblarr(ncols,nrows,maxncomp), default=0.5d
     Initial covering factor guesses for NaD absorption line fits.
   nadabs_tauinit: in, required, type=dblarr(ncols,nrows,maxncomp), default=0.5d

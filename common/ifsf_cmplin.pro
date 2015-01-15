@@ -46,6 +46,7 @@
 ;                       to place
 ;      2014apr15, DSNR, turned off /DOUBLE in call to Gaussian b/c of floating
 ;                       point underflow; culprit seems to be MACHAR() ...
+;      2014nov05, DSNR, updated to play nice with older data
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -67,18 +68,27 @@
 ;-
 function ifsf_cmplin,instr,line,comp,velsig=velsig
 
-  c = 299792.458d
+   c = 299792.458d
   
-  iline = where(instr.linelabel eq line,ct)
-  ppoff = instr.param[0]
-  ncomp = instr.param[1]
+   iline = where(instr.linelabel eq line,ct)
+   ppoff = instr.param[0]
+   ncomp = instr.param[1]
 
-  indices = where(instr.parinfo.line eq line AND instr.parinfo.comp eq comp)
-  gausspar = instr.param[indices]
-  if keyword_set(velsig) then gausspar[2] *= gausspar[1]/c
-  if gausspar[2] eq 0d then flux = 0d else $
-     flux = double(gaussian(instr.wave,gausspar))
+;  The first part of this if loop is for IFSF-processed data; the second part
+;  is for UHSPECFIT-processed data.
+   if tag_exist(instr,'parinfo') then begin  
+      indices = where(instr.parinfo.line eq line AND instr.parinfo.comp eq comp)
+   endif else begin
+      nline = n_elements(instr.linelabel)
+      iline = where(instr.linelabel eq line)
+      indices = instr.param[0] + (comp-1)*nline*3+iline*3
+      indices = indices[0]+indgen(3)
+   endelse
+   gausspar = instr.param[indices]
+   if keyword_set(velsig) then gausspar[2] *= gausspar[1]/c
+   if gausspar[2] eq 0d then flux = 0d else $
+      flux = double(gaussian(instr.wave,gausspar))
 
-  return,flux
+   return,flux
 
 end

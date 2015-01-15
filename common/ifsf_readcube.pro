@@ -26,7 +26,8 @@
 ;    varext: in, optional, type=integer, default=2
 ;      Extension # of variance plane.
 ;    dqext: in, optional, type=integer, default=3
-;      Extension # of DQ plane.
+;      Extension # of DQ plane. Set to a negative number if there is no DQ; DQ 
+;      plane is then set to 0.
 ;
 ; :Author:
 ;    David S. N. Rupke::
@@ -41,6 +42,7 @@
 ;      2010jun08, DSNR, created as GMOS_READCUBE
 ;      2013dec17, DSNR, ported to IFSF_READCUBE
 ;      2014jan29, DSNR, added ability to change default extensions
+;      2014aug05, DSNR, small tweak to allow single spectra and no DQ
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -83,7 +85,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
   phu = readfits(infile,header_phu,ext=0,silent=quiet)
   dat = readfits(infile,header_dat,ext=datext,silent=quiet)
   var = readfits(infile,header_var,ext=varext,silent=quiet)
-  dq = readfits(infile,header_dq,ext=dqext,silent=quiet)
+  if dqext ge 0 then $
+     dq = readfits(infile,header_dq,ext=dqext,silent=quiet) $
+  else dq = dat*0d
 
 ; Get #s of rows, columns, and wavelength pixels.     
   datasize = size(dat)
@@ -93,7 +97,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      nz    = datasize[3]
   endif else begin
      nz    = datasize[1]
-     ncols = datasize[2]
+     if datasize[0] gt 1 then ncols = datasize[2] else ncols=1
      nrows = 1
   endelse
 

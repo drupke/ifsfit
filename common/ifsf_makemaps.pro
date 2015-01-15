@@ -2,7 +2,8 @@
 ;
 ;+
 ;
-; This procedure makes maps of various quantities.
+; This procedure makes maps of various quantities. Contains three helper routines: 
+; IFSF_PLOTRANGE, IFSF_PLOTCOMPASS, IFSF_PLOTAXESNUC.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -36,10 +37,13 @@
 ;                       errors
 ;      2014apr21, DSNR, added line ratio maps and VO plots
 ;      2014may23, DSNR, added NaD maps and continuum images
-;      2014jun02, DSNR, updated to allow use without previous emission-line fit
-;                       with IFSF
-;      2014jun04, DSNR, updated to plot velocities using cumulative velocity
-;                       distributions
+;      2014jun02, DSNR, allow use without previous emission-line fit from IFSF
+;      2014jun04, DSNR, plots velocities using cumulative velocity distributions
+;      2014julXY, DSNR  calls local plotting routine if requested;
+;                       plots no. of components in NaD fit
+;                       new helper subroutines for plotting axes and finding ranges
+;      2014jul24, DSNR, plots NaD fitted velocities
+;      2014dec07, DSNR, added compass to plots
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -59,13 +63,27 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_plotaxesnuc,xran_kpc,yran_kpc,xnuc,ynuc
+pro ifsf_plotaxesnuc,xran_kpc,yran_kpc,xnuc,ynuc,nolab=nolab
    COMPILE_OPT IDL2, HIDDEN
-   cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+   if not keyword_set(nolab) then begin
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+   endif else begin
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60)
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,ytickn=replicate(' ',60)   
+   endelse
    cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
-   cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
    cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
    cgoplot,xnuc,ynuc,psym=1
+end
+;
+pro ifsf_plotcompass,xarr,yarr,carr=carr
+   COMPILE_OPT IDL2, HIDDEN
+   if ~ keyword_set(carr) then carr='Black'
+   cgarrow,xarr[0],yarr[0],xarr[1],yarr[1],/data,/solid,color=carr
+   cgarrow,xarr[0],yarr[0],xarr[2],yarr[2],/data,/solid,color=carr
+   cgtext,xarr[3],yarr[3],'N',color=carr,align=0.5
+   cgtext,xarr[4],yarr[4],'E',color=carr,align=0.5
 end
 ;
 function ifsf_plotrange,auto=auto,$
@@ -187,6 +205,14 @@ pro ifsf_makemaps,initproc,comprange=comprange
       if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
       if center_nuclei[0] eq -1 then center_nuclei = center_axes
    endif
+   
+;  Restore continuum parameters
+   if tag_exist(initdat,'startempfile') then begin
+      restore,file=initdat.outdir+initdat.label+'.cont.xdr'
+      size_tmp = size(contcube.cont_fit_stel_tot)
+      dx = size_tmp[1]
+      dy = size_tmp[2]
+   endif
 
 ;  Get NaD parameters
    if tag_exist(initdat,'donad') then begin
@@ -199,6 +225,22 @@ pro ifsf_makemaps,initproc,comprange=comprange
          if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
          if center_nuclei[0] eq -1 then center_nuclei = center_axes
       endif
+      if tag_exist(initmaps,'badnademp') then begin
+         tagstobad=['WEQ','IWEQ','EMFLUX','EMUL','VEL']
+         tagnames=tag_names(nadcube)
+         ibad = where(initmaps.badnademp eq 1b,ctbad)
+         if ctbad gt 0 then begin
+            for i=0,n_elements(tagstobad)-1 do begin
+               itag = where(tagnames eq tagstobad[i])
+               sizetag = size(nadcube.(itag))
+               for j=0,sizetag[3]-1 do begin
+                  tmp=nadcube.(itag)[*,*,j]
+                  tmp[ibad]=bad
+                  nadcube.(itag)[*,*,j]=tmp
+               endfor
+            endfor
+         endif
+      endif
    endif
    
    if ~ tag_exist(initdat,'donad') AND $
@@ -207,6 +249,15 @@ pro ifsf_makemaps,initproc,comprange=comprange
       print,'               Aborting.'
       goto,badinput
    endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Compute some things
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;  Luminosity and angular size distances
+   ldist = lumdist(initdat.zsys_gas,H0=73,Omega_m=0.27,Lambda0=0.73,/silent)
+   kpc_per_as = ldist/(1+initdat.zsys_gas^2)*1000d/206265d
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Load and process continuum data
@@ -240,7 +291,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
                               initdat.positionangle,center_nuclei,$
                               initmaps.hst.refcoords,$
                               initmaps.hstbl.scllim,$
-                              sclargs=initmaps.hstbl.sclargs,$
+                              sclargs=initmaps.hstbl.sclargs_sm,$
                               ifsbounds=hst_sm_ifsfov)
       bhst_big = ifsf_hstsubim(hstbl,[initmaps.hst.subim_big,$
                                initmaps.hst.subim_big],$
@@ -248,26 +299,54 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                initdat.positionangle,center_nuclei,$
                                initmaps.hst.refcoords,$
                                initmaps.hstbl.scllim,$
-                               sclargs=initmaps.hstbl.sclargs,$
+                               sclargs=initmaps.hstbl.sclargs_big,$
                                ifsbounds=hst_big_ifsfov)
       bhst_fov = ifsf_hstsubim(hstbl,[0,0],[dx,dy],initdat.platescale,$
                                initdat.positionangle,center_nuclei,$
                                initmaps.hst.refcoords,$
                                initmaps.hstbl.scllim,$
-                               sclargs=initmaps.hstbl.sclargs,$
+                               sclargs=initmaps.hstbl.sclargs_fov,$
                                /fov)
+      bhst_fov_ns = ifsf_hstsubim(hstbl,[0,0],[dx,dy],initdat.platescale,$
+                                  initdat.positionangle,center_nuclei,$
+                                  initmaps.hst.refcoords,[0,0],/noscl,/fov)
       if tag_exist(initmaps,'hstblsm') then begin
          dohstsm=1
-         hstblsm = filter_image(hstbl,fwhm=initmaps.hst.smoothfwhm,/all)
+
+;        For F05189, mask central pixels before smoothing
+         if initdat.label eq 'f05189' then begin
+            size_tmp = size(hstbl)
+            map_x_tmp = rebin(dindgen(size_tmp[1]),size_tmp[1],size_tmp[2])
+            map_y_tmp = rebin(transpose(dindgen(size_tmp[2])),$
+                              size_tmp[1],size_tmp[2])
+            map_rkpc_tmp = sqrt((map_x_tmp - (initmaps.hst.refcoords[0]+$
+                                 initmaps.hstbl.nucoffset[0]-1))^2d + $
+                                (map_y_tmp - (initmaps.hst.refcoords[1]+$
+                                 initmaps.hstbl.nucoffset[1]-1))^2d) $
+                           * initmaps.hstbl.platescale * kpc_per_as
+            ipsf = where(map_rkpc_tmp le 0.15d)
+            ipsf_bkgd = where(map_rkpc_tmp gt 0.15d AND map_rkpc_tmp le 0.25d)
+            hstbl_tmp = hstbl
+            hstbl_tmp[ipsf] = median(hstbl[ipsf_bkgd])
+            hstblsm = filter_image(hstbl_tmp,fwhm=initmaps.hst.smoothfwhm,/all)
+         endif else begin
+            hstblsm = filter_image(hstbl,fwhm=initmaps.hst.smoothfwhm,/all)
+         endelse
+         
+;         print,max(hstbl[3250:3270,2700:2720]),max(hstblsm[3250:3270,2700:2720])
+         
          bhst_fov_sm = ifsf_hstsubim(hstblsm,[0,0],[dx,dy],$
                                      initdat.platescale,$
                                      initdat.positionangle,center_nuclei,$
                                      initmaps.hst.refcoords,$
                                      initmaps.hstblsm.scllim,$
-                                     stretch=initmaps.hstblsm.stretch,$
                                      sclargs=initmaps.hstblsm.sclargs,$
                                      /fov)
-         
+         bhst_fov_sm_ns= ifsf_hstsubim(hstblsm,[0,0],[dx,dy],$
+                                       initdat.platescale,$
+                                       initdat.positionangle,center_nuclei,$
+                                       initmaps.hst.refcoords,[0,0],/noscl,/fov)
+         bhst_fov_sm_ns_rb = congrid(bhst_fov_sm_ns,dx,dy,/interp)        
       endif
    endif      
    if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstrd') then begin
@@ -281,7 +360,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
                               initdat.positionangle,center_nuclei,$
                               initmaps.hst.refcoords,$
                               initmaps.hstrd.scllim,$
-                              sclargs=initmaps.hstrd.sclargs,$
+                              sclargs=initmaps.hstrd.sclargs_sm,$
                               ifsbounds=hst_sm_ifsfov)
       rhst_big = ifsf_hstsubim(hstrd,[initmaps.hst.subim_big,$
                                initmaps.hst.subim_big],$
@@ -289,26 +368,54 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                initdat.positionangle,center_nuclei,$
                                initmaps.hst.refcoords,$
                                initmaps.hstrd.scllim,$
-                               sclargs=initmaps.hstrd.sclargs,$
+                               sclargs=initmaps.hstrd.sclargs_big,$
                                ifsbounds=hst_big_ifsfov)
       rhst_fov = ifsf_hstsubim(hstrd,[0,0],[dx,dy],initdat.platescale,$
                                initdat.positionangle,center_nuclei,$
                                initmaps.hst.refcoords,$
                                initmaps.hstrd.scllim,$
-                               sclargs=initmaps.hstrd.sclargs,$
+                               sclargs=initmaps.hstrd.sclargs_fov,$
                                /fov)
+      rhst_fov_ns = ifsf_hstsubim(hstrd,[0,0],[dx,dy],initdat.platescale,$
+                                  initdat.positionangle,center_nuclei,$
+                                  initmaps.hst.refcoords,[0,0],/noscl,/fov)
       if tag_exist(initmaps,'hstrdsm') then begin
          dohstsm=1
-         hstrdsm = filter_image(hstrd,fwhm=initmaps.hst.smoothfwhm,/all)
+
+;        For F05189, mask central pixels before smoothing
+         if initdat.label eq 'f05189' then begin
+            size_tmp = size(hstrd)
+            map_x_tmp = rebin(dindgen(size_tmp[1]),size_tmp[1],size_tmp[2])
+            map_y_tmp = rebin(transpose(dindgen(size_tmp[2])),$
+                              size_tmp[1],size_tmp[2])
+            map_rkpc_tmp = sqrt((map_x_tmp - (initmaps.hst.refcoords[0]+$
+                                 initmaps.hstrd.nucoffset[0]-1))^2d + $
+                                (map_y_tmp - (initmaps.hst.refcoords[1]+$
+                                 initmaps.hstrd.nucoffset[1]-1))^2d) $
+                           * initmaps.hstrd.platescale * kpc_per_as
+            ipsf = where(map_rkpc_tmp le 0.15d)
+            ipsf_bkgd = where(map_rkpc_tmp gt 0.15d AND map_rkpc_tmp le 0.25d)
+            hstrd_tmp = hstrd
+            hstrd_tmp[ipsf] = median(hstrd[ipsf_bkgd])
+            hstrdsm = filter_image(hstrd_tmp,fwhm=initmaps.hst.smoothfwhm,/all)
+         endif else begin
+            hstrdsm = filter_image(hstrd,fwhm=initmaps.hst.smoothfwhm,/all)
+         endelse
+
+;         print,max(hstrd[3250:3270,2700:2720]),max(hstrdsm[3250:3270,2700:2720])
+
          rhst_fov_sm = ifsf_hstsubim(hstrdsm,[0,0],[dx,dy],$
                                      initdat.platescale,$
                                      initdat.positionangle,center_nuclei,$
                                      initmaps.hst.refcoords,$
                                      initmaps.hstrdsm.scllim,$
-                                     stretch=initmaps.hstrdsm.stretch,$
                                      sclargs=initmaps.hstrdsm.sclargs,$
                                      /fov)
-         
+         rhst_fov_sm_ns= ifsf_hstsubim(hstrdsm,[0,0],[dx,dy],$
+                                       initdat.platescale,$
+                                       initdat.positionangle,center_nuclei,$
+                                       initmaps.hst.refcoords,[0,0],/noscl,/fov)
+         rhst_fov_sm_ns_rb = congrid(rhst_fov_sm_ns,dx,dy,/interp)
       endif
    endif      
    if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstcol') then begin
@@ -363,7 +470,6 @@ pro ifsf_makemaps,initproc,comprange=comprange
                               initdat.positionangle,center_nuclei,$
                               initmaps.hst.refcoords,$
                               initmaps.hstcol.scllim,$
-                              stretch=initmaps.hstcol.stretch,$
                               sclargs=initmaps.hstcol.sclargs)
       chst_big = ifsf_hstsubim(hstcol,[initmaps.hst.subim_big,$
                                initmaps.hst.subim_big],$
@@ -371,13 +477,11 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                initdat.positionangle,center_nuclei,$
                                initmaps.hst.refcoords,$
                                initmaps.hstcol.scllim,$
-                               stretch=initmaps.hstcol.stretch,$
                                sclargs=initmaps.hstcol.sclargs)
       chst_fov = ifsf_hstsubim(hstcol,[0,0],[dx,dy],initdat.platescale,$
                                initdat.positionangle,center_nuclei,$
                                initmaps.hst.refcoords,$
                                initmaps.hstcol.scllim,$
-                               stretch=initmaps.hstcol.stretch,$
                                sclargs=initmaps.hstcol.sclargs,$
                                /fov)
 ;     Extract unscaled color image
@@ -425,7 +529,6 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                initdat.positionangle,center_nuclei,$
                                initmaps.hst.refcoords,$
                                initmaps.hstcolsm.scllim,$
-                               stretch=initmaps.hstcolsm.stretch,$
                                sclargs=initmaps.hstcolsm.sclargs)
       cshst_big = ifsf_hstsubim(hstcolsm,[initmaps.hst.subim_big,$
                                 initmaps.hst.subim_big],$
@@ -433,13 +536,11 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                 initdat.positionangle,center_nuclei,$
                                 initmaps.hst.refcoords,$
                                 initmaps.hstcolsm.scllim,$
-                                stretch=initmaps.hstcolsm.stretch,$
                                 sclargs=initmaps.hstcolsm.sclargs)
-      cshst_fov = ifsf_hstsubim(hstcolsm,[0,0],[dx,dy],initdat.platescale,$
+      cshst_fov_s = ifsf_hstsubim(hstcolsm,[0,0],[dx,dy],initdat.platescale,$
                                 initdat.positionangle,center_nuclei,$
                                 initmaps.hst.refcoords,$
                                 initmaps.hstcolsm.scllim,$
-                                stretch=initmaps.hstcolsm.stretch,$
                                 sclargs=initmaps.hstcolsm.sclargs,$
                                 /fov)
 ;     Extract unscaled color image and convert to same pixel scale as IFS data
@@ -455,12 +556,8 @@ pro ifsf_makemaps,initproc,comprange=comprange
    hstblsm=0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Compute some things
+; Compute some more things
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;  Luminosity and angular size distances
-   ldist = lumdist(initdat.zsys_gas,H0=73,Omega_m=0.27,Lambda0=0.73,/silent)
-   kpc_per_as = ldist/(1+initdat.zsys_gas^2)*1000d/206265d
 
 ;  coordinates in kpc
    xran_kpc = double([-(center_axes[0]-0.5),dx-(center_axes[0]-0.5)]) $
@@ -485,10 +582,29 @@ pro ifsf_makemaps,initproc,comprange=comprange
       map_x_hst = rebin(dindgen(size_subim[1])+1,size_subim[1],size_subim[2])
       map_y_hst = rebin(transpose(dindgen(size_subim[2])+1),$
                         size_subim[1],size_subim[2])
-      center_axes_hst = center_axes * double(size_subim[1]/dx)
+      center_axes_hst = center_axes * double(size_subim[1]/dx) - 1
       map_r_hst = sqrt((map_x_hst - center_axes_hst[0])^2d + $
                        (map_y_hst - center_axes_hst[1])^2d)
-      map_rkpc_hst = map_r_hst * 0.05d * kpc_per_as
+      if initmaps.hstbl.platescale ne initmaps.hstrd.platescale then $
+         print,'WARNING: HST blue and red plate scales differ; using blue platescale'
+      map_rkpc_hst = map_r_hst * initmaps.hstbl.platescale * kpc_per_as
+      if tag_exist(initmaps.hstbl,'nucoffset') then begin
+         map_r_bhst = $
+            sqrt((map_x_hst - $
+                  (center_axes_hst[0]+initmaps.hstbl.nucoffset[0]))^2d + $
+                 (map_y_hst - $
+                  (center_axes_hst[1]+initmaps.hstbl.nucoffset[1]))^2d)
+         map_rkpc_bhst = map_r_bhst * initmaps.hstbl.platescale * kpc_per_as
+      endif else map_rkpc_bhst = map_rkpc_hst
+      if tag_exist(initmaps.hstrd,'nucoffset') then begin
+         map_r_rhst = $
+            sqrt((map_x_hst - $
+                  (center_axes_hst[0]+initmaps.hstrd.nucoffset[0]))^2d + $
+                 (map_y_hst - $
+                  (center_axes_hst[1]+initmaps.hstrd.nucoffset[1]))^2d)
+         map_rkpc_rhst = map_r_rhst * initmaps.hstrd.platescale * kpc_per_as
+      endif else map_rkpc_rhst = map_rkpc_hst
+         
    endif
       
 
@@ -553,13 +669,18 @@ pro ifsf_makemaps,initproc,comprange=comprange
             if ctgd gt 0 then begin
                nnai = total(nadfit.tau[i,j,igd]*nadfit.sigmaabs[i,j,igd]) / $
                       (1.497d-15/sqrt(2d)*nadlinelist['NaD1']*0.3180d)
+               tauerrlo = nadfit.tau[i,j,igd] - $
+                          10d^(alog10(nadfit.tau[i,j,igd]) - $
+                               nadfit.tauerr[i,j,igd,0])
+               tauerrhi = 10d^(alog10(nadfit.tau[i,j,igd]) + $
+                               nadfit.tauerr[i,j,igd,1]) - nadfit.tau[i,j,igd]
                nnaierrlo = $
-                  nnai*sqrt(total((nadfit.tauerr[i,j,igd,0]/$
+                  nnai*sqrt(total((tauerrlo/$
                                    nadfit.tau[i,j,igd])^2d + $
                                   (nadfit.sigmaabserr[i,j,igd,0]/$
                                    nadfit.sigmaabs[i,j,igd])^2d))
                nnaierrhi = $
-                  nnai*sqrt(total((nadfit.tauerr[i,j,igd,1]/$
+                  nnai*sqrt(total((tauerrhi/$
                                    nadfit.tau[i,j,igd])^2d + $
                                   (nadfit.sigmaabserr[i,j,igd,1]/$
                                    nadfit.sigmaabs[i,j,igd])^2d))
@@ -704,6 +825,41 @@ pro ifsf_makemaps,initproc,comprange=comprange
       
    endif
 
+;  Compass rose
+   angarr_rad = initdat.positionangle*!DPi/180d
+   sinangarr = sin(angarr_rad)
+   cosangarr = cos(angarr_rad)
+;  starting point and length of compass rose normalized to plot panel
+   xarr0_norm = 0.95
+   yarr0_norm = 0.05
+   rarr_norm = 0.2
+   rlaboff_norm = 0.05
+   laboff_norm = 0.0
+   carr = 'White'
+;  Coordinates in kpc for arrow coordinates:
+;  Element 1: starting point
+;  2: end of N arrow
+;  3: end of E arrow
+;  4: N label
+;  5: E label
+   xarr_kpc = dblarr(5)
+   yarr_kpc = dblarr(5)
+   xarr_kpc[0] = xarr0_norm * (xran_kpc[1]-xran_kpc[0]) + xran_kpc[0]
+   xarr_kpc[1] = xarr_kpc[0] + rarr_norm * (xran_kpc[1]-xran_kpc[0])*sinangarr
+   xarr_kpc[2] = xarr_kpc[0] - rarr_norm * (xran_kpc[1]-xran_kpc[0])*cosangarr
+   xarr_kpc[3] = xarr_kpc[0] + (rarr_norm+rlaboff_norm) * $
+                               (xran_kpc[1]-xran_kpc[0])*sinangarr
+   xarr_kpc[4] = xarr_kpc[0] - (rarr_norm+rlaboff_norm) * $
+                               (xran_kpc[1]-xran_kpc[0])*cosangarr
+   yarr_kpc[0] = yarr0_norm * (yran_kpc[1]-yran_kpc[0]) + yran_kpc[0]
+   yarr_kpc[1] = yarr_kpc[0] + rarr_norm * (yran_kpc[1]-yran_kpc[0])*cosangarr
+   yarr_kpc[2] = yarr_kpc[0] + rarr_norm * (yran_kpc[1]-yran_kpc[0])*sinangarr
+   yarr_kpc[3] = yarr_kpc[0] + (rarr_norm+rlaboff_norm) * $
+                               (yran_kpc[1]-yran_kpc[0])*cosangarr
+   yarr_kpc[4] = yarr_kpc[0] + (rarr_norm+rlaboff_norm) * $
+                               (yran_kpc[1]-yran_kpc[0])*sinangarr
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Continuum plots
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -719,10 +875,15 @@ pro ifsf_makemaps,initproc,comprange=comprange
    cap2 = textoidl('F435W+F814W')
    cap3 = textoidl('F435W+F814W')
    cap4 = textoidl('IFS cont.')
+;  arrays for positions for zoom box
+   posbox1x = dblarr(2)
+   posbox1y = dblarr(2)
+   posbox2x = dblarr(2)
+   posbox2y = dblarr(2)
 
    cgps_open,initdat.mapdir+initdat.label+'cont.eps',charsize=1,/encap,$
              /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
-   pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+   pos = cglayout([npx,npy],ixmar=[2,2],iymar=[2,2],oxmar=[0,0],oymar=[0,0],$
                    xgap=0,ygap=0)
 
    if (dohstrd OR dohstbl) then begin
@@ -736,7 +897,8 @@ pro ifsf_makemaps,initproc,comprange=comprange
       if dohstrd AND dohstbl then $
          mapscl[1,*,*] = byte((double(rhst_big)+double(bhst_big))/2d)
       cgloadct,65,/reverse
-      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
+      cgimage,rebin(mapscl,3,size_subim[1]*10,size_subim[2]*10,/sample),$
+              /keep,pos=pos[*,i],opos=truepos,$
               noerase=i ne 0,missing_value=bad,missing_index=255,$
               missing_color='white'
       cgplot,[0],xsty=5,ysty=5,xran=[0,size_subim[1]],$
@@ -744,7 +906,15 @@ pro ifsf_makemaps,initproc,comprange=comprange
              /nodata,/noerase,title=cap1
       cgoplot,[hst_big_ifsfov[*,0],hst_big_ifsfov[0,0]],$
               [hst_big_ifsfov[*,1],hst_big_ifsfov[0,1]],color='Red'
-
+      cgtext,size_subim[1]*0.05,size_subim[2]*0.9,textoidl('21\times21 kpc'),$
+             color='white'
+      posbox1x[0] = truepos[0]+(truepos[2]-truepos[0])*$
+                    hst_big_ifsfov[0,0]/size_subim[1]
+      posbox1y[0] = truepos[1]+(truepos[3]-truepos[1])*$
+                    hst_big_ifsfov[3,1]/size_subim[2]
+      posbox2x[0] = posbox1x[0]
+      posbox2y[0] = truepos[1]+(truepos[3]-truepos[1])*$
+                    hst_big_ifsfov[0,1]/size_subim[2]
 
       i = 1
 ;     HST continuum, IFS FOV
@@ -756,21 +926,37 @@ pro ifsf_makemaps,initproc,comprange=comprange
       if dohstrd AND dohstbl then $
          mapscl[1,*,*] = byte((double(rhst_fov)+double(bhst_fov))/2d)
       cgloadct,65,/reverse
-      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
+      cgimage,rebin(mapscl,3,size_subim[1]*10,size_subim[2]*10,/sample),$
+              /keep,pos=pos[*,i],opos=truepos,$
               noerase=i ne 0,missing_value=bad,missing_index=255,$
               missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-             /nodata,/noerase,title=cap2
+             /nodata,/noerase,title=cap2      
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+      cgtext,-2,1.8,'IFS FOV',/data,color='white'
+      ifsf_plotcompass,xarr_kpc,yarr_kpc,carr=carr
+      posbox1x[1] = truepos[0]
+      posbox1y[1] = truepos[3]
+      posbox2x[1] = truepos[0]
+      posbox2y[1] = truepos[1]
 
       i = 2
 ;     smoothed HST continuum, IFS FOV
       if dohstsm then begin
-         mapscl = bytarr(3,size_subim[1],size_subim[2])
-         if dohstrd then mapscl[0,*,*] = rhst_fov_sm
-         if dohstbl then mapscl[2,*,*] = bhst_fov_sm
-         if dohstrd AND dohstbl then $
-            mapscl[1,*,*] = byte((double(rhst_fov_sm)+double(bhst_fov_sm))/2d)
+;;        3-color image
+;         mapscl = bytarr(3,size_subim[1],size_subim[2])
+;         if dohstrd then mapscl[0,*,*] = rhst_fov_sm
+;         if dohstbl then mapscl[2,*,*] = bhst_fov_sm
+;         if dohstrd AND dohstbl then $
+;            mapscl[1,*,*] = byte((double(rhst_fov_sm)+double(bhst_fov_sm))/2d)
+;        Flux image
+         ctmap = (double(rhst_fov_sm_ns_rb)+double(bhst_fov_sm_ns_rb))/2d
+         ctmap /= max(ctmap)
+         zran = initmaps.ct.scllim
+         dzran = zran[1]-zran[0]
+         mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
+                           minval=zran[0],max=zran[1],$
+                           stretch=initmaps.ct.stretch)
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
                  noerase=i ne 0,missing_value=bad,missing_index=255,$
@@ -778,6 +964,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase,title=cap3
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+         cgtext,-2,1.8,'IFS FOV, conv.',/data,color='white'
       endif
  
       i=3
@@ -802,6 +989,10 @@ pro ifsf_makemaps,initproc,comprange=comprange
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
    endif
 
+   cgplot,posbox1x,posbox1y,color='Red',$
+          xsty=5,ysty=5,/noerase,xran=[0,1],yran=[0,1],pos=[0,0,1,1]
+   cgoplot,posbox2x,posbox2y,color='Red'
+
    cgps_close
 
 
@@ -824,14 +1015,15 @@ pro ifsf_makemaps,initproc,comprange=comprange
 
    cgps_open,initdat.mapdir+initdat.label+'color.eps',charsize=1,/encap,$
              /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
-   pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+   pos = cglayout([npx,npy],ixmar=[2,2],iymar=[2,2],oxmar=[0,0],oymar=[0,0],$
                    xgap=0,ygap=0)
 
    if dohstcol then begin
       i = 0
-      size_subim = size(bhst_big)
+      size_subim = size(chst_big)
       cgloadct,65
-      cgimage,chst_big,/keep,pos=pos[*,i],opos=truepos,$
+      cgimage,rebin(chst_big,size_subim[1]*10,size_subim[2]*10,/sample),$
+              /keep,pos=pos[*,i],opos=truepos,$
               noerase=i ne 0,missing_value=bad,missing_index=255,$
               missing_color='white'
       cgplot,[0],xsty=5,ysty=5,xran=[0,size_subim[1]],$
@@ -839,6 +1031,37 @@ pro ifsf_makemaps,initproc,comprange=comprange
              /nodata,/noerase,title=cap1,color='Black'
       cgoplot,[hst_big_ifsfov[*,0],hst_big_ifsfov[0,0]],$
               [hst_big_ifsfov[*,1],hst_big_ifsfov[0,1]],color='Black'
+;      zran=initmaps.hstcol.scllim
+;      dzran = zran[1]-zran[0]
+;      ncbdiv = initmaps.hstcol.ncbdiv
+;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+;                         (dzran - zran[1]),format=cbform)
+;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+;                 ticknames=ticknames,/ver,/right,charsize=0.6
+      cgtext,size_subim[1]*0.05,size_subim[2]*0.9,textoidl('21\times21 kpc'),$
+             color='black'
+      posbox1x[0] = truepos[0]+(truepos[2]-truepos[0])*$
+                    hst_big_ifsfov[0,0]/size_subim[1]
+      posbox1y[0] = truepos[1]+(truepos[3]-truepos[1])*$
+                    hst_big_ifsfov[3,1]/size_subim[2]
+      posbox2x[0] = posbox1x[0]
+      posbox2y[0] = truepos[1]+(truepos[3]-truepos[1])*$
+                    hst_big_ifsfov[0,1]/size_subim[2]
+
+
+      i = 1
+      size_subim = size(chst_fov)
+      cgloadct,65
+      cgimage,rebin(chst_fov,size_subim[1]*10,size_subim[2]*10,/sample),$
+              /keep,pos=pos[*,i],opos=truepos,$
+              noerase=i ne 0,missing_value=bad,missing_index=255,$
+              missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+             /nodata,/noerase,title=cap2
+      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+      cgtext,-2,1.8,'IFS FOV',/data,color='black'
+      ifsf_plotcompass,xarr_kpc,yarr_kpc
       zran=initmaps.hstcol.scllim
       dzran = zran[1]-zran[0]
       ncbdiv = initmaps.hstcol.ncbdiv
@@ -847,30 +1070,24 @@ pro ifsf_makemaps,initproc,comprange=comprange
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       cgcolorbar,position=cbpos,divisions=ncbdiv,$
                  ticknames=ticknames,/ver,/right,charsize=0.6
-
-
-      i = 1
-      cgloadct,65
-      cgimage,chst_fov,/keep,pos=pos[*,i],opos=truepos,$
-              noerase=i ne 0,missing_value=bad,missing_index=255,$
-              missing_color='white'
-      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-             /nodata,/noerase,title=cap2
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                 ticknames=ticknames,/ver,/right,charsize=0.6
+      posbox1x[1] = truepos[0]
+      posbox1y[1] = truepos[3]
+      posbox2x[1] = truepos[0]
+      posbox2y[1] = truepos[1]
 
       i = 2
+      size_subim = size(cshst_fov_s)
 ;     smoothed HST continuum, IFS FOV
       if dohstcolsm then begin
          cgloadct,65
-         cgimage,cshst_fov,/keep,pos=pos[*,i],opos=truepos,$
+         cgimage,rebin(cshst_fov_s,size_subim[1]*10,size_subim[2]*10,/sample),$
+                 /keep,pos=pos[*,i],opos=truepos,$
                  noerase=i ne 0,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase,title=cap3
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+         cgtext,-2,1.8,'IFS FOV, conv.',/data,color='black'
          zran=initmaps.hstcolsm.scllim
          dzran = zran[1]-zran[0]
          ncbdiv = initmaps.hstcolsm.ncbdiv
@@ -903,6 +1120,62 @@ pro ifsf_makemaps,initproc,comprange=comprange
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
    endif
 
+   cgplot,posbox1x,posbox1y,color='Black',$
+          xsty=5,ysty=5,/noerase,xran=[0,1],yran=[0,1],pos=[0,0,1,1]
+   cgoplot,posbox2x,posbox2y,color='Black'
+
+   cgps_close
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Continuum components: Percentage of summed continuum fit by additive polynomial
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   cgps_open,initdat.mapdir+initdat.label+'cont_polypct.eps',charsize=1,/encap,$
+         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
+
+   map = contcube.cont_fit_poly_tot_pct
+   ibd = where(map eq bad)
+   map[ibd] = 0l
+      
+   zran = [0,1]
+   dzran = zran[1]-zran[0]
+   mapscl = cgimgscl(rebin(map,dx*20,dy*20,/sample),$
+                     minval=zran[0],maxval=zran[1],ncolors=5)
+   cgloadct,8,/brewer,ncolors=5
+   cgimage,mapscl,/keep,opos=truepos,mar=0.2d
+   cgplot,[0],xsty=5,ysty=5,position=truepos,$
+          /nodata,/noerase
+   ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+   cbpos=[truepos[2],truepos[1],truepos[2]+0.02,truepos[3]]
+   ticknames = ['0.0-0.2','0.2-0.4','0.4-0.6','0.6-0.8','0.8-1.0']
+   cgDCBar,ncolors=5,position=cbpos,labels=ticknames,/ver,/right,$
+           charsize=0.6
+   cgps_close
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Continuum components: Percentage of summed continuum fit by additive polynomial
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   cgps_open,initdat.mapdir+initdat.label+'NaDcont_polypct.eps',charsize=1,/encap,$
+         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
+
+   map = contcube.cont_fit_poly_nad_pct
+   ibd = where(map eq bad)
+   map[ibd] = 0l
+      
+   zran = [0,1]
+   dzran = zran[1]-zran[0]
+   mapscl = cgimgscl(rebin(map,dx*20,dy*20,/sample),$
+                     minval=zran[0],maxval=zran[1],ncolors=5)
+   cgloadct,8,/brewer,ncolors=5
+   cgimage,mapscl,/keep,opos=truepos,mar=0.2d
+   cgplot,[0],xsty=5,ysty=5,position=truepos,$
+          /nodata,/noerase
+   ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+   cbpos=[truepos[2],truepos[1],truepos[2]+0.02,truepos[3]]
+   ticknames = ['0.0-0.2','0.2-0.4','0.4-0.6','0.6-0.8','0.8-1.0']
+   cgDCBar,ncolors=5,position=cbpos,labels=ticknames,/ver,/right,$
+           charsize=0.6
    cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1350,7 +1623,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
       cgps_open,initdat.mapdir+initdat.label+'NaDempweq.eps',charsize=1,/encap,$
          /inches,xs=plotquantum*2,ys=plotquantum*3,/qui
 
-      pos = cglayout([2,3],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+      pos = cglayout([2,3],ixmar=[2,2],iymar=[2,2],oxmar=[0,0],oymar=[0,0],$
          xgap=0,ygap=0)
       cbform = '(I0)'
 
@@ -1385,8 +1658,8 @@ pro ifsf_makemaps,initproc,comprange=comprange
          dzran = zran[1]-zran[0]
       endif
 
-;     replace bad points with 0
-      map[ibd] = 0d
+;     replace bad points
+      map[ibd] = bad
 
 ;     Save some things for later
       zran_empweqabs = zran
@@ -1399,7 +1672,8 @@ pro ifsf_makemaps,initproc,comprange=comprange
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='W$\down eq$(NaD abs, $\angstrom$)'
+;         /nodata,/noerase,title='W$\down eq$(NaD abs, $\angstrom$)'
+         /nodata,/noerase,title=textoidl('W_{eq}^{abs}')+' ($\angstrom$)'
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
@@ -1440,7 +1714,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='W/$\delta$W(NaD abs)'
+         /nodata,/noerase,title=textoidl('W_{eq}^{abs}/\deltaW')
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
@@ -1479,8 +1753,8 @@ pro ifsf_makemaps,initproc,comprange=comprange
          dzran = zran[1]-zran[0]
       endif
 
-;     replace bad points with 0
-      map[ibd] = 0d
+;     replace bad points
+      map[ibd] = bad
 
 ;     Save some things for later
       zran_empweqem = zran
@@ -1493,7 +1767,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='W$\down eq$(NaD em, $\angstrom$)'
+         /nodata,/noerase,title=textoidl('W_{eq}^{em}')+' ($\angstrom$)'
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
@@ -1534,7 +1808,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='W/$\delta$W(NaD em)'
+         /nodata,/noerase,title=textoidl('W_{eq}^{em}/\deltaW')
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
@@ -1574,21 +1848,17 @@ pro ifsf_makemaps,initproc,comprange=comprange
 ;     otherwise set it automagically.
       if ~hasrange then begin
          zran = [min(map[igd]),max(map[igd])]
-         zmax_flux = zran[1]
-         zran=[0,1]
-         dzran = 1
-         ncbdiv = 5
+         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
+         ncbdiv = divarr[0]
+         dzran = zran[1]-zran[0]
       endif
       
-;     replace bad points with 0
-      map[ibd] = 0d
+;     replace bad points
+      map[ibd] = bad
 
 ;     Save some things for later
-      zran_empfluxem = zran*zmax_flux
+      zran_empfluxem = zran
       map_empfluxem = map
-
-;     normalize good points
-      map[igd] /= zmax_flux
 
       mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
          min=zran[0],max=zran[1])
@@ -1597,7 +1867,8 @@ pro ifsf_makemaps,initproc,comprange=comprange
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='SB (NaD em)'
+         /nodata,/noerase,$
+         title=textoidl('I^{em} / 10^{-16}')
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
@@ -1656,18 +1927,18 @@ pro ifsf_makemaps,initproc,comprange=comprange
       endif
       zran_fitweqabs = zran
 
-;     replace bad points with 0
-      map[ibd] = 0d
+;     replace bad points
+      map[ibd] = bad
 
       mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
                       min=zran[0],max=zran[1])
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos[*,0],opos=truepos,$
-         noerase=i ne 0,missing_value=bad,missing_index=255,$
-         missing_color='white'
+         missing_value=bad,missing_index=255,missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='W$\down eq$(NaD abs, $\angstrom$)'
+         /nodata,/noerase,title=textoidl('W_{eq}^{abs}')+' ($\angstrom$)'
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+      ifsf_plotcompass,xarr_kpc,yarr_kpc
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
          (dzran - zran[1]),format=cbform)
@@ -1681,17 +1952,21 @@ pro ifsf_makemaps,initproc,comprange=comprange
       maperrlo_emp[ibderr] = 0d
       maperrhi_emp[ibderr] = 0d
 
-      xran = [0d,max([map,map_empweqabs])*1.1d]
+      igd_empweqabs = where(map_empweqabs ne bad)
+      xran = [0d,max([map[igd],map_empweqabs[igd_empweqabs]])*1.1d]
       yran = xran
-      cgplot,map_empweqabs,map,/xsty,/ysty,xran=xran,yran=yran,psym=3,$
-         pos=pos[*,1],xtit='W$\down eq$(NaD abs, $\angstrom$, empirical)',$
-         ytit='W$\down eq$(NaD abs, $\angstrom$, model)',/noerase,aspect=1d,$
+      cgplot,map_empweqabs,map,/xsty,/ysty,$
+         xran=xran,yran=yran,psym=3,pos=pos[*,1],$
+         xtit=textoidl('W_{eq}^{abs} (empirical)'),$
+         ytit=textoidl('W_{eq}^{abs} (fit)'),$
+         /noerase,aspect=1d,$
          chars=0.8,err_width=0,err_color='Gray',/err_clip,$
          err_xlow=maperrlo_emp,err_xhigh=maperrhi_emp,$
          err_ylow=maperrlo,err_yhigh=maperrhi
       cgoplot,map_empweqabs,map,psym=16,symsize=0.4
       cgoplot,xran,xran
-      inz = where(map ne 0d AND map_empweqabs ne 0d)
+      inz = where(map ne 0d AND map ne bad AND $
+                  map_empweqabs ne 0d AND map_empweqabs ne bad)
       weq_rms = sqrt(mean((map[inz]-map_empweqabs[inz])^2d))
       cgoplot,xran-weq_rms,xran,linesty=3
       cgoplot,xran+weq_rms,xran,linesty=3
@@ -1728,17 +2003,17 @@ pro ifsf_makemaps,initproc,comprange=comprange
          dzran = zran[1]-zran[0]
       endif
 
-;     replace bad points with 0
+;     replace bad points
       map[ibd] = 0d
 
       mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
          min=zran[0],max=zran[1])
       cgloadct,65
       cgimage,mapscl,/keep,pos=pos[*,2],opos=truepos,$
-         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         /noerase,missing_value=bad,missing_index=255,$
          missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='W$\down eq$(NaD em, $\angstrom$)'
+         /nodata,/noerase,title=textoidl('W_{eq}^{em}')+' ($\angstrom$)'
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
@@ -1753,17 +2028,20 @@ pro ifsf_makemaps,initproc,comprange=comprange
       maperrlo_emp[ibderr] = 0d
       maperrhi_emp[ibderr] = 0d
 
-      xran = [min([map,map_empweqem])*1.1d,0d]
+      igd_empweqem = where(map_empweqem ne bad)
+      xran = [min([map[igd],map_empweqem[igd_empweqem]])*1.1d,0d]
       yran = xran
       cgplot,map_empweqem,map,/xsty,/ysty,xran=xran,yran=yran,psym=3,$
-         pos=pos[*,3],xtit='W$\down eq$(NaD em, $\angstrom$, empirical)',$
-         ytit='W$\down eq$(NaD em, $\angstrom$, model)',/noerase,aspect=1d,$
+         pos=pos[*,3],/noerase,aspect=1d,$
+         xtit=textoidl('W_{eq}^{em} (empirical)'),$
+         ytit=textoidl('W_{eq}^{em} (fit)'),$    
          chars=0.8d,err_color='Gray',err_width=0,/err_clip,$
          err_xlow=maperrlo_emp,err_xhigh=maperrhi_emp,$
          err_ylow=maperrlo,err_yhigh=maperrhi
       cgoplot,map_empweqem,map,psym=16,symsize=0.4d
       cgoplot,xran,xran
-      inz = where(map ne 0d AND map_empweqem ne 0d)
+      inz = where(map ne 0d AND map ne bad AND $
+                  map_empweqem ne 0d AND map_empweqem ne bad)
       weq_rms = sqrt(mean((map[inz]-map_empweqem[inz])^2d))
       cgoplot,xran-weq_rms,xran,linesty=3
       cgoplot,xran+weq_rms,xran,linesty=3
@@ -1804,17 +2082,17 @@ pro ifsf_makemaps,initproc,comprange=comprange
          dzran = zran[1]-zran[0]
       endif
       
-;     replace bad points with 0
-      map[ibd] = 0d
+;     replace bad points
+      map[ibd] = bad
 
       mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
          min=zran[0],max=zran[1])
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos[*,4],opos=truepos,$
-         noerase=i ne 0,missing_value=bad,missing_index=255,$
+         /noerase,missing_value=bad,missing_index=255,$
          missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='SB (NaD em)'
+         /nodata,/noerase,title='I$\upem$ / 10$\up-16$'
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
       cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
@@ -1837,16 +2115,18 @@ pro ifsf_makemaps,initproc,comprange=comprange
          maperrhi_emp[igderr] *= initmaps.fluxfactor
       endif
 
-      xyran = [0d,max([map,map_empfluxem])*1.1d]
+      igd_empfluxem = where(map_empfluxem ne bad)
+      xyran = [0d,max([map[igd],map_empfluxem[igd_empfluxem]])*1.1d]
       cgplot,map_empfluxem,map,/xsty,/ysty,xran=xyran,yran=xyran,psym=3,$
-         pos=pos[*,5],xtit='SB (NaD em, empirical)',$
-         ytit='SB (NaD em, model)',/noerase,aspect=1d,$
+         pos=pos[*,5],xtit='I$\upem$ / 10$\up-16$ (empirical)',$
+         ytit='I$\upem$ / 10$\up-16$ (fit)',/noerase,aspect=1d,$
          chars=0.8d,err_color='Gray',err_width=0,/err_clip,$
          err_xlow=maperrlo_emp,err_xhigh=maperrhi_emp,$
          err_ylow=maperrlo,err_yhigh=maperrhi
       cgoplot,map_empfluxem,map,psym=16,symsize=0.4d
       cgoplot,xyran,xyran
-      inz = where(map ne 0d AND map_empfluxem ne 0d)
+      inz = where(map ne 0d AND map ne bad AND $
+                  map_empfluxem ne 0d AND map_empfluxem ne bad)
       weq_rms = sqrt(mean((map[inz]-map_empfluxem[inz])^2d))
       cgoplot,xyran-weq_rms,xyran,linesty=3
       cgoplot,xyran+weq_rms,xyran,linesty=3
@@ -1861,9 +2141,39 @@ pro ifsf_makemaps,initproc,comprange=comprange
 
    if tag_exist(initdat,'donad') then begin
 
-      cgps_open,initdat.mapdir+initdat.label+'NaDfitncomp.eps',charsize=1,/encap,$
-         /inches,xs=plotquantum*1,ys=plotquantum*1,/qui
+;      cgps_open,initdat.mapdir+initdat.label+'NaDfitncomp.eps',charsize=1.5,$
+;         /encap,$
+;         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
+;      map = nadabsncomp
+;      ibd = where(map eq bad)
+;      map[ibd] = 0l
+;      
+;      zran = [0,2]
+;      ncbdiv = 2
+;      dzran = zran[1]-zran[0]
+;      cbform = '(I0)'
+;
+;      mapscl = cgimgscl(rebin(map,dx*20,dy*20,/sample),$
+;                        minval=zran[0],maxval=zran[1],ncolors=3)
+;      cgloadct,8,/brewer,ncolors=3
+;      cgimage,mapscl,opos=truepos,mar=0.1d
+;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+;         /nodata,/noerase,title=textoidl('N_{comp}^{abs}')
+;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+;;      cbpos=[pos[2,0],pos[1,0],pos[2,0]+0.02,pos[3,0]]
+;      cbpos=[truepos[2],truepos[1],truepos[2]+0.02,truepos[3]]
+;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+;         (dzran - zran[1]),format=cbform)
+;      cgDCBar,ncolors=3,position=cbpos,labels=ticknames,/ver,/right,$
+;         charsize=1.5
+;         
+;      cgps_close
 
+      cgps_open,initdat.mapdir+initdat.label+'NaDfitncomp.eps',charsize=1.5,$
+         /encap,$
+         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
+      pos = cglayout([1,1],ixmar=[0,0],iymar=[0,0],oxmar=[3,5],oymar=[6,1],$
+                     xgap=0,ygap=0,aspect=1)
       map = nadabsncomp
       ibd = where(map eq bad)
       map[ibd] = 0l
@@ -1876,15 +2186,17 @@ pro ifsf_makemaps,initproc,comprange=comprange
       mapscl = cgimgscl(rebin(map,dx*20,dy*20,/sample),$
                         minval=zran[0],maxval=zran[1],ncolors=3)
       cgloadct,8,/brewer,ncolors=3
-      cgimage,mapscl,/keep,opos=truepos,mar=0.2d
-      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-         /nodata,/noerase,title='N$\downcomponents$ (NaD abs)'
+      cgimage,mapscl,pos=pos[*,0]
+      cgplot,[0],xsty=5,ysty=5,pos=pos[*,0],$
+         /nodata,/noerase ;,title=textoidl('N_{comp}^{abs}')
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-      cbpos=[truepos[2],truepos[1],truepos[2]+0.02,truepos[3]]
+      cbpos=[pos[2,0],pos[1,0],pos[2,0]+0.02,pos[3,0]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
          (dzran - zran[1]),format=cbform)
       cgDCBar,ncolors=3,position=cbpos,labels=ticknames,/ver,/right,$
-         charsize=0.6
+         charsize=1.5,spacing=0.5
+      cgtext,0.96,0.57,textoidl('# of Absorption Components'),orient=270,/normal,$
+             align=0.5
          
       cgps_close
       
@@ -2218,9 +2530,19 @@ pro ifsf_makemaps,initproc,comprange=comprange
       cgps_open,initdat.mapdir+initdat.label+'NaDfitvel.eps',charsize=1,/encap,$
                 /inches,xs=plotquantum*nx,ys=plotquantum*ny,/qui
 
-      pos = cglayout([nx,ny],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+      pos = cglayout([nx,ny],ixmar=[2,3],iymar=[2,2],oxmar=[2,0],oymar=[0,2],$
          xgap=0,ygap=0)
       cbform = '(I0)'
+      abslab = ['Abs (1 Comp)']
+      if nyabs gt 1 then $
+         for i=1,nyabs-1 do $
+            abslab = [abslab,string('Abs (',i,' of ',nyabs-1,' Comp)',$
+                                    format=('(A0,I0,A0,I0,A0)'))]
+      emlab = ['Em (1 Comp)']
+      if nyem gt 1 then $
+         for i=1,nyem-1 do $
+            emlab = [emlab,string('Em (',i,' of ',nyem-1,' Comp)',$
+                                  format=('(A0,I0,A0,I0,A0)'))]
 
 ;
 ;     ABSORPTION
@@ -2230,7 +2552,7 @@ pro ifsf_makemaps,initproc,comprange=comprange
          map = nadabssig[*,*,i]
          igd = where(map ne bad)
          ibd = where(map eq bad)
-         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=200d,$
+         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=100d,$
                                   ncbdivmax=ncbdivmax)
          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
             min=plotdat[0],max=plotdat[1])
@@ -2239,13 +2561,23 @@ pro ifsf_makemaps,initproc,comprange=comprange
                  noerase=i ne 0,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase,title='$\sigma$(NaD abs, km/s)'
+                /nodata,/noerase
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+         if i eq 0 then begin
+            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
+                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
+                  '$\sigma$ (km/s)',chars=1.25,align=0.5
+            ifsf_plotcompass,xarr_kpc,yarr_kpc
+         endif
+         cgtext,xran_kpc[0]-0.17*(xran_kpc[1]-xran_kpc[0]),$
+                (yran_kpc[0]+yran_kpc[1])/2d,$
+                abslab[i],align=0.5,orient=90d,chars=1.25
          cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
          ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
                             (plotdat[2] - plotdat[1]),format=cbform)
          cgcolorbar,position=cbpos,divisions=plotdat[3],$
                     ticknames=ticknames,/ver,/right,charsize=0.6
+         
 ;        v50
          map = nadabsvel[*,*,i]
          igd = where(map ne bad)
@@ -2253,14 +2585,19 @@ pro ifsf_makemaps,initproc,comprange=comprange
          plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=200d,$
                                   ncbdivmax=ncbdivmax)
          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-            min=plotdat[0],max=plotdat[1])
-         cgloadct,65,/reverse
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,22,/brewer,/reverse
+;         cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos[*,1+i*nx],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase,title='v$\down50$(NaD abs, km/s)'
+                /nodata,/noerase
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+         if i eq 0 then $
+            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
+                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
+                  'v$\down50$ (km/s)',chars=1.25,align=0.5
          cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
          ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
                             (plotdat[2] - plotdat[1]),format=cbform)
@@ -2274,13 +2611,18 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                   ncbdivmax=ncbdivmax)
          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
             min=plotdat[0],max=plotdat[1])
-         cgloadct,65,/reverse
+         cgloadct,22,/brewer,/reverse
+;         cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos[*,2+i*nx],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase,title='v$\down98$(NaD abs, km/s)'
+                /nodata,/noerase
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+         if i eq 0 then $
+            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
+                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
+                  'v$\down98$ (km/s)',chars=1.25,align=0.5
          cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
          ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
                             (plotdat[2] - plotdat[1]),format=cbform)
@@ -2305,8 +2647,11 @@ pro ifsf_makemaps,initproc,comprange=comprange
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase,title='$\sigma$(NaD em, km/s)'
+                /nodata,/noerase
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+         cgtext,xran_kpc[0]-0.17*(xran_kpc[1]-xran_kpc[0]),$
+                (yran_kpc[0]+yran_kpc[1])/2d,$
+                emlab[i],align=0.5,orient=90d,chars=1.25
          cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
          ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
                             (plotdat[2] - plotdat[1]),format=cbform)
@@ -2320,12 +2665,13 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                   ncbdivmax=ncbdivmax)
          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
             min=plotdat[0],max=plotdat[1])
-         cgloadct,65,/reverse
+         cgloadct,22,/brewer,/reverse
+;         cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos[*,1+nyabs*nx+i*nx],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase,title='v$\down50$(NaD em, km/s)'
+                /nodata,/noerase
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
          cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
          ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
@@ -2340,12 +2686,13 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                   ncbdivmax=ncbdivmax)
          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
             min=plotdat[0],max=plotdat[1])
-         cgloadct,65,/reverse
+         cgloadct,22,/brewer,/reverse
+;         cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos[*,2+nyabs*nx+i*nx],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase,title='v$\down98$(NaD em, km/s)'
+                /nodata,/noerase
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
          cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
          ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
@@ -2366,8 +2713,15 @@ pro ifsf_makemaps,initproc,comprange=comprange
 
    plotinfo = {dx: dx,$
                dy: dy,$
+               map_r: map_r,$
+               map_rkpc_ifs: map_rkpc_ifs,$
+               kpc_per_as: kpc_per_as,$
                xran_kpc: xran_kpc,$
                yran_kpc: yran_kpc,$
+               xarr_kpc: xarr_kpc,$
+               yarr_kpc: yarr_kpc,$
+               carr: carr,$
+               center_nuclei: center_nuclei,$
                center_nuclei_kpc_x: center_nuclei_kpc_x,$
                center_nuclei_kpc_y: center_nuclei_kpc_y}
 

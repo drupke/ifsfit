@@ -60,9 +60,15 @@
 ;      2014mayXY, DSNR, added NaD outputs
 ;      2014jun04, DSNR, added extra dimension to output LINMAP hash to get
 ;                       peak flux in emission lines
+;      2014jul29, DSNR, updated treatment of emission line upper limits
+;      2014decXY, DSNR, added output of details from SPS fit and calculation
+;                       of relative contributions of SPS models
+;                       and polynomial components to continuum fit
+;      2015jan05, DSNR, added calculation and output of NaI D equivalent width
+;                       from SPS fit
 ;
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013-2015 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -132,6 +138,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
 ; Switch to track when first NaD normalization done
   firstnadnorm=1
+; Switch to track when first continuum processed
+  firstcontproc=1
 
   if not keyword_set(cols) then cols=[1,cube.ncols] $
   else if n_elements(cols) eq 1 then cols = [cols,cols]
@@ -224,7 +232,82 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Process NaD (normalize, plot, compute quantities, and save)
+; Process continuum data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;       Create / populate output data cube                            
+        if firstcontproc then begin
+           contcube = $
+              {cont_fit_stel_tot: dblarr(cube.ncols,cube.nrows)+bad,$
+               cont_fit_poly_tot: dblarr(cube.ncols,cube.nrows)+bad,$
+               cont_fit_poly_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
+               cont_fit_stel_nad: dblarr(cube.ncols,cube.nrows)+bad,$
+               cont_fit_poly_nad: dblarr(cube.ncols,cube.nrows)+bad,$
+               cont_fit_poly_nad_pct: dblarr(cube.ncols,cube.nrows)+bad,$
+               cont_fit_ebv: dblarr(cube.ncols,cube.nrows)+bad,$
+               cont_fit_ages: dblarr(cube.ncols,cube.nrows,3)+bad,$
+               cont_fit_norms: dblarr(cube.ncols,cube.nrows,3)+bad}
+           firstcontproc=0
+        endif
+        if tag_exist(initdat,'startempfile') then begin
+;          Get stellar templates
+           restore,initdat.startempfile
+;          Redshift stellar templates
+           templatelambdaz = $
+              reform(template.lambda,n_elements(template.lambda)) * $
+              (1d + struct.zstar)
+           if tag_exist(initdat,'vacuum') then airtovac,templatelambdaz
+;          Interpolate template to same grid as data
+           temp = ifsf_interptemp(struct.wave,templatelambdaz,template.flux)
+;          Compute stellar continuum
+           cont_fit_stel = temp # struct.ct_coeff                                
+           if tag_exist(initdat,'dored') then begin
+              contcube.cont_fit_ebv[i,j] = struct.ct_ebv
+              cont_fit_redfact = ppxf_reddening_curve(struct.wave,struct.ct_ebv)
+              cont_fit_stel *= cont_fit_redfact
+           endif
+           cont_fit_poly = struct.cont_fit - cont_fit_stel
+;          Total flux from different components
+           if tag_exist(initdat,'dored') then $
+              cont_fit_tot = total(struct.cont_fit * cont_fit_redfact) $
+           else cont_fit_tot = total(struct.cont_fit)
+           contcube.cont_fit_stel_tot[i,j] = total(cont_fit_stel)
+           contcube.cont_fit_poly_tot[i,j] = total(cont_fit_poly)
+           contcube.cont_fit_poly_tot_pct[i,j] = $
+              contcube.cont_fit_poly_tot[i,j] / cont_fit_tot
+;          Total flux near NaD in different components
+           ilow = value_locate(struct.wave,5850d*(1d + struct.zstar))
+           ihigh = value_locate(struct.wave,5950d*(1d + struct.zstar))
+           if ilow ne -1 AND ihigh ne -1 then begin
+              if tag_exist(initdat,'dored') then $
+                 cont_fit_nad = total(struct.cont_fit[ilow:ihigh]*$
+                                      cont_fit_redfact[ilow:ihigh]) $
+              else cont_fit_nad = total(struct.cont_fit[ilow:ihigh])
+              contcube.cont_fit_stel_nad[i,j] = total(cont_fit_stel[ilow:ihigh])
+              contcube.cont_fit_poly_nad[i,j] = total(cont_fit_poly[ilow:ihigh])
+              contcube.cont_fit_poly_nad_pct[i,j] = $
+                 contcube.cont_fit_poly_nad[i,j] / cont_fit_nad
+           endif
+;          Find best fit stellar ages and coefficients. Include only three 
+;          templates with largest coefficients, ordered in decreasing importance.
+           icoeffgd = where(struct.ct_coeff ne 0,countgd)
+           if countgd gt 0 then begin
+              coeffgd = struct.ct_coeff[icoeffgd]
+              totcoeffgd = total(coeffgd)
+              coeffgd /= totcoeffgd
+              agesgd = template.ages[icoeffgd]
+              sortcoeffgd = reverse(sort(coeffgd))
+              if countgd gt 3 then countgd=3
+              contcube.cont_fit_norms[i,j,0:countgd-1] = $
+                 coeffgd[sortcoeffgd[0:countgd-1]]
+              contcube.cont_fit_ages[i,j,0:countgd-1] = $
+                 agesgd[sortcoeffgd[0:countgd-1]]
+           endif
+        endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Process NaD (normalize, compute quantities and save, plot)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
         if tag_exist(initdat,'donad') then begin
@@ -239,6 +322,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                        struct.spec_err,$
                                        struct.zstar,fitpars,/subtract,$
                                        _extra=initnad.argsnormnad)
+              normnadstel = ifsf_normnad(struct.wave,$
+                                         struct.cont_fit,$
+                                         struct.spec_err,$
+                                         struct.zstar,fitpars,$
+                                         _extra=initnad.argsnormnad)
            endif else begin
               normnad = ifsf_normnad(struct.wave,$
                                      struct.cont_dat/struct.cont_fit,$
@@ -248,25 +336,39 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                        struct.emlin_dat,$
                                        struct.spec_err,$
                                        struct.zstar,fitpars,/subtract)
+              normnadstel = ifsf_normnad(struct.wave,$
+                                         struct.cont_fit,$
+                                         struct.spec_err,$
+                                         struct.zstar,fitpars)
            endelse
-           if not keyword_set(noplots) then $
-              if tag_exist(initnad,'argspltnormnad') then $
-                 ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
-                    outfile+'_nad_norm',$
-                    _extra=initnad.argspltnormnad else $
-                 ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
-                    outfile+'_nad_norm'
 ;          Compute empirical equivalent widths and emission-line fluxes
            emflux=dblarr(2)
            emul=dblarr(4)+bad
-           if tag_exist(initnad,'argsnadweq') then $
+           if tag_exist(initnad,'argsnadweq') then begin
               weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
                                    snflux=normnadem.nflux,unerr=normnadem.nerr,$
                                    emflux=emflux,emul=emul,$
-                                   _extra=initnad.argsnadweq) $
-           else weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
-                                     snflux=normnadem.nflux,unerr=normnadem.nerr,$
-                                     emflux=emflux,emul=emul)
+                                   _extra=initnad.argsnadweq)
+;             These need to be compatible with the IFSF_CMPNADWEQ defaults
+              if tag_exist(initnad.argsnadweq,'emwid') then $
+                 emwid=initnad.argsnadweq.emwid else emwid=20d
+              if tag_exist(initnad.argsnadweq,'iabsoff') then $
+                 iabsoff=initnad.argsnadweq.iabsoff else iabsoff=4l
+           endif else begin
+              weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
+                                   snflux=normnadem.nflux,unerr=normnadem.nerr,$
+                                   emflux=emflux,emul=emul)
+;             These need to be compatible with the IFSF_CMPNADWEQ defaults
+              emwid=20d
+              iabsoff=4l
+           endelse
+;          Compute stellar continuum NaD equivalent widths from fit
+           stelweq = ifsf_cmpnadweq(normnadstel.wave,normnadstel.nflux,$
+                                    normnadstel.nerr,$
+                                    wavelim=[5883d*(1d +initdat.zsys_gas),$
+                                             6003d*(1d +initdat.zsys_gas),$
+                                             0d,0d])
+
 ;          Compute empirical velocities
            size_weq = size(weq)
            if size_weq[0] eq 2 then begin
@@ -276,7 +378,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                       _extra=initnad.argsnadvel) $
               else vel = ifsf_cmpnadvel(normnad.wave,normnad.nflux,normnad.nerr,$
                                         weq[*,1],initdat.zsys_gas)
-           endif else vel = dblarr(6)+bad                               
+           endif else vel = dblarr(6)+bad   
+;          Create / populate output data cube                            
            if firstnadnorm then begin
               nadcube = $
                  {wave: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
@@ -284,6 +387,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                   dat: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
                   err: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
                   weq: dblarr(cube.ncols,cube.nrows,4)+bad,$
+                  stelweq: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   iweq: dblarr(cube.ncols,cube.nrows,4)+bad,$
                   emflux: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   emul: dblarr(cube.ncols,cube.nrows,4)+bad,$
@@ -296,9 +400,20 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            nadcube.err[i,j,*] = normnad.nerr
            nadcube.weq[i,j,*] = weq[*,0]
            nadcube.iweq[i,j,*] = weq[*,1]
+           nadcube.stelweq[i,j,*] = stelweq[0:1]
            nadcube.emflux[i,j,*] = emflux
            nadcube.emul[i,j,*] = emul
            nadcube.vel[i,j,*] = vel
+;          Plot data
+           if not keyword_set(noplots) then $
+              if tag_exist(initnad,'argspltnormnad') then $
+                 ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
+                    outfile+'_nad_norm',autoindices=weq[*,1],$
+                    emwid=emwid,iabsoff=iabsoff,$
+                    _extra=initnad.argspltnormnad else $
+                 ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
+                    outfile+'_nad_norm',autoindices=weq[*,1],$
+                    emwid=emwid,iabsoff=iabsoff
         endif
 
 nofit:
@@ -311,6 +426,7 @@ nofit:
   free_lun,linlun
 
   save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
+  save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
   if tag_exist(initdat,'donad') then $
      save,nadcube,file=initdat.outdir+initdat.label+'.nadspec.xdr'
 

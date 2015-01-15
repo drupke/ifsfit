@@ -2,7 +2,7 @@
 ;
 ;+
 ;
-; A lookup table for wavelengths.
+; A lookup table for wavelengths. Presently only air wavelengths output.
 ;
 ; Wavelength sources:
 ;   1. NIST ASD
@@ -41,6 +41,7 @@
 ;      2014jan14, DSNR, switched to ordered hashes
 ;      2014jan16, DSNR, fixed one wrong label
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
+;      2015jan06, DSNR, added Mg1b lines
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -81,6 +82,9 @@ function ifsf_linelist,inlines
   lines['[OIII]5007'] = 5006.84d
   lines['[SII]6716'] = 6716.44d
   lines['[SII]6731'] = 6730.82d
+  lines['Mg1b5167'] = 5167.3213
+  lines['Mg1b5173'] = 5172.6844
+  lines['Mg1b5184'] = 5183.6043  
   lines['NaD2'] = 5889.95d
   lines['NaD1'] = 5895.92d
   lines['[FeVII]5159'] = 5158.89d

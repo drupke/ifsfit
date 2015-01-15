@@ -132,6 +132,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
   if tag_exist(initdat,'startempfile') then istemp = 1b else istemp=0b
   if tag_exist(initdat,'loglam') then loglam=1b else loglam=0b
   if tag_exist(initdat,'vacuum') then vacuum=1b else vacuum=0b
+  if tag_exist(initdat,'dored') then redinit=1d else redinit=[]
 
   if istemp then begin
 ;    Get stellar templates
@@ -270,12 +271,15 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
         if tag_exist(initdat,'ppxf_maxdeg_addpoly') then $
            polyterms = initdat.ppxf_maxdeg_addpoly
 
+;       This ensures PPXF doesn't look for lambda if no reddening is done
+        if n_elements(redinit) eq 0 then redlambda = [] else redlambda=gdlambda
+
         ppxf,temp_log,gdflux_log,gderr_log,velscale,$
              [0,initdat.siginit_stars],sol,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
              degree=polyterms,polyweights=polyweights,quiet=quiet,$
-             weights=ct_coeff
- 
+             weights=ct_coeff,reddening=redinit,lambda=redlambda
+
 ;       Resample the best fit into linear space
         continuum = interpol(continuum_log,gdlambda_log,ALOG(gdlambda))
 
@@ -396,6 +400,9 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
      outstr = 0
      goto,finish
   endif
+
+; This sets the output reddening to a numerical 0 instead of NULL
+  if n_elements(redinit) eq 0 then redinit=0d
   
   fit_time2 = systime(1)
   if not quiet then print,'IFSF_FITSPEC: Line fit took ',$
@@ -411,6 +418,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ;          Continuum fit parameters
            ct_method: method, $
            ct_coeff: ct_coeff, $
+           ct_ebv: redinit, $
            zstar: zstar, $
 ;          Spectrum in various forms
            wave: gdlambda, $
