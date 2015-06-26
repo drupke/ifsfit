@@ -28,6 +28,13 @@
 ;      Number of velocity components.
 ;      
 ; :Keywords:
+;    blrcomp: in, optional, type=dblarr(N_BLR)
+;      For each velocity component to model as a broad line region
+;      (BLR), put the index (unity-offset) of that component into this
+;      scalar (or array if more than one component) and all fluxes but
+;      Balmer line fluxes will be zeroed.
+;    blrlines: in, optional, type=strarr(N_lines)
+;      List of lines to fit with BLR component.
 ;    lratfix: in, optional, type=hash(lineratios,ncomp)
 ;      For each line ratio that should be fixed, input an array with each 
 ;      element set to either the BAD value (do not fix that component) or the 
@@ -58,6 +65,10 @@
 ;      2014apr17, DSNR, adjusted upper limits for Ha/Hb and [NII]/Ha
 ;      2014apr23, DSNR, added SIGFIX keyword
 ;      2014jun05, DSNR, added LRATFIX keyword
+;      2015jan20, DSNR, added check for both lines in line ratio constraints
+;      2015may12, DSNR, added option to model BLR for a certain velocity 
+;                       component by setting all lines to 0 except those
+;                       specified; see BLRCOMP and BLRLINES
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -79,14 +90,19 @@
 ;-
 function ifsf_gmos,linelist,linelistz,linetie,$
                    initflux,initsig,maxncomp,ncomp,$
-                   lratfix=lratfix,siglim=siglim,sigfix=sigfix
+                   lratfix=lratfix,siglim=siglim,sigfix=sigfix,$
+                   blrcomp=blrcomp,blrlines=blrlines
 
   bad = 1d99
   c = 299792.458d
+  if ~ keyword_set(blrlines) then $
+     blrlines = ['Halpha','Hbeta','Hgamma','Hdelta','Hepsilon',$
+                 'H8','H9','H10','H11']
 
 ; Sigma limits
   gmosres = 3000d
   if ~ keyword_set(siglim) then siglim=[299792d/gmosres/2.35d,2000d]
+  if ~ keyword_set(blrcomp) then blrcomp = -1
 
 ; Number of emission lines to fit
   nline = linelist->count()
@@ -214,7 +230,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ; [NII]/Ha ratio
   ilratlim = 2
   lratlab = '[NII]6583/Ha'
-  if ncomp->haskey('Halpha') then tmp_ncomp = ncomp['Halpha'] $
+  if ncomp->haskey('Halpha') AND ncomp->haskey('[NII]6583') $
+    then tmp_ncomp = ncomp['Halpha'] $
   else tmp_ncomp = 0
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
@@ -229,7 +246,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ;    This upper limit appears to be the maximum seen in Kewley+06 or 
 ;    Rich+14 ("Composite Spectra in ..."). The lower limit is appropriate 
 ;    for ULIRGs.
-     parinfo[ip1:ip2].limits  = rebin([0.1d,4d],2,tmp_ncomp)
+    parinfo[ip1:ip2].limits  = rebin([0.1d,4d],2,tmp_ncomp)
+;    parinfo[ip1:ip2].limits  = rebin([0d,4d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NII]/Halpha line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
 ;    Check to see if line ratio is fixed
@@ -263,7 +281,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ; Ha/Hb ratio
   ilratlim = 3
   lratlab = 'Ha/Hb'
-  if ncomp->haskey('Halpha') then tmp_ncomp = ncomp['Halpha'] $
+  if ncomp->haskey('Halpha') AND ncomp->haskey('Hbeta') $
+    then tmp_ncomp = ncomp['Halpha'] $
   else tmp_ncomp = 0
   if tmp_ncomp gt 0 then begin
      ip1 = ppoff0 + ilratlim*maxncomp
@@ -307,6 +326,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      endfor
   endif
 
+
 ; cycle through velocity components
   for i=0,maxncomp-1 do begin
 
@@ -335,7 +355,9 @@ function ifsf_gmos,linelist,linelistz,linetie,$
         parinfo[isoff].comp = i+1
         
 ;       if the number of components to be fit is exceeded, fix line fluxes to 0
-        if i+1 gt ncomp[line] then begin 
+        if ((i+1 gt ncomp[line]) OR $
+           (where(i+1 eq blrcomp) ge 0 AND $
+            where(line eq blrlines) eq -1)) then begin 
 
            parinfo[ifoff].value = 0d
            parinfo[iwoff].value = 0d
@@ -346,38 +368,39 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 
         endif else begin
 
-;          initial values
-           parinfo[ifoff].value = initflux[line,i]
-           parinfo[iwoff].value = linelistz[line,i]
-           parinfo[isoff].value = initsig[line,i]
-;          limits
-           parinfo[ifoff].limited[0] = 1B
-           parinfo[ifoff].limits[0]  = 0d
-           parinfo[iwoff].limited = [1B,1B]
-           parinfo[iwoff].limits[0] = linelistz[line,i]*0.997d
-           parinfo[iwoff].limits[1] = linelistz[line,i]*1.003d
-           parinfo[isoff].limited = [1B,1B]
-           parinfo[isoff].limits = siglim
-;          ties
-           if (line eq linetie[line]) then begin
-              parinfo[iwoff].tied = ''
-              parinfo[isoff].tied = ''
-           endif else begin
-              indtie = where(lines_arr eq linetie[line])
-              parinfo[iwoff].tied = $
-                 string(linelist[line],'/',linelist[linetie[line]],$
-                        '* P[',woff+indtie*3,']',$
-                        format='(D0.2,A0,D0.2,A0,I0,A0)') 
-              parinfo[isoff].tied = $
-                 string('P[',soff+indtie*3,']',format='(A0,I0,A0)')   
-           endelse
-;          fixed/free
-           if keyword_set(sigfix) then $
-              if sigfix.haskey(line) then $
-                 if sigfix[line,i] ne 0 then begin
-                    parinfo[isoff].fixed=1B
-                    parinfo[isoff].value=sigfix[line,i]
-                 endif
+;             initial values
+              parinfo[ifoff].value = initflux[line,i]
+              parinfo[iwoff].value = linelistz[line,i]
+              parinfo[isoff].value = initsig[line,i]
+;             limits
+              parinfo[ifoff].limited[0] = 1B
+              parinfo[ifoff].limits[0]  = 0d
+              parinfo[iwoff].limited = [1B,1B]
+              parinfo[iwoff].limits[0] = linelistz[line,i]*0.997d
+              parinfo[iwoff].limits[1] = linelistz[line,i]*1.003d
+              parinfo[isoff].limited = [1B,1B]
+              parinfo[isoff].limits = siglim
+;             ties
+              if (line eq linetie[line]) then begin
+                 parinfo[iwoff].tied = ''
+                 parinfo[isoff].tied = ''
+              endif else begin
+                 indtie = where(lines_arr eq linetie[line])
+                 parinfo[iwoff].tied = $
+                    string(linelist[line],'/',linelist[linetie[line]],$
+                           '* P[',woff+indtie*3,']',$
+                           format='(D0.2,A0,D0.2,A0,I0,A0)') 
+                 parinfo[isoff].tied = $
+                    string('P[',soff+indtie*3,']',format='(A0,I0,A0)')   
+              endelse
+;             fixed/free
+              if keyword_set(sigfix) then $
+                 if sigfix.haskey(line) then $
+                    if sigfix[line,i] ne 0 then begin
+                       parinfo[isoff].fixed=1B
+                       parinfo[isoff].value=sigfix[line,i]
+                    endif
+
                  
         endelse
 
@@ -391,67 +414,82 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      if ncomp->haskey('[SII]6716') then begin
         if ncomp['[SII]6716'] gt 0 then begin
            ilratlim = 0
-           linea = where(lines_arr eq '[SII]6716')
-           lineb  = where(lines_arr eq '[SII]6731')
-           parinfo[foff+lineb*3].tied = 'P['+$
-                                        string(foff+linea*3,$
-                                               format='(I0)')+']/P['+$
-                                        string(ppoff0+maxncomp*ilratlim+i,$
-                                               format='(I0)')+']'
+           linea = where(lines_arr eq '[SII]6716',cta)
+           lineb  = where(lines_arr eq '[SII]6731',ctb)
+           if cta gt 0 AND ctb gt 0 then begin
+             parinfo[foff+lineb*3].tied = 'P['+$
+                                          string(foff+linea*3,$
+                                                 format='(I0)')+']/P['+$
+                                          string(ppoff0+maxncomp*ilratlim+i,$
+                                                 format='(I0)')+']'
+           endif
         endif
      endif                                              
 
      ilratlim = 1
-     linea = where(lines_arr eq '[NI]5198')
-     lineb = where(lines_arr eq '[NI]5200')
-     parinfo[foff+linea*3].tied = 'P['+$
-                                  string(foff+lineb*3,$
-                                         format='(I0)')+']/P['+$
-                                  string(ppoff0+maxncomp*ilratlim+i,$
-                                         format='(I0)')+']'
+     linea = where(lines_arr eq '[NI]5198',cta)
+     lineb = where(lines_arr eq '[NI]5200',ctb)
+     if cta gt 0 AND ctb gt 0 then begin
+       parinfo[foff+linea*3].tied = 'P['+$
+                                    string(foff+lineb*3,$
+                                           format='(I0)')+']/P['+$
+                                    string(ppoff0+maxncomp*ilratlim+i,$
+                                           format='(I0)')+']'
+     endif
                                          
      ilratlim = 2
-     linea = where(lines_arr eq 'Halpha')
-     lineb = where(lines_arr eq '[NII]6583')
-     parinfo[foff+lineb*3].tied = 'P['+$
-                                  string(foff+linea*3,$
-                                         format='(I0)')+']*P['+$
-                                  string(ppoff0+maxncomp*ilratlim+i,$
-                                         format='(I0)')+']'
-
+     linea = where(lines_arr eq 'Halpha',cta)
+     lineb = where(lines_arr eq '[NII]6583',ctb)
+     if cta gt 0 AND ctb gt 0 then begin
+       parinfo[foff+lineb*3].tied = 'P['+$
+                                    string(foff+linea*3,$
+                                           format='(I0)')+']*P['+$
+                                    string(ppoff0+maxncomp*ilratlim+i,$
+                                           format='(I0)')+']'
+     endif
+     
 ;    the if statement here prevents MPFIT_TIE from issuing an IEEE exception,
 ;    since if we're not fitting Halpha then the ratio is set to 0 at the
 ;    beginning of this routine
      if ncomp->haskey('Halpha') then begin
-        if ncomp['Halpha'] gt 0 then begin
-           ilratlim = 3
-           linea = where(lines_arr eq 'Halpha')
-           lineb = where(lines_arr eq 'Hbeta')
+       if ncomp['Halpha'] gt 0 then begin
+         ilratlim = 3
+         linea = where(lines_arr eq 'Halpha',cta)
+         lineb = where(lines_arr eq 'Hbeta',ctb)
+         if cta gt 0 AND ctb gt 0 then begin
            parinfo[foff+lineb*3].tied = 'P['+$
                                         string(foff+linea*3,$
                                                format='(I0)')+']/P['+$
                                         string(ppoff0+maxncomp*ilratlim+i,$
                                                format='(I0)')+']'
-        endif
+         endif
+       endif
      endif
 
-     linea = where(lines_arr eq '[OIII]4959')
-     lineb = where(lines_arr eq '[OIII]5007')
-     parinfo[foff+linea*3].tied = 'P['+$
-                                  string(foff+lineb*3,$
-                                         format='(I0)')+']/3.0d'
+     linea = where(lines_arr eq '[OIII]4959',cta)
+     lineb = where(lines_arr eq '[OIII]5007',ctb)
+     if cta gt 0 AND ctb gt 0 then begin
+       parinfo[foff+linea*3].tied = 'P['+$
+                                    string(foff+lineb*3,$
+                                           format='(I0)')+']/3.0d'
+     endif
                                          
-     linea = where(lines_arr eq '[OI]6300')
-     lineb = where(lines_arr eq '[OI]6364')
-     parinfo[foff+lineb*3].tied = 'P['+$
-                                  string(foff+linea*3,$
-                                         format='(I0)')+']/3.0d'
-     linea = where(lines_arr eq '[NII]6548')
-     lineb = where(lines_arr eq '[NII]6583')
-     parinfo[foff+linea*3].tied = 'P['+ $
-                                  string(foff+lineb*3,$
-                                         format='(I0)')+']/3.0d'
-
+     linea = where(lines_arr eq '[OI]6300',cta)
+     lineb = where(lines_arr eq '[OI]6364',ctb)
+     if cta gt 0 AND ctb gt 0 then begin
+       parinfo[foff+lineb*3].tied = 'P['+$
+                                    string(foff+linea*3,$
+                                           format='(I0)')+']/3.0d'
+     endif
+     
+     linea = where(lines_arr eq '[NII]6548',cta)
+     lineb = where(lines_arr eq '[NII]6583',ctb)
+     if cta gt 0 AND ctb gt 0 then begin
+       parinfo[foff+linea*3].tied = 'P['+ $
+                                    string(foff+lineb*3,$
+                                           format='(I0)')+']/3.0d'
+    endif
+    
   endfor
 
 ; Check parinit initial values vs. limits

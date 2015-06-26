@@ -59,6 +59,7 @@
 ;      2014jul07, DSNR, added error computation
 ;      2014jul22, DSNR, added option to not re-run MC simulations but grab old
 ;                       outputs
+;      2015jun03, DSNR, adjusted treatment of emission line sigma limits
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -102,6 +103,10 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 
    if tag_exist(initnad,'taumax') then taumax=initnad.taumax $
    else taumax = 5d
+
+   if tag_exist(initnad,'nadem_siglim') then $
+      nadem_siglim = initnad.nadem_siglim $
+   else nadem_siglim = 0d
 
    ifsf_printnadpar,nadparlun,outfile=initdat.outdir+initdat.label+'.nad.dat'
 
@@ -188,14 +193,17 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                                              struct.perror,struct.parinfo)                  
                endelse
                iem = where(linepars.flux[refline,*] ne 0d,nhei)
-               if nhei gt 0 then $
+               if nhei gt 0 then begin
                   inithei = [[(linepars.wave)[refline,0:nhei-1]/$
                               reflinelist[refline]*linelist['HeI5876']],$
                              [(linepars.sigma)[refline,0:nhei-1]],$
-                             [dblarr(nhei)+0.1d]] $
-               else inithei=0
-               heifix = bytarr(nhei,3)
-               heifix[*,0:1] = 1b              
+                             [dblarr(nhei)+0.1d]]
+                  heifix = bytarr(nhei,3)
+                  heifix[*,0:1] = 1b              
+               endif else begin
+                  inithei=0
+                  heifix=0
+               endelse
 ;           Case of allowing the line to vary freely
             endif else if tag_exist(initnad,'hei_zinit') AND $
                           tag_exist(initnad,'hei_siginit') AND $
@@ -244,6 +252,10 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
          first_modflux=0d
          if nnadem gt 0 then begin
                
+            if nadem_siglim eq 0 then print,'IFSF_FITNAD: ERROR: Emission '+$
+               'line sigma limits not set (NADEM_SIGLIM) in INITNAD '+$
+               'structure, but emission lines need to be fit.'
+               
             winit = reform(((initnad.nadem_zinit)[i,j,0:nnadem-1]+1d)$
                            *linelist['NaD1'],nnadem)
             siginit = reform((initnad.nadem_siginit)[i,j,0:nnadem-1],nnadem)
@@ -268,12 +280,12 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 ;              Fill out parameter structure with initial guesses and constraints
                if tag_exist(initnad,'argsinitpar') then parinit = $
                   call_function(initnad.fcninitpar,0,0,initnadem,$
-                                initnad.nadabs_siglim,initnad.nadem_siglim,$
+                                initnad.nadabs_siglim,nadem_siglim,$
                                 heifix=0,nademfix=nademfix,$
                                 _extra=initnad.argsinitpar) $
                else parinit = $
                   call_function(initnad.fcninitpar,0,0,initnadem,$
-                                initnad.nadabs_siglim,initnad.nadem_siglim,$
+                                initnad.nadabs_siglim,nadem_siglim,$
                                 heifix=0,nademfix=nademfix)
 
 ;              This block looks for automatically-determined absorption and 
@@ -334,12 +346,12 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 
          if tag_exist(initnad,'argsinitpar') then parinit = $
             call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
-                          initnad.nadabs_siglim,initnad.nadem_siglim,$
+                          initnad.nadabs_siglim,nadem_siglim,$
                           heifix=heifix,nadabsfix=nadabsfix,nademfix=nademfix,$
                           _extra=initnad.argsinitpar) $
          else parinit = $
             call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
-                          initnad.nadabs_siglim,initnad.nadem_siglim,$
+                          initnad.nadabs_siglim,nadem_siglim,$
                           heifix=heifix,nadabsfix=nadabsfix,nademfix=nademfix)
 
          param = Mpfitfun(initnad.fcnfitnad,$

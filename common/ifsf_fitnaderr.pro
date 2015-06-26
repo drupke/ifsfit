@@ -134,7 +134,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
    if ~ keyword_set(quiet) then quiet=0
    if ~ keyword_set(noplot) then noplot=0
    if ncomp[0] gt 0 AND ~ keyword_set(heifix) then heifix=bytarr(ncomp[0],3)  
-   if ncomp[1] gt 0 AND ~ keyword_set(nadabsfix) then nadabsfix=bytarr(ncomp[2],4)
+   if ncomp[1] gt 0 AND ~ keyword_set(nadabsfix) then nadabsfix=bytarr(ncomp[1],4)
    if ncomp[2] gt 0 AND ~ keyword_set(nademfix) then nademfix=bytarr(ncomp[2],4)
    nwave = n_elements(wave)
 

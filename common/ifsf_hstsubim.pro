@@ -29,9 +29,11 @@
 ;    ifspa: in, required, type=dblarr(2,2)
 ;      Position angle of IFS field (east of north, in degrees).
 ;    ifsrefcoords: in, required, type=dblarr(2)
-;      IFS coordinates of reference point for mutual centering.
+;      IFS coordinates of reference point for mutual centering, in single-offset
+;      spaxel coordinates.
 ;    hstrefcoords: in, required, type=dblarr(2)
-;      HST coordinates of reference point for mutual centering.
+;      HST coordinates of reference point for mutual centering, in single-offset
+;      pixel coordinates.
 ;    scllim: in, required, type=dblarr(2)
 ;      Intensity limits for byte scale routine.
 ;    
@@ -93,19 +95,18 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
 ;        |  cos(T) sin(T) | (x_sky) = (x_instr)
 ;        | -sin(T) cos(T) | (y_sky)   (y_instr)
 ;  where T is the PA (E of N) of the instrument FOV.
-   ifspa_rad = ifspa*!DPi/180d
+   ifspa_rad = double(ifspa)*!DPi/180d
    sinifspa = sin(ifspa_rad)
    cosifspa = cos(ifspa_rad)
    rotmat = [[cosifspa,sinifspa],[-sinifspa,cosifspa]]
 
-;  Center of IFS FOV in HST pixel coords. The offset specifies the X and Y 
-;  offset of the reference point (e.g., the galaxy nucleus) from the IFS field 
-;  center.
+;  The decimal X and Y offsets of the input reference point from the IFS field 
+;  center, in IFS pixels.
    ifsoffset = [double(ifsdims[0])/2d,double(ifsdims[1])/2d] - $
                [double(ifsrefcoords[0]),double(ifsrefcoords[1])]
-   hst_center = hstrefcoords + (rotmat # ifsoffset)*$
-                ifsps/hstps
- 
+;  Decimal coordinates of IFS field center in the original HST image, in HST 
+;  pixel coords.
+   hst_center = double(hstrefcoords) + (rotmat # ifsoffset)*ifsps/hstps
 ; 
 ;  HST subimage coordinates
 ;
@@ -114,37 +115,63 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
 ;     The first subimage is a dummy one that's big enough to handle any rotation.
       twice_maxifsdims = dblarr(2)+2d*double(max(ifsdims))
       subimsizedumy = twice_maxifsdims*ifsps
-;     Subimage size in HST pixels
-      subimsize_pix=round(subimsizedumy/hstps)
+;     Subimage size in HST pixels. Compute as a decimal and then round to the 
+;     nearest integer.
+      subimsize_pix_decimal=subimsizedumy/hstps
+      subimsize_pix=round(subimsize_pix_decimal)
+      subimsize_pix_resid=subimsize_pix_decimal - subimsize_pix
+      subimsize_extrapix = bytarr(2)
 ;     Make sure subimage size in pixels is odd
-      for j=0,1 do if (not subimsize_pix[j]) then subimsize_pix[j]+=1
+      for j=0,1 do begin
+         if (not subimsize_pix[j]) then begin
+            subimsize_pix[j]+=1
+            subimsize_extrapix[j]=1b
+         endif
+      endfor
 ;     Half of subimage size (minus a half pixel; i.e., rounded down)
       subimsize_pix_half=floor(subimsize_pix/2)
-;     Find corners of subimage.
-      subimcrddumy = intarr(4) ; coordinates of subimage corners
-      subimcrddumy[0] = hst_center[0] - subimsize_pix_half[0]
-      subimcrddumy[1] = hst_center[0] + subimsize_pix_half[0]
-      subimcrddumy[2] = hst_center[1] - subimsize_pix_half[1]
-      subimcrddumy[3] = hst_center[1] + subimsize_pix_half[1]
-;     Subimage size for IFS FOV
+;     Decimal coordinates of dummy subimage corners, in coordinate system of 
+;     original HST image, units of HST pixels.
+      subimcrddumy = intarr(4)
+      subimcrddumy[0] = hst_center[0] - double(subimsize_pix_half[0])
+      subimcrddumy[1] = hst_center[0] + double(subimsize_pix_half[0])
+      subimcrddumy[2] = hst_center[1] - double(subimsize_pix_half[1])
+      subimcrddumy[3] = hst_center[1] + double(subimsize_pix_half[1])
+;     For the IFS FOV case we redefine the decimal coordinates of the IFS field 
+;     center in the coordinate system of the dummy subimage.
+      hst_center = [double(subimcrddumy[1]-subimcrddumy[0])/2d +1d,$
+                    double(subimcrddumy[3]-subimcrddumy[2])/2d +1d]
+;     X and Y sizes of final subimage in arcseconds, for case of subimage that
+;     is the size of the IFS field. In this case the input SUBIMSIZE parameter
+;     is ignored.
       subimsize = double(ifsdims)*ifsps
-;     For this case we redefine the center w.r.t. the dummy subimage.
-      hst_center = [fix(double(subimcrddumy[1]-subimcrddumy[0])/2d +1d),$
-                    fix(double(subimcrddumy[3]-subimcrddumy[2])/2d +1d)]
-   endif
+;     Decimal subimage size in HST pixels.
+      subimsize_pix_decimal=subimsizedumy/hstps
+   endif else begin
+;     Decimal subimage size in HST pixels.
+      subimsize_pix_decimal=subimsizedumy/hstps
+   endelse
    
-;  Subimage size in HST pixels
-   subimsize_pix=round(subimsize/hstps)
+;  Integer subimage size in HST pixels, and residuals.
+   subimsize_pix=round(subimsize_pix_decimal)
+   subimsize_pix_resid=subimsize_pix_decimal - subimsize_pix
+   subimsize_extrapix = bytarr(2)
 ;  Make sure subimage size in pixels is odd
-   for j=0,1 do if (not subimsize_pix[j]) then subimsize_pix[j]+=1
+   for j=0,1 do begin
+      if (not subimsize_pix[j]) then begin
+         subimsize_pix[j]+=1
+         subimsize_extrapix[j]=1b
+      endif
+   endfor
 ;  Half of subimage size (minus a half pixel; i.e., rounded down)
    subimsize_pix_half=floor(subimsize_pix/2)
-;  Find corners of subimage.
-   subimcrd = intarr(4) ; coordinates of subimage corners
-   subimcrd[0] = hst_center[0] - subimsize_pix_half[0]
-   subimcrd[1] = hst_center[0] + subimsize_pix_half[0]
-   subimcrd[2] = hst_center[1] - subimsize_pix_half[1]
-   subimcrd[3] = hst_center[1] + subimsize_pix_half[1]
+;  Decimal coordinates of subimage corners, in coordinate system of 
+;  original HST image, units of HST pixels.
+   subimcrd = intarr(4)
+   subimcrd[0] = hst_center[0] - double(subimsize_pix_half[0])
+   subimcrd[1] = hst_center[0] + double(subimsize_pix_half[0])
+   subimcrd[2] = hst_center[1] - double(subimsize_pix_half[1])
+   subimcrd[3] = hst_center[1] + double(subimsize_pix_half[1])
 
 ;  Create subimage and byte scale
    if keyword_set(fov) then use_subimcrd = subimcrddumy $
@@ -158,7 +185,7 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
       else hst_subim = call_function('cgimgscl',hst_subim,minval=scllim[0],$
                                      max=scllim[1],stretch=5)
 
-;  rotate and trim image
+;  Rotate and trim image. Rotation is about the IFS field center.
    if keyword_set(fov) then begin
       hst_subim = sshiftrotate(hst_subim,-(ifspa),xcen=hst_center[0],$
                                ycen=hst_center[1])

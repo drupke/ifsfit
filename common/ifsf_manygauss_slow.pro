@@ -72,7 +72,7 @@ function ifsf_manygauss_slow, wave, param
   sigs = rebin(reform(param[sind],1,nline),nwave,nline)
 
   dwave = rrwave-refwaves
-  sigslam = sigs/c*refwave
+  sigslam = sigs/c*refwaves
   yvals = fluxes*EXP(-dwave*dwave/sigslam/sigslam/2d)
 
   ysum = total(yvals,2)

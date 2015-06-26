@@ -20,7 +20,7 @@
 ;    quiet: in, optional, type=byte
 ;      Suppress progress messages.
 ;    oned: in, optional, type=byte
-;      Input cube has only one non-wavelength dimension.
+;      [Deprecated.] Input cube has only one non-wavelength dimension.
 ;    datext: in, optional, type=integer, default=1
 ;      Extension # of data plane.
 ;    varext: in, optional, type=integer, default=2
@@ -43,6 +43,9 @@
 ;      2013dec17, DSNR, ported to IFSF_READCUBE
 ;      2014jan29, DSNR, added ability to change default extensions
 ;      2014aug05, DSNR, small tweak to allow single spectra and no DQ
+;      2015may20, DSNR, updated logic in reading # of rows, cols, and wavelength
+;                       points to be more flexible; added wavedim to output
+;                       structure
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -65,17 +68,6 @@
 function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
                        datext=datext,varext=varext,dqext=dqext
 
-; Set header keywords that describe wavelength solution.
-  if ~ keyword_set(oned) then begin
-     crvalstr = 'CRVAL3'
-     crpixstr = 'CRPIX3'
-     cdeltstr = 'CD3_3'
-  endif else begin
-     crvalstr = 'CRVAL1'
-     crpixstr = 'CRPIX1'
-     cdeltstr = 'CDELT1'
-  endelse
-
   if ~ keyword_set(quiet) then print,'IFSF_READCUBE: Loading data.'
   if ~ keyword_set(datext) then datext=1
   if ~ keyword_set(varext) then varext=2
@@ -89,17 +81,34 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      dq = readfits(infile,header_dq,ext=dqext,silent=quiet) $
   else dq = dat*0d
 
-; Get #s of rows, columns, and wavelength pixels.     
+; Get #s of rows, columns, and wavelength pixels. Logic for 2-d case assumes 
+; that # wavelength pts > # cols.
   datasize = size(dat)
-  if ~ keyword_set(oned) then begin
+  IF datasize[0] eq 3 then begin
      ncols = datasize[1]
      nrows = datasize[2]
-     nz    = datasize[3]
-  endif else begin
-     nz    = datasize[1]
-     if datasize[0] gt 1 then ncols = datasize[2] else ncols=1
+     nz = datasize[3]
+     wavedim = 3
+     crvalstr = 'CRVAL3'
+     crpixstr = 'CRPIX3'
+     cdeltstr = 'CD3_3'
+  endif else if datasize[0] eq 2 then begin
+     ncols = (datasize[1] > datasize[2]) ? datasize[2] : datasize[1]
+     nz = (datasize[1] > datasize[2]) ? datasize[1] : datasize[2]
+     wavedim = (datasize[1] > datasize[2]) ? 1 : 2
      nrows = 1
-  endelse
+     crvalstr = 'CRVAL1'
+     crpixstr = 'CRPIX1'
+     cdeltstr = 'CDELT1'
+  endif else if datasize[0] eq 1 then begin
+     ncols = 1
+     nrows = 1
+     nz = datasize[1]
+     wavedim = 1
+     crvalstr = 'CRVAL1'
+     crpixstr = 'CRPIX1'
+     cdeltstr = 'CDELT1'
+  endif
 
 ; Create wavelength array.
   pix = dindgen(nz)
@@ -117,6 +126,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
          nrows: nrows,$
          ncols: ncols,$
          nz: nz,$
+         wavedim: wavedim,$
          crval: crval,$
          cdelt: cdelt,$
          crpix: crpix $

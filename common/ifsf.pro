@@ -171,11 +171,14 @@ fit:
            if oned then zstar = initdat.zinit_stars[i] $
            else zstar = initdat.zinit_stars[i,j]
            
-;          Remove NaI D line for purposes of continuum fit by maximizing
-;          error. 
+;          Ignore NaI D line for purposes of continuum fit by maximizing
+;          error. This doesn't actually remove these data points from the fit,
+;          but it minimizes their weight.
            if not tag_exist(initdat,'keepnad') then begin
-              nadran_rest = [5850d,5900d]
-              nadran = (1d + zstar) * nadran_rest
+              if not tag_exist(initdat,'nad_contcutrange') then begin
+                 nadran_rest = [5850d,5900d]
+                 nadran = (1d + zstar) * nadran_rest
+              endif else nadran = initdat.nad_contcutrange
               indx_nad = where(cube.wave ge nadran[0] AND $
                                cube.wave le nadran[1],ct)
               if ct gt 0 then err[indx_nad]=max(err)
@@ -190,9 +193,14 @@ fit:
 ;          Initialize starting wavelengths
            linelistz = hash(initdat.lines)
            foreach line,initdat.lines do $
-              linelistz[line] = $
-                 reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
-                        initdat.maxncomp)
+;              if oned then $
+;                 linelistz[line] = $
+;                    reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
+;                           initdat.maxncomp) $
+;              else $
+                 linelistz[line] = $
+                    reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
+                           initdat.maxncomp)
                  
            structinit = ifsf_fitspec(cube.wave,flux,err,zstar,linelist,$
                                      linelistz,ncomp,initdat,quiet=quiet,$

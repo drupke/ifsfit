@@ -20,6 +20,8 @@
 #   2014may23, DSNR, moved ARGSMAKEMAP structure and NaD parameters 
 #                    to their own variables
 #   2014jul11, DSNR, updates to INITNAD and INITMAP structures
+#   2015jun03, DSNR, added NAD_CONTCUTRANGE
+#   2015jun08, DSNR, added continuum peak fitting tags
 #
 
 This file describes the parameters that are contained in the INITDAT,
@@ -118,7 +120,10 @@ Optional structure tags from initialization procedure:
     Range of fitting, in observed frame. If not set, default is
     entire range of data / template intersection.
   keepnad: in, optional, type=string
-    Set to not remove NaD region from fit.
+    Set to not remove NaD region from fit.  If keepnad is not set, then
+    the wavelength range [5850,5900] is multiplied by the stellar
+    redshift in that spaxel and the errors in that range are set to
+    the max. possible to minimize their weight in the fit.
   loglam: in, optional, type=byte
     Set if data has constant log(lambda) dispersion.
   maskwidths: in, optional, type=hash(lines,maxncomp)
@@ -130,6 +135,12 @@ Optional structure tags from initialization procedure:
     are multiplied by this value and set to 'maskwidths' parameter. If
     not set, routine defaults to a value specified in IFSF for all
     lines and components.
+  nad_contcutrange: in, optional, type=dblarr(2)
+    If keepnad is not set, then the wavelength range [5850,5900] is
+    multiplied by the stellar redshift in that spaxel and the errors in that
+    range are set to the max. possible to minimize their weight in the fit.
+    Set this parameter to choose the (observed) wavelength range to exclude;
+    this range is *not* multiplied by anything.
   nomaskran: in, optional, type=dblarr(2)
     Wavelength region *not* to mask.
   outlines: in, optional, type=strarr
@@ -232,6 +243,10 @@ Optional tags for continuum images:
   ct: in, optional, type=structure
      If set, IFS continuum image is created. The following
      tags govern the image.
+     fitifspeak: in, optional, type=byte
+       Whether or not to fit nuclear peak of IFS continuum data.
+     fitifspeakwin_kpc: in, optional, type=double
+       Width of (square) window in kpc for doing peak fitting.
      sumrange: in, required, type=dblarr(2)
        Lower and upper wavelength limits for summing the continuum.
      scllim: in, required, type=dblarr(2)
@@ -242,6 +257,17 @@ Optional tags for continuum images:
   hst: in, optional, type=structure
      If set (along with hstbl and/or hstrd), HST continuum image is
      loaded and plotted. The following tags govern the image.
+     fithstpeak: in, optional, type=byte
+       Whether or not to fit nuclear peak of HST data at native
+       resolution that has been trimmed and rotated to match IFS data.
+     fithstpeakwin_kpc: in, optional, type=double
+       Width of (square) window in kpc for doing peak fitting.
+     fithstpeakconv: in, optional, type=byte
+       Whether or not to fit nuclear peak of HST data that has been
+       trimmed, rotated, seeing-convolved, and resampled to match IFS
+       data.
+     fithstpeakconvwin_kpc: in, optional, type=double
+       Width of (square) window in kpc for doing peak fitting.
      refcoords: in, required, type=intarr(2)
        Coordinates of reference point for aligning HST and IFS images.
      subim_sm: in, required, type=double

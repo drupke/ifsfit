@@ -41,6 +41,8 @@
 ;      13sep12, DSNR, re-written
 ;      2013oct, DSNR, documented
 ;      2013nov21, DSNR, renamed, added license and copyright 
+;      2015may13, DSNR, switched from using LAYOUT keyword to using CGLAYOUT
+;                       procedure to fix layout issues
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013 David S. N. Rupke
@@ -62,16 +64,19 @@
 ;-
 pro ifsf_pltlin,instr,pltpar,outfile
 
-  set_plot,'Z'
-  device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
-  !P.charsize=1
-  !P.charthick=1
-  erase
+   set_plot,'Z'
+   device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
+   !P.charsize=1
+   !P.charthick=1
+   erase
 
-  defaultXtickint=!X.tickinterval
-  defaultXminor=!X.minor
-  !X.tickinterval=25
-  !X.minor=10
+   defaultXtickint=!X.tickinterval
+   defaultXminor=!X.minor
+   !X.tickinterval=25
+   !X.minor=10
+
+   pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
+                  oxmar=[10,0],oymar=[10,0],xgap=6,ygap=6)
 
   ncomp = instr.param[1]
   colors = ['Magenta','Green','Orange','Teal']
@@ -106,10 +111,9 @@ pro ifsf_pltlin,instr,pltpar,outfile
      xran = (linwavtmp[0] + off[*,i]) * (1d + zbase)
      ind = where(wave gt xran[0] AND wave lt xran[1],ct)
 
-     cgplot,[0],/nodata,/noerase,xsty=4,ysty=4,$
-            layout=[pltpar.nx,pltpar.ny,i+1],xmar=15,ymar=11
-     xwin = !X.window
-     ywin = !Y.window
+     cgplot,[0],/nodata,xsty=4,ysty=4,pos=pos[*,i],noerase=i ne 0,backg='Black'
+     xwin = [pos[0,i],pos[2,i]]
+     ywin = [pos[1,i],pos[3,i]]
      dxwin = xwin[1]-xwin[0]
      dywin = ywin[1]-ywin[0]
 
@@ -119,8 +123,10 @@ pro ifsf_pltlin,instr,pltpar,outfile
         ydat = spectot
         ymod = modtot
         yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
+        icol = double(i)/double(pltpar.nx)
+        if icol eq fix(icol) then ytit = 'Fit' else ytit = ''
         cgplot,wave,ydat,xran=xran,yran=yran,pos=pos_fit,$
-               xtickn=replicate(' ',60),ytit='Fit',/noerase,$
+               xtickn=replicate(' ',60),ytit=ytit,/noerase,$
                axiscol='White',col='White',/norm,/xsty,/ysty
         cgoplot,wave,ymod,color='Red'
         for j=1,ncomp do begin
@@ -143,7 +149,8 @@ pro ifsf_pltlin,instr,pltpar,outfile
         ydat = specstars
         ymod = modstars
         yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
-        cgplot,wave,ydat,xran=xran,yran=yran,/noerase,ytit='Resid.',$
+        if icol eq fix(icol) then ytit = 'Residual' else ytit = ''
+        cgplot,wave,ydat,xran=xran,yran=yran,/noerase,ytit=ytit,$
                axiscol='White',col='White',/norm,pos=pos_res,/xsty,/ysty
         cgoplot,wave,ymod,color='Red'
      endif

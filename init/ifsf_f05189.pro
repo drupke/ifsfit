@@ -94,7 +94,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; Input file
-  infile='/Users/drupke/ifs/gmos/cubes/'+gal+'/'+gal+outstr+'.fits'
+;  infile='/Users/drupke/ifs/gmos/cubes/'+gal+'/'+gal+outstr+'.fits'
+  infile='/Users/drupke/ifs/gmos/cubes/'+gal+'/rb2_7exp/'+gal+outstr+'.fits'
   if ~ file_test(infile) then begin
      print,"ERROR: Data cube not found."
      return,0
@@ -320,12 +321,19 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
    if keyword_set(initmaps) then begin
-      argslinratmaps = hash()
-      argslinratmaps['lrat1'] = [['1_n2ha','2_n2ha','3_n2ha'],$
-                                 ['1_o3hb','2_o3hb','3_o3hb'],$
-                                 ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb',$
-                                  '3_n2ha_vs_o3hb']]
-      argslinratmaps['ebv'] = ['1_ebv','2_ebv','3_ebv']
+      argslinratmaps_comp = hash()
+      argslinratmaps_comp['lrat1'] = [['1_n2ha','2_n2ha'],$
+                                      ['1_o3hb','2_o3hb'],$
+                                      ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb']]
+      argslinratmaps_comp['ebv'] = ['1_ebv','2_ebv']
+      argslinratmaps_cvdf = hash()
+      argslinratmaps_cvdf['lrat1'] = $
+         [['ftot_n2ha','fpk_n2ha','fv50_n2ha','fv84_n2ha','fv98_n2ha'],$
+          ['ftot_o3hb','fpk_o3hb','fv50_o3hb','fv84_o3hb','fv98_o3hb'],$
+          ['ftot_n2ha_vs_o3hb','fpk_n2ha_vs_o3hb','fv50_n2ha_vs_o3hb',$
+           'fv84_n2ha_vs_o3hb','fv98_n2ha_vs_o3hb']]
+      argslinratmaps_cvdf['ebv'] = $
+         ['ftot_ebv','fpk_ebv','fv50_ebv','fv84_ebv','fv98_ebv']
 
       badnademp = bytarr(ncols,nrows)
       badnademp[0,*]=1b
@@ -334,16 +342,21 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       badnademp[1:2,2]=1b
 
       initmaps = {$
+                  aspectrat: 1.05d,$
                   center_axes: [centcol,centrow],$
                   center_nuclei: [centcol,centrow],$
                   rangefile: '/Users/drupke/ifs/gmos/maps/'+$
                              'f05189/rb2/ranges.txt',$
-                  argslinratmaps: argslinratmaps,$
+                  argslinratmaps_comp: argslinratmaps_comp,$
+                  argslinratmaps_cvdf: argslinratmaps_cvdf,$
                   badnademp: badnademp,$
+                  doemlinradprof: 1,$
+                  emlinradprof_psffwhm: 0.6d,$
 ;                 Base units are 10^-15 erg/s/cm^2/spaxel
 ;                 Multiplying fluxes by 10 gives fluxes in units of 10^-16 erg/s/cm^2/spaxel
-;                 Dividing fluxes by 20 gives fluxes in units of 10^-16 erg/s/cm^2/arcsecond
-                  fluxfactor: 10d*20d,$
+;                 Dividing fluxes by 0.04 gives fluxes in units of 10^-16 erg/s/cm^2/arcsecond
+;                 15jan26 -- DSNR -- oops! Was multiplying by 20 instead of 25.
+                  fluxfactor: 10d*25d,$
 ;                  applyebv: [1,0,0],$
                   nadabsweq_snrthresh: 3d,$
                   nademweq_snrthresh: 3d,$
@@ -381,12 +394,13 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   ct: {sumrange: [5600,6400],$
                        scllim: [0,1],$
                        stretch: 1},$
-; This coordinate is in single-offset pixels; i.e., the central pixel as measured in
-; DS9. It is chosen to align the two continuum maps in *cont.eps, and to center 
+; This coordinate is in zero-offset pixels; i.e., the central pixel as measured in
+; DS9 minus 1 (for PA=0; could be different for other PAs). It is chosen to 
+; align the two continuum maps in *cont.eps, and to center 
 ; the HST map for plotting. The nuclear offsets below give the nuclear 
 ; coordinates of the red and blue maps for making galactocentric radius arrays, 
 ; also in single-offset pixels.
-                  hst: {refcoords: [3262,2709],$
+                  hst: {refcoords: [3261,2708],$
                         subim_sm: 7d,$
                         subim_big: 25d,$
                         smoothfwhm: 12},$

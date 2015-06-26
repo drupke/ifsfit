@@ -66,6 +66,8 @@
 ;                       and polynomial components to continuum fit
 ;      2015jan05, DSNR, added calculation and output of NaI D equivalent width
 ;                       from SPS fit
+;      2015jun03, DSNR, updated for QSO/host decomposition in continuum and
+;                       NaD fits
 ;
 ; :Copyright:
 ;    Copyright (C) 2013-2015 David S. N. Rupke
@@ -238,19 +240,27 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
 ;       Create / populate output data cube                            
         if firstcontproc then begin
-           contcube = $
-              {cont_fit_stel_tot: dblarr(cube.ncols,cube.nrows)+bad,$
-               cont_fit_poly_tot: dblarr(cube.ncols,cube.nrows)+bad,$
-               cont_fit_poly_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
-               cont_fit_stel_nad: dblarr(cube.ncols,cube.nrows)+bad,$
-               cont_fit_poly_nad: dblarr(cube.ncols,cube.nrows)+bad,$
-               cont_fit_poly_nad_pct: dblarr(cube.ncols,cube.nrows)+bad,$
-               cont_fit_ebv: dblarr(cube.ncols,cube.nrows)+bad,$
-               cont_fit_ages: dblarr(cube.ncols,cube.nrows,3)+bad,$
-               cont_fit_norms: dblarr(cube.ncols,cube.nrows,3)+bad}
+           if tag_exist(initdat,'decompose_ppxf_fit') then begin
+              contcube = $
+                 {cont_fit_stel_tot: dblarr(cube.ncols,cube.nrows)+bad,$
+                  cont_fit_poly_tot: dblarr(cube.ncols,cube.nrows)+bad,$
+                  cont_fit_poly_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
+                  cont_fit_stel_nad: dblarr(cube.ncols,cube.nrows)+bad,$
+                  cont_fit_poly_nad: dblarr(cube.ncols,cube.nrows)+bad,$
+                  cont_fit_poly_nad_pct: dblarr(cube.ncols,cube.nrows)+bad,$
+                  cont_fit_ebv: dblarr(cube.ncols,cube.nrows)+bad,$
+                  cont_fit_ages: dblarr(cube.ncols,cube.nrows,3)+bad,$
+                  cont_fit_norms: dblarr(cube.ncols,cube.nrows,3)+bad}
+           endif else if tag_exist(initdat,'decompose_qso_fit') then begin
+              contcube = $
+                 {qso: dblarr(cube.ncols,cube.nrows,$
+                              n_elements(struct.gd_indx)),$
+                  host: dblarr(cube.ncols,cube.nrows,$
+                               n_elements(struct.gd_indx))}
+           endif
            firstcontproc=0
         endif
-        if tag_exist(initdat,'startempfile') then begin
+        if tag_exist(initdat,'decompose_ppxf_fit') then begin
 ;          Get stellar templates
            restore,initdat.startempfile
 ;          Redshift stellar templates
@@ -305,16 +315,51 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                  agesgd[sortcoeffgd[0:countgd-1]]
            endif
         endif
-
+        if tag_exist(initdat,'decompose_qso_fit') then begin
+           if initdat.fcncontfit eq 'ifsf_fitqsohost' then begin
+              if tag_exist(initdat.argscontfit,'fitord') then $
+                 fitord=initdat.argscontfit.fitord else fitord=0b
+              if tag_exist(initdat.argscontfit,'qsoord') then $
+                 qsoord=initdat.argscontfit.qsoord else qsoord=0b
+              if tag_exist(initdat.argscontfit,'expterms') then $
+                 expterms=initdat.argscontfit.expterms else expterms=0b
+;             These lines mirror ones in IFSF_FITQSOHOST
+              struct_tmp = struct
+              restore,file=initdat.argscontfit.qsoxdr
+              qsowave = struct.wave
+              qsoflux = struct.cont_fit
+              qsoflux /= median(qsoflux)
+              struct = struct_tmp
+              ifsf_qsohostfcn,struct.wave,struct.ct_coeff,qsomod,fitord=fitord,$
+                              qsoord=qsoord,expterms=expterms,/qsoonly,$
+                              qsoflux=qsoflux
+              ifsf_qsohostfcn,struct.wave,struct.ct_coeff,totmod,fitord=fitord,$
+                              qsoord=qsoord,expterms=expterms,qsoflux=qsoflux
+              contcube.qso[i,j,*] = qsomod
+              host = totmod - qsomod
+              contcube.host[i,j,*] = host
+           endif
+        endif
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Process NaD (normalize, compute quantities and save, plot)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
         if tag_exist(initdat,'donad') then begin
+
+           if tag_exist(initdat,'decompose_qso_fit') then begin
+              nadnormcont = (struct.cont_dat - qsomod)/host
+              nadnormconterr = struct.spec_err/host
+              nadnormstel = host
+           endif else begin
+              nadnormcont = struct.cont_dat/struct.cont_fit
+              nadnormconterr = struct.spec_err/struct.cont_fit
+              nadnormstel = struct.cont_fit
+           endelse
+         
            if tag_exist(initnad,'argsnormnad') then begin
               normnad = ifsf_normnad(struct.wave,$
-                                     struct.cont_dat/struct.cont_fit,$
-                                     struct.spec_err/struct.cont_fit,$
+                                     nadnormcont,$
+                                     nadnormconterr,$
                                      struct.zstar,fitpars,$
                                      _extra=initnad.argsnormnad)
               normnadem = ifsf_normnad(struct.wave,$
@@ -323,21 +368,21 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                        struct.zstar,fitpars,/subtract,$
                                        _extra=initnad.argsnormnad)
               normnadstel = ifsf_normnad(struct.wave,$
-                                         struct.cont_fit,$
+                                         nadnormstel,$
                                          struct.spec_err,$
                                          struct.zstar,fitpars,$
                                          _extra=initnad.argsnormnad)
            endif else begin
               normnad = ifsf_normnad(struct.wave,$
-                                     struct.cont_dat/struct.cont_fit,$
-                                     struct.spec_err/struct.cont_fit,$
+                                     nadnormcont,$
+                                     nadnormconterr,$
                                      struct.zstar,fitpars)
               normnadem = ifsf_normnad(struct.wave,$
                                        struct.emlin_dat,$
                                        struct.spec_err,$
                                        struct.zstar,fitpars,/subtract)
               normnadstel = ifsf_normnad(struct.wave,$
-                                         struct.cont_fit,$
+                                         nadnormstel,$
                                          struct.spec_err,$
                                          struct.zstar,fitpars)
            endelse
@@ -349,6 +394,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                    snflux=normnadem.nflux,unerr=normnadem.nerr,$
                                    emflux=emflux,emul=emul,$
                                    _extra=initnad.argsnadweq)
+
 ;             These need to be compatible with the IFSF_CMPNADWEQ defaults
               if tag_exist(initnad.argsnadweq,'emwid') then $
                  emwid=initnad.argsnadweq.emwid else emwid=20d
@@ -426,7 +472,9 @@ nofit:
   free_lun,linlun
 
   save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
-  save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
+  if tag_exist(initdat,'decompose_ppxf_fit') OR $
+     tag_exist(initdat,'decompose_qso_fit') then $
+     save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
   if tag_exist(initdat,'donad') then $
      save,nadcube,file=initdat.outdir+initdat.label+'.nadspec.xdr'
 

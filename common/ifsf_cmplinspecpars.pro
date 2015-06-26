@@ -3,7 +3,7 @@
 ;+
 ;
 ; Compute velocities for emission lines based on cumulative velocity 
-; distribution, as described in Zakamska & Green 2013 (or 2014?).
+; distribution, as described in Zakamska & Greene 2013 (or 2014?).
 ;
 ; :Categories:
 ;    IFSFIT
@@ -17,6 +17,9 @@
 ;      Output line spectra from IFSF_CMPLINSPECMAPS.
 ;
 ; :Keywords:
+;    linpararr: in, optional, type=dblarr(Ncols,Nrows,5)
+;      Option to output parameter fluxes in array form, for input to line ratio
+;      routine.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -29,6 +32,7 @@
 ; :History:
 ;    ChangeHistory::
 ;      2014jun03, DSNR, created
+;      2015may14, DSNR, added option to output in array form as well
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014 David S. N. Rupke
@@ -48,7 +52,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_cmplinspecpars,linmap
+function ifsf_cmplinspecpars,linmap,linpararr=linpararr
 
    bad = 1d99
    c = 299792.458
@@ -65,6 +69,10 @@ function ifsf_cmplinspecpars,linmap
    fv98 = dblarr(mapsize[1],mapsize[2])
    fv84 = dblarr(mapsize[1],mapsize[2])
    fv50 = dblarr(mapsize[1],mapsize[2])
+   epk = dblarr(mapsize[1],mapsize[2])
+   ev98 = dblarr(mapsize[1],mapsize[2])
+   ev84 = dblarr(mapsize[1],mapsize[2])
+   ev50 = dblarr(mapsize[1],mapsize[2])
    for i=0,mapsize[1]-1 do begin
       for j=0,mapsize[2]-1 do begin
          fpk[i,j] = max(linmap.flux[i,j,*],k)
@@ -89,6 +97,9 @@ function ifsf_cmplinspecpars,linmap
       endfor
    endfor
    ftot = total(linmap.flux,3)   
+
+   if keyword_set(linpararr) then $
+      linpararr = [[[ftot]],[[fpk]],[[fv50]],[[fv84]],[[fv98]]]
 
    return,{vpk:vpk,v98:v98,v84:v84,v50:v50,sig:sig,$
            fpk:fpk,fv98:fv98,fv84:fv84,fv50:fv50,ftot:ftot}

@@ -47,6 +47,7 @@
 ;      2014apr15, DSNR, turned off /DOUBLE in call to Gaussian b/c of floating
 ;                       point underflow; culprit seems to be MACHAR() ...
 ;      2014nov05, DSNR, updated to play nice with older data
+;      2015may11, DSNR, fixed bug when line is not fit but wants to be plotted
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -76,7 +77,7 @@ function ifsf_cmplin,instr,line,comp,velsig=velsig
 
 ;  The first part of this if loop is for IFSF-processed data; the second part
 ;  is for UHSPECFIT-processed data.
-   if tag_exist(instr,'parinfo') then begin  
+   if tag_exist(instr,'parinfo') then begin
       indices = where(instr.parinfo.line eq line AND instr.parinfo.comp eq comp)
    endif else begin
       nline = n_elements(instr.linelabel)
@@ -84,10 +85,13 @@ function ifsf_cmplin,instr,line,comp,velsig=velsig
       indices = instr.param[0] + (comp-1)*nline*3+iline*3
       indices = indices[0]+indgen(3)
    endelse
-   gausspar = instr.param[indices]
-   if keyword_set(velsig) then gausspar[2] *= gausspar[1]/c
-   if gausspar[2] eq 0d then flux = 0d else $
-      flux = double(gaussian(instr.wave,gausspar))
+   if indices[0] ne -1 then begin
+      gausspar = instr.param[indices]
+      if keyword_set(velsig) then gausspar[2] *= gausspar[1]/c
+      if gausspar[2] eq 0d then flux = 0d else $
+         flux = double(gaussian(instr.wave,gausspar))
+;  case of line not being fit but wanting to be plotted
+   endif else flux = 0d
 
    return,flux
 

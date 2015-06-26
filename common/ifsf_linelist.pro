@@ -73,6 +73,7 @@ function ifsf_linelist,inlines
   lines['HeII4686'] = 4686.7d
   lines['[NI]5198'] = 5197.90d
   lines['[NI]5200'] = 5200.26d
+  lines['[NII]5755'] = 5754.59
   lines['[NII]6548'] = 6548.05d
   lines['[NII]6583'] = 6583.45d
   lines['[OI]5577'] = 5577.34d
@@ -82,12 +83,15 @@ function ifsf_linelist,inlines
   lines['[OIII]5007'] = 5006.84d
   lines['[SII]6716'] = 6716.44d
   lines['[SII]6731'] = 6730.82d
+  lines['[SIII]6312'] = 6312.06d
   lines['Mg1b5167'] = 5167.3213
   lines['Mg1b5173'] = 5172.6844
   lines['Mg1b5184'] = 5183.6043  
   lines['NaD2'] = 5889.95d
   lines['NaD1'] = 5895.92d
+  lines['[CaV]5309'] = 5309.11d
   lines['[FeVII]5159'] = 5158.89d
+  lines['[FeVII]5276'] = 5276.38d
   lines['[FeVII]5721'] = 5720.7d
   lines['[FeVII]6087'] = 6087.0d
   lines['[FeX]6375'] = 6374.51d
