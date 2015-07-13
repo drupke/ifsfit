@@ -399,12 +399,14 @@ pro ifsf_makemaps,initproc,comprange=comprange
                                ifsbounds=hst_big_ifsfov,hstps=hstpsrd)
       rhst_fov = ifsf_hstsubim(hstrd,[0,0],[dx,dy],initdat.platescale,$
                                initdat.positionangle,center_nuclei,$
+;                               center_nuclei,$
                                initmaps.hst.refcoords,$
                                initmaps.hstrd.scllim,$
                                sclargs=initmaps.hstrd.sclargs_fov,$
                                /fov,hstps=hstpsrd)
       rhst_fov_ns = ifsf_hstsubim(hstrd,[0,0],[dx,dy],initdat.platescale,$
                                   initdat.positionangle,center_nuclei,$
+;                                  center_nuclei,$
                                   initmaps.hst.refcoords,[0,0],/noscl,/fov,$
                                   hstps=hstpsrd)
       if tag_exist(initmaps,'hstrdsm') then begin

@@ -209,10 +209,15 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                           tag_exist(initnad,'hei_siginit') AND $
                           tag_exist(initnad,'nhei') then begin
                nhei=initnad.nhei[i,j]
-               inithei = [[((initnad.hei_zinit)[i,j,0:nhei-1]+1d)*$
+; Bugfix -- 7/13/15 -- thanks Elise Hampton
+               inithei = [[(((initnad.hei_zinit)[i,j,0:nhei-1])[0:nhei-1]+1d)*$
                            linelist['HeI5876']],$
-                          [(initnad.hei_siginit)[i,j,0:nhei-1]],$
+                          [((initnad.hei_siginit)[i,j,0:nhei-1])[0:nhei-1]],$
                           [dblarr(nhei)+0.1d]]
+;               inithei = [[((initnad.hei_zinit)[i,j,0:nhei-1]+1d)*$
+;                           linelist['HeI5876']],$
+;                          [(initnad.hei_siginit)[i,j,0:nhei-1]],$
+;                          [dblarr(nhei)+0.1d]]
                if tag_exist(initnad,'hei_fix') then $
                   heifix=reform((initnad.hei_fix)[i,j,0:nhei-1,*],nhei,3) $
                else heifix=bytarr(nhei,3)
@@ -252,7 +257,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
          first_modflux=0d
          if nnadem gt 0 then begin
                
-            if nadem_siglim eq 0 then print,'IFSF_FITNAD: ERROR: Emission '+$
+            if nadem_siglim[0] eq 0 then print,'IFSF_FITNAD: ERROR: Emission '+$
                'line sigma limits not set (NADEM_SIGLIM) in INITNAD '+$
                'structure, but emission lines need to be fit.'
                
