@@ -95,6 +95,23 @@ function ifsf_linelist,inlines
   lines['[FeVII]5721'] = 5720.7d
   lines['[FeVII]6087'] = 6087.0d
   lines['[FeX]6375'] = 6374.51d
+  lines['[OVI1]1032'] = 1031.912d
+  lines['[OVI2]1038'] = 1037.613d
+  lines['[LyB]1026'] = 1025.7223d
+  lines['[LyA]1216'] = 1215.67d
+  lines['[NV1]1239'] = 1238.8210d
+  lines['[NV2]1243'] = 1242.804d
+  lines['[NiII]1317'] = 1317.21d
+  lines['[OI1]1302'] = 1302.1685d
+  lines['[OI2]1304'] = 1304.3702d
+  lines['[CI]1329'] = 1328.83d
+  lines['[CII]1335'] = 1334.432d
+  lines['[CII]1335.6'] = 1335.6627d
+  lines['[CII]1335.7'] = 1335.7077d
+  lines['[CII]1347'] = 1347.2396d
+  
+
+
   
   outlines = hash()
   for i=0, n_elements(inlines)-1 do begin
