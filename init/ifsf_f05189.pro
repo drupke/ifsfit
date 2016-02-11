@@ -74,8 +74,8 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
   bin = 2d
   ncols = 28
   nrows = 27
-  centcol = 14
-  centrow = 14
+  centcol = 14.318
+  centrow = 14.238
   outstr = 'rb'+string(bin,format='(I0)')
 
 ; distance from central pixel
@@ -303,6 +303,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
          argspltlin2: argspltlin2,$
          donad: 1,$
 ;         dored: 1,$
+         decompose_ppxf_fit: 1,$
          fcncheckcomp: 'ifsf_checkcomp',$
          fcncontfit: 'ppxf',$
          mapcent: [centcol,centrow],$
@@ -326,14 +327,30 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                                       ['1_o3hb','2_o3hb'],$
                                       ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb']]
       argslinratmaps_comp['ebv'] = ['1_ebv','2_ebv']
-      argslinratmaps_cvdf = hash()
-      argslinratmaps_cvdf['lrat1'] = $
-         [['ftot_n2ha','fpk_n2ha','fv50_n2ha','fv84_n2ha','fv98_n2ha'],$
-          ['ftot_o3hb','fpk_o3hb','fv50_o3hb','fv84_o3hb','fv98_o3hb'],$
-          ['ftot_n2ha_vs_o3hb','fpk_n2ha_vs_o3hb','fv50_n2ha_vs_o3hb',$
-           'fv84_n2ha_vs_o3hb','fv98_n2ha_vs_o3hb']]
-      argslinratmaps_cvdf['ebv'] = $
-         ['ftot_ebv','fpk_ebv','fv50_ebv','fv84_ebv','fv98_ebv']
+      cvdf_lr_args = hash()
+      cvdf_lr_args['lrat1'] = $
+         [['ftot_n2ha','fpk_n2ha'],$
+          ['ftot_o3hb','fpk_o3hb'],$
+          ['ftot_n2ha_vs_o3hb','fpk_n2ha_vs_o3hb']]
+      cvdf_lr_args['lrat2'] = $
+         [['ftot_o1ha','fpk_o1ha'],$
+          ['ftot_o1ha_vs_o3hb','fpk_o1ha_vs_o3hb']]
+      cvdf_lr_args['ebv'] = $
+         ['ftot_ebv','fpk_ebv']
+      cvdf_lr_ftags = ['ftot','fpk']
+      cvdf_lr_ftitles = ['F$\downtot$ ','F$\downpk$ ']
+      
+      sorttype = hash()
+      sorttype['Halpha'] = 'sigma'
+      
+      contourlevels = hash()
+      contourlevels['Halpha_vpk'] = $
+         [-200,-150,-100,-50,0,50,100,150,200]
+      contourlevels['Halpha_v50'] = $
+         [-200,-150,-100,-50,0,50,100,150,200]
+      contourmax = hash()
+      contourmax['Halpha_vpk'] = 10000
+      contourmax['Halpha_v50'] = 10000
 
       badnademp = bytarr(ncols,nrows)
       badnademp[0,*]=1b
@@ -342,13 +359,45 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
       badnademp[1:2,2]=1b
 
       initmaps = {$
+;                  applyebv: [1b,1b],$
+;                  applyebv_tot: 1b,$
+                  applyebv_single: 1b,$
+                  ebv_medfilt: 5,$
+                  sigthresh: 3d,$
+                  cvdf_ftags: ['ftot','fpk','ch','ch'],$
+                  cvdf_vtags: ['sig','vpk','v02','v98'],$
+                  cvdf_ftitles: ['F$\downtot$','F$\downpk$',$
+                                 'F$\down+600km/s$','F$\down-1500km/s$'],$
+                  cvdf_channels: [+600d,-1500d],$
+                  cvdf_vtitles: ['$\sigma$','v$\downpeak$',$
+                                 'v$\down02$','v$\down98$'],$
+                  cvdf_oftags: ['f','sig','v50','v98',$
+                                'fr','sigr','v50r','v98r',$
+                                '','sigdiff','v50diff','v98diff'],$
+                  cvdf_oftagtypes: ['flux','vel','vel','vel',$
+                                    'flux','vel','vel','vel',$
+                                    '','vel','vel','vel'],$
+                  cvdf_oftitles: ['F$\downtot$(blue)','$\sigma$(blue)',$
+                                  'v$\down50$(blue)','v$\down98$(blue)',$
+                                  'F$\downtot$(red)','$\sigma$(red)',$
+                                  'v$\down50$(red)','v$\down98$(red)',$
+                                  '','$\sigma$$\upr$-$\sigma$$\upb$',$
+                                  '|v$\down50$$\upr$|-|v$\down50$$\upb$|',$
+                                  '|v$\down98$$\upr$|-|v$\down98$$\upb$|'],$
+                  cvdf_ofnpx: 4,$
+                  cvdf_ofnpy: 3,$
+                  ctradprof_psffwhm: 0.6d,$
+                  contourlevels: contourlevels,$
+                  contourmax: contourmax,$
+                  argslinratmaps_comp: argslinratmaps_comp,$
+                  cvdf_lr_args: cvdf_lr_args,$
+                  cvdf_lr_ftags: cvdf_lr_ftags,$
+                  cvdf_lr_ftitles: cvdf_lr_ftitles,$
                   aspectrat: 1.05d,$
                   center_axes: [centcol,centrow],$
                   center_nuclei: [centcol,centrow],$
                   rangefile: '/Users/drupke/ifs/gmos/maps/'+$
                              'f05189/rb2/ranges.txt',$
-                  argslinratmaps_comp: argslinratmaps_comp,$
-                  argslinratmaps_cvdf: argslinratmaps_cvdf,$
                   badnademp: badnademp,$
                   doemlinradprof: 1,$
                   emlinradprof_psffwhm: 0.6d,$
@@ -357,55 +406,59 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 ;                 Dividing fluxes by 0.04 gives fluxes in units of 10^-16 erg/s/cm^2/arcsecond
 ;                 15jan26 -- DSNR -- oops! Was multiplying by 20 instead of 25.
                   fluxfactor: 10d*25d,$
-;                  applyebv: [1,0,0],$
                   nadabsweq_snrthresh: 3d,$
                   nademweq_snrthresh: 3d,$
                   nademflux_cbint: 0.5d,$
-                  fcn_oplots: 'ifsf_makemaps_f05189',$
-                  tags_oplots: ['nadcube',$
-                                'nadfit',$
-                                'initnad',$
-                                'nadabsncomp',$
-                                'map_rkpc_hst',$
-                                'map_rkpc_bhst',$
-                                'map_rkpc_rhst',$
-                                'bhst_fov_ns',$
-                                'rhst_fov_ns',$
-                                'bhst_big',$
-                                'rhst_big',$
-                                'hst_big_ifsfov',$
-                                'cshst_fov_s',$
-                                'chst_fov_ns',$
-                                'cshst_fov_ns',$
-                                'cshst_fov_rb',$
-                                'ctcube',$
-                                'contcube',$
-                                'nadabsnh','errnadabsnh',$
-                                'nadabscnh','errnadabscnh',$
-                                'nadabssig','nademsig',$
-                                'nadabsvel','nademvel',$
-                                'nadabsv98','nademv98',$
-                                'errnadabsvel','errnademvel',$
-                                'nadabscf','errnadabscf',$
-                                'nadabstau','errnadabstau'],$
+;                  fcn_oplots: 'ifsf_makemaps_f05189',$
+;                  tags_oplots: ['nadcube',$
+;                                'nadfit',$
+;                                'initnad',$
+;                                'nadabsncomp',$
+;                                'map_rkpc_hst',$
+;                                'map_rkpc_bhst',$
+;                                'map_rkpc_rhst',$
+;                                'bhst_fov_ns',$
+;                                'rhst_fov_ns',$
+;                                'bhst_big',$
+;                                'rhst_big',$
+;                                'hst_big_ifsfov',$
+;                                'cshst_fov_s',$
+;                                'chst_fov_ns',$
+;                                'cshst_fov_ns',$
+;                                'cshst_fov_rb',$
+;                                'ctcube',$
+;                                'contcube',$
+;                                'nadabsnh','errnadabsnh',$
+;                                'nadabscnh','errnadabscnh',$
+;                                'nadabssig','nademsig',$
+;                                'nadabsvel','nademvel',$
+;                                'nadabsv98','nademv98',$
+;                                'errnadabsvel','errnademvel',$
+;                                'nadabscf','errnadabscf',$
+;                                'nadabstau','errnadabstau'],$
                   col: {sumrange: [4900,5000,6650,6750],$
                         scllim: [-0.1,0.2],$
                         stretch: 1},$
                   ct: {sumrange: [5600,6400],$
                        scllim: [0,1],$
-                       stretch: 1},$
+                       stretch: 1,$
+                       fitifspeak: 1b,$
+                       fitifspeakwin_kpc: 1d},$
 ; This coordinate is in zero-offset pixels; i.e., the central pixel as measured in
 ; DS9 minus 1 (for PA=0; could be different for other PAs). It is chosen to 
 ; align the two continuum maps in *cont.eps, and to center 
 ; the HST map for plotting. The nuclear offsets below give the nuclear 
 ; coordinates of the red and blue maps for making galactocentric radius arrays, 
 ; also in single-offset pixels.
-                  hst: {refcoords: [3261,2708],$
+                  hst: {refcoords: [3261.9,2708.95],$
                         subim_sm: 7d,$
                         subim_big: 25d,$
-                        smoothfwhm: 12},$
+                        smoothfwhm: 12,$
+                        fithstpeak: 1b,$
+                        fithstpeakwin_kpc: 0.3d},$
                   hstbl: {file: '/Users/drupke/ifs/gmos/ancillary/hst/'+$
                                 'f05189/f05189_acs_435w.fits',$
+                          label: 'F435W',$
                           scllim: [0.01,100],$
                           sclargs_sm: {beta: 0.05,stretch: 5},$
                           sclargs_big: {beta: 0.05,stretch: 5},$
@@ -418,6 +471,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                             sclargs: {beta: 0.5, stretch: 5}},$
                   hstrd: {file: '/Users/drupke/ifs/gmos/ancillary/hst/'+$
                                 'f05189/f05189_acs_814w.fits',$
+                          label: 'F814W',$
                           scllim: [0.01,100],$
                           sclargs_sm: {beta: 0.05,stretch: 5},$
                           sclargs_big: {beta: 0.05,stretch: 5},$
@@ -433,7 +487,17 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                            ncbdiv: 4},$
                   hstcolsm: {scllim: [0.8,1.8],$
                              sclargs: {stretch: 1},$
-                             ncbdiv: 5}$
+                             ncbdiv: 5},$
+                  fcnsortcomp: 'ifsf_sortcomp',$
+                  sortlines: ['Halpha'],$
+                  sorttype: sorttype, $
+                  compof: 1b,$
+                  compof_diffthresh: 50d,$
+                  compof_ofthresh: 300d,$
+                  fit_empsf: {line: '[OIII]5007',$
+                              vel: -1500d},$
+                  Rha: 5d,$
+                  Rnad: 5d $
                  }
    endif
 

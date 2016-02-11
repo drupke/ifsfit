@@ -69,6 +69,7 @@
 ;      2015may12, DSNR, added option to model BLR for a certain velocity 
 ;                       component by setting all lines to 0 except those
 ;                       specified; see BLRCOMP and BLRLINES
+;      2016feb04, DSNR, added [OII] line ratio
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2014 David S. N. Rupke
@@ -109,7 +110,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   lines_arr = (linelist->keys())->toarray()
   
 ; Number of initial parameters before Gaussian parameters begin
-  lratlim = 4 ; maximum number of line ratios to constrain
+  lratlim = 5 ; maximum number of line ratios to constrain
   ppoff0 = 2
   ppoff = ppoff0 + maxncomp*lratlim
   
@@ -129,7 +130,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   parinfo[1].parname = 'Maximum no. of velocity components'
 
   if ~ keyword_set(lratfix) then lratfix = hash()
-     
+
 ; [SII] ratio
   ilratlim = 0
   lratlab = '[SII]6716/6731'
@@ -246,7 +247,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ;    This upper limit appears to be the maximum seen in Kewley+06 or 
 ;    Rich+14 ("Composite Spectra in ..."). The lower limit is appropriate 
 ;    for ULIRGs.
-    parinfo[ip1:ip2].limits  = rebin([0.1d,4d],2,tmp_ncomp)
+     parinfo[ip1:ip2].limits  = rebin([0.1d,4d],2,tmp_ncomp)
 ;    parinfo[ip1:ip2].limits  = rebin([0d,4d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[NII]/Halpha line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
@@ -324,6 +325,53 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                                       parinfo[ip1+i].limits[0])*0.1
         endif
      endfor
+  endif
+
+  ; [OII] ratio
+  ; Limits from Pradhan et al. 2006, MNRAS, 366, L6
+  ilratlim = 4
+  lratlab = '[OII]3726/3729'
+  if ncomp->haskey('[OII]3726') then tmp_ncomp = ncomp['[OII]3726'] $
+  else tmp_ncomp=0
+  if tmp_ncomp gt 0 then begin
+    ip1 = ppoff0 + ilratlim*maxncomp
+    ip2 = ip1+tmp_ncomp-1
+    fa = initflux['[OII]3726',0:tmp_ncomp-1]
+    fb = initflux['[OII]3729',0:tmp_ncomp-1]
+    frat = dblarr(tmp_ncomp)+1d ; default if initial s2b flux = 0
+    inz = where(fb gt 0,ctnz)
+    if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
+    parinfo[ip1:ip2].value = frat
+    parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
+    parinfo[ip1:ip2].limits  = rebin([0.35d,1.5d],2,tmp_ncomp)
+    parinfo[ip1:ip2].parname = '[OII]3726/3729 line ratio'
+    parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
+    ;    Check to see if line ratio is fixed
+    ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
+    for i=0,tmp_ncomp-1 do begin
+      ;       If line ratio is fixed, then fix it
+      lratfixed = 0b
+      if ctlratfix gt 0 then begin
+        if lratfix[lratlab,i] ne bad then begin
+          parinfo[ip1+i].value = lratfix[lratlab,i]
+          parinfo[ip1+i].fixed = 1b
+          parinfo[ip1+i].limited = [0b,0b]
+          lratfixed = 1b
+        endif
+      endif
+      if ~ lratfixed then begin
+        ;          case of pegging at or exceeding upper limit
+        if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
+          parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
+          (parinfo[ip1+i].limits[1] - $
+          parinfo[ip1+i].limits[0])*0.1
+        ;          case of pegging at or dipping below lower limit
+        if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
+          parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
+          (parinfo[ip1+i].limits[1] - $
+          parinfo[ip1+i].limits[0])*0.1
+      endif
+    endfor
   endif
 
 
@@ -464,6 +512,17 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                                                format='(I0)')+']'
          endif
        endif
+     endif
+
+     ilratlim = 4
+     linea = where(lines_arr eq '[OII]3726',cta)
+     lineb = where(lines_arr eq '[OII]3729',ctb)
+     if cta gt 0 AND ctb gt 0 then begin
+       parinfo[foff+lineb*3].tied = 'P['+$
+         string(foff+linea*3,$
+         format='(I0)')+']*P['+$
+         string(ppoff0+maxncomp*ilratlim+i,$
+         format='(I0)')+']'
      endif
 
      linea = where(lines_arr eq '[OIII]4959',cta)

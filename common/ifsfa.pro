@@ -68,9 +68,12 @@
 ;                       from SPS fit
 ;      2015jun03, DSNR, updated for QSO/host decomposition in continuum and
 ;                       NaD fits
+;      2015sep20, DSNR, output line fluxes/errors summed over components
+;      2016jan06, DSNR, allow no emission line fit with initdat.noemlinfit
+;      2016feb02, DSNR, handle cases with QSO+stellar continuum fits
 ;
 ; :Copyright:
-;    Copyright (C) 2013-2015 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -98,10 +101,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ; Get fit initialization
   initnad={dumy: 1}
   initdat = call_function(initproc,initnad=initnad,_extra=ex)
-  
-; Get linelist
-  linelist = ifsf_linelist(initdat.lines)
-  nlines = linelist.count()
+
+  if ~ tag_exist(initdat,'noemlinfit') then begin  
+;   Get linelist
+    linelist = ifsf_linelist(initdat.lines)
+    nlines = linelist.count()
+  endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
@@ -118,11 +123,13 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ; Initialize output files
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if not tag_exist(initdat,'outlines') then $
-     outlines = (linelist->keys())->toarray() $
-  else outlines = initdat.outlines
-  ifsf_printlinpar,outlines,linlun,$
-                   outfile=initdat.outdir+initdat.label+'.lin.dat'
+  if ~ tag_exist(initdat,'noemlinfit') then begin
+     if not tag_exist(initdat,'outlines') then $
+        outlines = (linelist->keys())->toarray() $
+     else outlines = initdat.outlines
+     ifsf_printlinpar,outlines,linlun,$
+                      outfile=initdat.outdir+initdat.label+'.lin.dat'
+  endif
   ifsf_printfitpar,fitlun,$
                    outfile=initdat.outdir+initdat.label+'.fit.dat'
                    
@@ -130,9 +137,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ; Initialize line hash
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  linmaps = hash()
-  foreach line,outlines do $
-    linmaps[line] = dblarr(cube.ncols,cube.nrows,initdat.maxncomp,5) + bad
+   if ~ tag_exist(initdat,'noemlinfit') then begin
+      linmaps = hash()
+      tlinmaps = hash()
+      foreach line,outlines do begin
+         linmaps[line] = dblarr(cube.ncols,cube.nrows,initdat.maxncomp,5) + bad
+         tlinmaps[line] = dblarr(cube.ncols,cube.nrows,1,2) + bad
+      endforeach
+   endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
@@ -189,9 +201,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;       TODO: Is this necessary?
         struct.spec_err = err[struct.gd_indx]
 
-;       Get line fit parameters
-        linepars = ifsf_sepfitpars(linelist,struct.param,struct.perror,$
-                                   struct.parinfo)
+        if ~ tag_exist(initdat,'noemlinfit') then begin
+;          Get line fit parameters
+           tflux=1b
+           linepars = ifsf_sepfitpars(linelist,struct.param,struct.perror,$
+                                      struct.parinfo,tflux=tflux)
+        endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Plot emission-line data and print data to a file
@@ -205,15 +220,17 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            else fcnpltcont='ifsf_pltcont'
            call_procedure,fcnpltcont,struct,outfile+'_cnt'
 ;          Plot emission lines
-           if not linepars.nolines then begin
-              if tag_exist(initdat,'fcnpltlin') then $
-                 fcnpltlin=initdat.fcnpltlin else fcnpltlin='ifsf_pltlin'
-              if tag_exist(initdat,'argspltlin1') then $
-                 call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
-                                outfile+'_lin1'
-              if tag_exist(initdat,'argspltlin2') then $
-                 call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
-                                outfile+'_lin2'
+           if ~ tag_exist(initdat,'noemlinfit') then begin
+              if not linepars.nolines then begin
+                 if tag_exist(initdat,'fcnpltlin') then $
+                    fcnpltlin=initdat.fcnpltlin else fcnpltlin='ifsf_pltlin'
+                 if tag_exist(initdat,'argspltlin1') then $
+                    call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
+                                   outfile+'_lin1'
+                 if tag_exist(initdat,'argspltlin2') then $
+                    call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
+                                   outfile+'_lin2'
+              endif
            endif
 
         endif 
@@ -221,18 +238,23 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;       Print fit parameters to a text file
         ifsf_printfitpar,fitlun,i+1,j+1,struct
 
-;       Save fit parameters to an array
-        foreach line,outlines do $
-           linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
-                                    [linepars.fluxerr[line,*]],$
-                                    [linepars.wave[line,*]],$
-                                    [linepars.sigma[line,*]],$
-                                    [linepars.fluxpk[line,*]]]
+        if ~ tag_exist(initdat,'noemlinfit') then begin
+;          Save fit parameters to an array
+           foreach line,outlines do begin
+              linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
+                                       [linepars.fluxerr[line,*]],$
+                                       [linepars.wave[line,*]],$
+                                       [linepars.sigma[line,*]],$
+                                       [linepars.fluxpk[line,*]]]
+              tlinmaps[line,i,j,0,*] = [[tflux.tflux[line]],$
+                                        [tflux.tfluxerr[line]]]
+           endforeach
 
-;       Print line fluxes and Halpha Weq to a text file
-        if not linepars.nolines then $ 
-           ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
+;          Print line fluxes and Halpha Weq to a text file
+           if not linepars.nolines then $ 
+              ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
 
+        endif
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Process continuum data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -337,6 +359,20 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                               qsoord=qsoord,expterms=expterms,qsoflux=qsoflux
               contcube.qso[i,j,*] = qsomod
               host = totmod - qsomod
+              contcube.host[i,j,*] = host
+           endif else if initdat.fcncontfit eq 'ppxf' AND $
+                         tag_exist(initdat,'qsotempfile') then begin
+              struct_star = struct
+              restore,file=initdat.qsotempfile
+              struct_qso = struct
+              struct = struct_star
+              size_temp = size(template)
+              ntemp = size_temp[0]
+              qsowave = struct.wave
+              qsomod = struct_qso.cont_fit * $
+                       struct.ct_coeff[n_elements(struct.ct_coeff)-1]
+              contcube.qso[i,j,*] = qsomod
+              host = struct.cont_fit - qsomod
               contcube.host[i,j,*] = host
            endif
         endif
@@ -469,9 +505,13 @@ nofit:
   endfor
 
   free_lun,fitlun
-  free_lun,linlun
 
-  save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
+  if ~ tag_exist(initdat,'noemlinfit') then begin
+     free_lun,linlun
+     save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
+     save,tlinmaps,file=initdat.outdir+initdat.label+'.tlin.xdr'
+   endif
+
   if tag_exist(initdat,'decompose_ppxf_fit') OR $
      tag_exist(initdat,'decompose_qso_fit') then $
      save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'

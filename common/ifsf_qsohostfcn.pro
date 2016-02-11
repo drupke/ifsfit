@@ -45,6 +45,8 @@
 ;      Model flux
 ;
 ; :Keywords:
+;    blrterms: in, optional, type=integer, default=0
+;      Number of Gaussian terms to include (3 x number of Gaussian components).
 ;    expterms: in, optional, type=integer, default=0
 ;      Number of exponential terms by which to normalize, up to 4
 ;    fitord: in, optional, type=integer, default=3
@@ -67,6 +69,9 @@
 ;    Change History::
 ;      2010jul17, DSNR, created
 ;      2015jan24, DSNR, copied from GMOS_QSO_CONT_FCN
+;      2015sep04, DSNR, added option to include broad components as a way
+;                       to either fit a BLR or to deal with scattered
+;                       light issues with BLR emission (PG1411+442 et al.)
 ;    
 ; :Copyright:
 ;    Copyright (C) 2015 David S. N. Rupke
@@ -88,11 +93,13 @@
 ;-;
 pro ifsf_qsohostfcn,x,p,ymod,fitord=fitord,$
                     qsoflux=qsoflux,qsoord=qsoord,$
-                    qsoonly=qsoonly,expterms=expterms
+                    qsoonly=qsoonly,expterms=expterms,$
+                    blrterms=blrterms
 
   if ~ keyword_set(fitord) then fitord=3
   if ~ keyword_set(qsoord) then qsoord=3
   if ~ keyword_set(expterms) then expterms=0
+  if ~ keyword_set(blrterms) then blrterms=0
 
   npar = n_elements(p)
   nx = n_elements(x)
@@ -135,5 +142,10 @@ pro ifsf_qsohostfcn,x,p,ymod,fitord=fitord,$
      qsoscl += p[fitord+expterms+qsoord+3] * $
                (1d - exp(-(xc_hi-p[itot+fitord+expterms+qsoord+3])/dx))
   ymod += qsoscl*qsoflux
+
+; BLR model
+  ngauss = fix(blrterms/3)
+  for i=0,ngauss-1 do $
+     ymod += double(gaussian(x,p[npar-blrterms+0+3*i:npar-blrterms+3*(i+1)-1]))
 
 end

@@ -52,9 +52,10 @@
 ;      2009sep08, DSNR, created
 ;      2015apr17, DSNR, copied to IFSFIT package; added documentation, license,
 ;                       and copyright
+;      2015sep19, DSNR, modified to accept 2D array
 ;
 ; :Copyright:
-;    Copyright (C) 2014 David S. N. Rupke
+;    Copyright (C) 2014-2015 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -86,8 +87,8 @@ function ifsf_dustcor_ccm,lambda,flux,ebv,rv=rv,fluxerr=fluxerr,$
    negebv = where(ebv lt 0,ctneg)
 
 ;  Fluxes
-   fint = dblarr(n_elements(ebv))
-   finterr = dblarr(n_elements(ebv))
+   fint = ebv*0d
+   finterr = fint
    if ctpos gt 0 then $
       fint[posebv] = flux[posebv] * 10d^(coeff * ebv[posebv])
    if ctneg gt 0 then $
@@ -112,8 +113,10 @@ function ifsf_dustcor_ccm,lambda,flux,ebv,rv=rv,fluxerr=fluxerr,$
          finterr[negebv] = fluxerr[negebv]
    endif
    if doerr then begin
-      fint = [[fint],[finterr]]
-      if n_elements(flux) eq 1 AND keyword_set(tran) then fint = transpose(fint)
+      sizef = size(fint)
+      if sizef[0] eq 0 OR sizef[0] eq 1 then fint = [[fint],[finterr]] $
+      else if sizef[0] eq 2 then fint = [[[fint]],[[finterr]]]
+      if sizef[0] eq 0 AND keyword_set(tran) then fint = transpose(fint)
    endif
 
    return,fint

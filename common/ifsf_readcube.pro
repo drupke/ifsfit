@@ -93,9 +93,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      crpixstr = 'CRPIX3'
      cdeltstr = 'CD3_3'
   endif else if datasize[0] eq 2 then begin
-     ncols = (datasize[1] > datasize[2]) ? datasize[2] : datasize[1]
-     nz = (datasize[1] > datasize[2]) ? datasize[1] : datasize[2]
-     wavedim = (datasize[1] > datasize[2]) ? 1 : 2
+     ncols = (datasize[1] gt datasize[2]) ? datasize[2] : datasize[1]
+     nz = (datasize[1] gt datasize[2]) ? datasize[1] : datasize[2]
+     wavedim = (datasize[1] gt datasize[2]) ? 1 : 2
      nrows = 1
      crvalstr = 'CRVAL1'
      crpixstr = 'CRPIX1'

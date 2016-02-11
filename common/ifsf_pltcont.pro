@@ -101,10 +101,14 @@ pro ifsf_pltcont,instr,outfile,ps=ps
   
   maxthresh=0.2
   ntop = 20
-  ntop++
   nbottom = 20
+  if n_elements(wave) lt 100 then begin
+    ntop = 10
+    nbottom = 10
+  endif
+  ntop++
   nbottom--
-  
+
   xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
 ;xtit = textoidl('Observed Wavelength (!6!sA!r!u!9 %!6!n )')
   ytit = textoidl('Normalized F_\lambda')

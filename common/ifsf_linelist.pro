@@ -67,10 +67,12 @@ function ifsf_linelist,inlines
   lines = hash()
   lines['Halpha'] = 6562.80d
   lines['Hbeta'] = 4861.32d
+  lines['Hgamma'] = 4340.47d
   lines['HeI5876'] = 5875.661d
   lines['HeI6678'] = 6678.15d
   lines['HeI7065'] = 7065.19d
   lines['HeII4686'] = 4686.7d
+  lines['[NeIII]3869'] = 3868.76d
   lines['[NI]5198'] = 5197.90d
   lines['[NI]5200'] = 5200.26d
   lines['[NII]5755'] = 5754.59
@@ -79,6 +81,8 @@ function ifsf_linelist,inlines
   lines['[OI]5577'] = 5577.34d
   lines['[OI]6300'] = 6300.30d
   lines['[OI]6364'] = 6363.78d
+  lines['[OII]3726'] = 3726.032d
+  lines['[OII]3729'] = 3728.815d
   lines['[OIII]4959'] = 4958.91d
   lines['[OIII]5007'] = 5006.84d
   lines['[SII]6716'] = 6716.44d
@@ -89,6 +93,9 @@ function ifsf_linelist,inlines
   lines['Mg1b5184'] = 5183.6043  
   lines['NaD2'] = 5889.95d
   lines['NaD1'] = 5895.92d
+  lines['OH8344'] = 8344.602d
+  lines['OH8399'] = 8399.160d
+  lines['OH8430'] = 8430.170d
   lines['[CaV]5309'] = 5309.11d
   lines['[FeVII]5159'] = 5158.89d
   lines['[FeVII]5276'] = 5276.38d

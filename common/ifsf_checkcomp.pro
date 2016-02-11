@@ -24,9 +24,12 @@
 ;    ChangeHistory::
 ;      2014apr30, DSNR, copied from GMOS_CHECKCOMP; rewrote, documented, 
 ;                       added copyright and license
+;      2015sep04, DSNR, added some logic to keep BLR components; 
+;                       not heavily tested
+;      2015dec14, DSNR, added test for pegging on upper limit of sigma
 ;
 ; :Copyright:
-;    Copyright (C) 2014 David S. N. Rupke
+;    Copyright (C) 2014-2015 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -43,7 +46,8 @@
 ;    http://www.gnu.org/licenses/.
 ;-
 function ifsf_checkcomp,linepars,linetie,ncomp,newncomp,siglim,$
-         sigcut=sigcut
+         sigcut=sigcut,blrlines=blrlines,blrcomp=blrcomp,$
+         ignore=ignore
 
    if ~ keyword_set(sigcut) then sigcut = 3d
    
@@ -67,11 +71,36 @@ function ifsf_checkcomp,linepars,linetie,ncomp,newncomp,siglim,$
          goodcomp = intarr(ncomp[key])
 ;        Loop through lines tied to each anchor, looking for good components
          foreach line,tiedlist do begin
-            igd = where((linepars.fluxpk)[line,0:ncomp[line]-1] ge $
-                        sigcut*(linepars.fluxpkerr)[line,0:ncomp[line]-1] AND $
-                        (linepars.fluxpkerr)[line,0:ncomp[line]-1] gt 0 AND $
-                        (linepars.sigma)[line,0:ncomp[line]-1] gt siglim[0],$
-                        ctgd)
+            doignore=0b
+            if keyword_set(ignore) then $
+               foreach ignoreline,ignore do $
+                  if ignoreline eq line then doignore=1b
+            if ~doignore then begin
+               igd = where((linepars.fluxpk)[line,0:ncomp[line]-1] ge $
+                           sigcut*(linepars.fluxpkerr)[line,0:ncomp[line]-1] AND $
+                           (linepars.fluxpkerr)[line,0:ncomp[line]-1] gt 0 AND $
+                           (linepars.sigma)[line,0:ncomp[line]-1] gt siglim[0] AND $
+                           (linepars.sigma)[line,0:ncomp[line]-1] lt siglim[1],$
+                           ctgd)
+               if keyword_set(blrcomp) AND keyword_set(blrlines) then begin
+                  foreach blr,blrlines do begin
+                     if line eq blr then begin
+                        foreach ind,blrcomp do begin
+                           if ctgd gt 0 then begin
+                              goodblr = where(ind-1 eq igd,ct)
+                              if ct lt 0 then begin
+                                 igd = [igd,ind-1]
+                                 ctgd++
+                              endif
+                           endif else begin
+                              igd = ind-1
+                              ctgd = 1
+                           endelse
+                        endforeach
+                     endif
+                  endforeach
+               endif
+            endif
             if ctgd gt 0 then goodcomp[igd]++
          endforeach
 ;        Find number of good components

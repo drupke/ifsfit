@@ -141,6 +141,8 @@ Optional structure tags from initialization procedure:
     range are set to the max. possible to minimize their weight in the fit.
     Set this parameter to choose the (observed) wavelength range to exclude;
     this range is *not* multiplied by anything.
+  noemlinfit: in, optional, type=dblarr(2)
+    Fit continuum only.
   nomaskran: in, optional, type=dblarr(2)
     Wavelength region *not* to mask.
   outlines: in, optional, type=strarr

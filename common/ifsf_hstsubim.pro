@@ -100,6 +100,8 @@
 ;      2015jul08, DSNR, re-written to get centering and rotation correct
 ;                       replaced SSHIFTROTATE rotation with ROT; don't understand
 ;                       exact nature of rotation
+;      2015jul27, DSNR, bug fix: rotation matrix was working CW, not CCW
+;      2015sep22, DSNR, approximate fix for IFS bounding box
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014-2015 David S. N. Rupke
@@ -135,10 +137,10 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
    ifspa_rad = double(ifspa)*!DPi/180d
    sinifspa = sin(ifspa_rad)
    cosifspa = cos(ifspa_rad)
-;  This matrix rotates clockwise
-   rotmat = [[cosifspa,-sinifspa],[sinifspa,cosifspa]]
 ;  This matrix rotates counter-clockwise
-   rotmatcc = [[cosifspa,-sinifspa],[sinifspa,cosifspa]]
+   rotmatcc = [[cosifspa,sinifspa],[-sinifspa,cosifspa]]
+;  This matrix rotates clockwise
+   rotmatcw = [[cosifspa,-sinifspa],[sinifspa,cosifspa]]
 
 ;  The decimal X and Y offsets of the input IFS reference point from the IFS
 ;  field center, in IFS spaxels. The center of a spaxel is an integer, and a 
@@ -215,7 +217,9 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
 ;  Rotate the HST subimage so that it matches the IFS orientation.
 ;
 ;  Rotation is about the pixel center nearest the IFS field center, in zero-
-;  offset coordinates. Rotation can't be around a non-integer pixel center
+;  offset coordinates. (Documentation of ROT doesn't specify that rotation center
+;  is in zero-offset coordinates but I tested it.) Rotation can't be around a 
+;  non-integer pixel center.
    rotcent = round(subim_cent)-1
    hst_subim = rot(hst_subim,-(rotang),1d,rotcent[0],rotcent[1],cubic=-0.5,$
                    /pivot)
@@ -242,8 +246,6 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
    hst_subim = hst_subim[buffer:subimsize_pix[0]-1-buffer,$
                          buffer:subimsize_pix[1]-1-buffer]
 
-
-
 ;  IFS boundaries in HST pixel coordinates, relative to the subimage.
    if keyword_set(ifsbounds) then begin
       dxifs_as = double(ifsdims[0])*ifsps/2d
@@ -254,10 +256,10 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
       difs_2 = [ dxifs,-dyifs]
       difs_3 = [ dxifs, dyifs]
       difs_4 = [-dxifs, dyifs]
-      ifsbounds[0,*] = hst_center + rotmatcc # difs_1 - [subimcrd[0],subimcrd[2]]
-      ifsbounds[1,*] = hst_center + rotmatcc # difs_2 - [subimcrd[0],subimcrd[2]]
-      ifsbounds[2,*] = hst_center + rotmatcc # difs_3 - [subimcrd[0],subimcrd[2]]
-      ifsbounds[3,*] = hst_center + rotmatcc # difs_4 - [subimcrd[0],subimcrd[2]]
+      ifsbounds[0,*] = (hst_center-buffer) + rotmatcw # difs_1 ; - [subimcrd[0],subimcrd[2]]
+      ifsbounds[1,*] = (hst_center-buffer) + rotmatcw # difs_2 ; - [subimcrd[0],subimcrd[2]]
+      ifsbounds[2,*] = (hst_center-buffer) + rotmatcw # difs_3 ; - [subimcrd[0],subimcrd[2]]
+      ifsbounds[3,*] = (hst_center-buffer) + rotmatcw # difs_4 ; - [subimcrd[0],subimcrd[2]]
    endif
 
    return,hst_subim

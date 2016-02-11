@@ -22,6 +22,9 @@
 ;      When stellar templates are fit, contains best-fit coefficients.
 ;
 ; :Keywords:
+;    blrpar: in, optional, type=dblarr(3N)
+;      Initial guesses for broad Gaussian components. N is number of 
+;      components. Parameters are flux, wavelength, and sigma in wavelength.
 ;    expterms: in, optional, type=integer, default=0
 ;      Number of exponential terms by which to normalize, up to 4
 ;    fitord: in, optional, type=integer, default=3
@@ -45,6 +48,9 @@
 ; :History:
 ;    Change History::
 ;      2015jan21, DSNR, copied from IFSF_MULTICONT
+;      2015sep04, DSNR, added option to include broad components as a way
+;                       to either fit a BLR or to deal with scattered
+;                       light issues with BLR emission (PG1411+442 et al.)
 ;    
 ; :Copyright:
 ;    Copyright (C) 2015 David S. N. Rupke
@@ -66,13 +72,18 @@
 ;-
 function ifsf_fitqsohost,lambda,flux,weight,template_flux,index,$
                          ct_coeff,quiet=quiet,expterms=expterms,fitord=fitord,$
-                         qsoxdr=qsoxdr,qsoord=qsoord,qsoonly=qsoonly
+                         qsoxdr=qsoxdr,qsoord=qsoord,qsoonly=qsoonly,$
+                         blrpar=blrpar
 
    if not keyword_set(quiet) then quiet=0b
    if ~ keyword_set(fitord) then fitord=3
    if ~ keyword_set(qsoord) then qsoord=3
    if ~ keyword_set(qsoonly) then qsoonly=0b
    if ~ keyword_set(expterms) then expterms=0
+   if ~ keyword_set(blrpar) then begin
+      blrpar=0b
+      blrterms=0
+   endif else blrterms=n_elements(blrpar)
 
    ilambda=lambda[index]
    iflux=flux[index]
@@ -86,22 +97,26 @@ function ifsf_fitqsohost,lambda,flux,weight,template_flux,index,$
 ;  re-normalize template
    qsoflux /= median(qsoflux)
 
-   npar = (fitord+qsoord+2*expterms)*2
+   npar = (fitord+qsoord+2*expterms)*2+blrterms
    param = dblarr(npar)
+   if keyword_set(blrpar) then param[npar-blrterms:npar-1] = blrpar
 
    fcn = 'ifsf_qsohostfcn'
    fcnargs = {fitord: fitord,$
               qsoflux: qsoflux[index],$
               qsoord: qsoord,$
-              expterms: expterms}
-   parinfo = REPLICATE({limited:[1b,0b],limits:[0d,0d],fixed:0b,mpprint:0b},npar)
+              expterms: expterms,$
+              blrterms: blrterms}
+   parinfo = REPLICATE({limited:[1b,0b],limits:[0d,0d],$
+                        fixed:0b,mpprint:0b},npar)
 
    fluxfit = mpcurvefit(ilambda,iflux,iweight,param,function_name=fcn,$
                         functargs=fcnargs,/noderiv,parinfo=parinfo,$
                         /quiet)
                        
    ifsf_qsohostfcn,lambda,param,continuum,expterms=expterms,$
-                   fitord=fitord,qsoflux=qsoflux,qsoord=qsoord,qsoonly=qsoonly
+                   fitord=fitord,qsoflux=qsoflux,qsoord=qsoord,$
+                   qsoonly=qsoonly,blrterms=blrterms
 
    ct_coeff = param
    return,continuum

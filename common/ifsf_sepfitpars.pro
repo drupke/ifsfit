@@ -31,6 +31,9 @@
 ;      Set to upper and lower limits to return line parameters only
 ;      for lines within the given wavelength range. Lines outside this
 ;      range have fluxes set to 0.
+;    tflux: out, optional, type=structure
+;      A structure with separate hashes for total flux and error. The hashes 
+;      are indexed by line. Tags: tflux, tfluxerr
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -48,9 +51,10 @@
 ;      2013nov25, DSNR, renamed, added copyright and license
 ;      2014jan13, DSNR, re-written to use hashes rather than arrays
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
+;      2015sep20, DSNR, compute total line flux and error
 ;    
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013-2015 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -67,7 +71,8 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran
+function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran,$
+                         tflux=tflux
 
 ; Return 0 if no lines were fit
   if n_elements(param) eq 1 then begin
@@ -86,6 +91,11 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran
   fluxpkerr = hash(linelist->keys())
   wave = hash(linelist->keys())
   sigma = hash(linelist->keys())
+
+  if keyword_set(tflux) then begin
+     tf = hash(linelist->keys())
+     tfe = hash(linelist->keys())
+  endif
 
   foreach line,linelist->keys() do begin
     fluxpk[line] = param[where(parinfo.line eq line AND $
@@ -116,11 +126,22 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran
       endif
     endif
 
+    igd = where(flux[line] gt 0d,ctgd)
+    if keyword_set(tflux) then begin
+       if ctgd gt 0 then begin
+         tf[line] = total(flux[line,igd])
+         tfe[line] = sqrt(total(fluxerr[line,igd]^2d))
+       endif else begin
+         tf[line] = 0d
+         tfe[line] = 0d
+       endelse
+    endif
   endforeach
 
 
   outstr = {nolines:0,flux:flux,fluxerr:fluxerr,fluxpk:fluxpk,$
             fluxpkerr:fluxpkerr,wave:wave,sigma:sigma}
+  if keyword_set(tflux) then tflux = {tflux:tf,tfluxerr:tfe}
 
 nolines:
 

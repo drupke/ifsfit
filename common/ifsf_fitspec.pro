@@ -93,9 +93,11 @@
 ;                       completely generic
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;      2014apr23, DSNR, changed MAXITER from 1000 to 100 in call to MPFIT
+;      2016jan06, DSNR, allow no emission line fit with initdat.noemlinfit
+;      2016feb02, DSNR, handle cases with QSO+stellar PPXF continuum fits
 ;         
 ; :Copyright:
-;    Copyright (C) 2013, 2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -217,16 +219,18 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
   if tag_exist(initdat,'fcncontfit') then begin
      
 ;    Mask emission lines
-     if not keyword_set(maskwidths) then $
-        if tag_exist(initdat,'maskwidths') then $
-           maskwidths = initdat.maskwidths $
-        else begin
-           maskwidths = hash(initdat.lines)
-           foreach line,initdat.lines do $
-              maskwidths[line] = dblarr(initdat.maxncomp)+maskwidths_def
-        endelse
-     ct_indx  = ifsf_masklin(gdlambda, linelistz, maskwidths, $
-                             nomaskran=nomaskran)
+     if ~ tag_exist(initdat,'noemlinfit') then begin
+        if not keyword_set(maskwidths) then $
+           if tag_exist(initdat,'maskwidths') then $
+              maskwidths = initdat.maskwidths $
+           else begin
+              maskwidths = hash(initdat.lines)
+              foreach line,initdat.lines do $
+                 maskwidths[line] = dblarr(initdat.maxncomp)+maskwidths_def
+           endelse
+        ct_indx  = ifsf_masklin(gdlambda, linelistz, maskwidths, $
+                                nomaskran=nomaskran)
+     endif else ct_indx = indgen(n_elements(gdlambda))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Option 1: Input function
@@ -274,11 +278,20 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ;       This ensures PPXF doesn't look for lambda if no reddening is done
         if n_elements(redinit) eq 0 then redlambda = [] else redlambda=gdlambda
 
+; Attempt to add QSO template as sky spectrum ... didn't work.
+        if tag_exist(initdat,'qsotempfile') then begin
+           restore,initdat.qsotempfile
+           log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],$
+                     struct.cont_fit[gd_indx],$
+                     gdqsotemp_log,gdlambda_log_tmp
+           sky=gdqsotemp_log       
+        endif else sky=0b
+
         ppxf,temp_log,gdflux_log,gderr_log,velscale,$
              [0,initdat.siginit_stars],sol,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
              degree=polyterms,polyweights=polyweights,quiet=quiet,$
-             weights=ct_coeff,reddening=redinit,lambda=redlambda
+             weights=ct_coeff,reddening=redinit,lambda=redlambda,sky=sky
 
 ;       Resample the best fit into linear space
         continuum = interpol(continuum_log,gdlambda_log,ALOG(gdlambda))
@@ -350,6 +363,8 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ; Fit emission lines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+  if ~ tag_exist(initdat,'noemlinfit') then begin
+
 ; Initial guesses for emission line peak fluxes (above continuum)
 ; If initial guess is negative, set to 0 to prevent MPFITFUN from choking 
 ;   (since we limit peak to be >= 0).
@@ -401,7 +416,23 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
      goto,finish
   endif
 
-; This sets the output reddening to a numerical 0 instead of NULL
+  cont_dat = gdflux - specfit
+
+  endif else begin
+    cont_dat = gdflux
+    specfit = 0
+    chisq = 0
+    dof = 1
+    niter = 0
+    status = 0
+    linelist = 0
+    parinit = 0
+    param = 0
+    perror = 0
+    covar = 0
+  endelse
+
+  ; This sets the output reddening to a numerical 0 instead of NULL
   if n_elements(redinit) eq 0 then redinit=0d
   
   fit_time2 = systime(1)
@@ -424,7 +455,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
            wave: gdlambda, $
            spec: gdflux, $      ; data
            spec_err: gderr, $
-           cont_dat: gdflux-specfit, $ ; cont. data (all data - em. line fit)
+           cont_dat: cont_dat, $ ; cont. data (all data - em. line fit)
            cont_fit: continuum, $     ; cont. fit
            emlin_dat: gdflux_nocnt, $ ; em. line data (all data - cont. fit)
            emlin_fit: specfit, $      ; em. line fit

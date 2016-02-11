@@ -68,9 +68,10 @@
 ;                       properly with case of 1d data "cube"
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;      2014may08, DSNR, added ability to check components automagically.
+;      2016jan06, DSNR, allow no emission line fit with initdat.noemlinfit
 ;    
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -152,14 +153,17 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 
         nodata = where(flux ne 0d,ct)
         if ct ne 0 then begin
-           
-;          Extract # of components and initial redshift guesses
-;          specific to this spaxel, and write as hashes.
-           ncomp = hash(initdat.lines)
-           foreach line,initdat.lines do $
-              if oned then ncomp[line] = (initdat.ncomp)[line,i] $
-              else ncomp[line] = (initdat.ncomp)[line,i,j]
 
+           if ~ tag_exist(initdat,'noemlinfit') then begin
+           
+;             Extract # of components and initial redshift guesses
+;             specific to this spaxel, and write as hashes.
+              ncomp = hash(initdat.lines)
+              foreach line,initdat.lines do $
+                 if oned then ncomp[line] = (initdat.ncomp)[line,i] $
+                 else ncomp[line] = (initdat.ncomp)[line,i,j]
+
+           endif
              
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; First fit
@@ -192,15 +196,16 @@ fit:
 
 ;          Initialize starting wavelengths
            linelistz = hash(initdat.lines)
-           foreach line,initdat.lines do $
-;              if oned then $
-;                 linelistz[line] = $
-;                    reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
-;                           initdat.maxncomp) $
-;              else $
-                 linelistz[line] = $
-                    reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
-                           initdat.maxncomp)
+           if ~ tag_exist(initdat,'noemlinfit') then $
+              foreach line,initdat.lines do $
+;                 if oned then $
+;                    linelistz[line] = $
+;                       reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
+;                              initdat.maxncomp) $
+;                 else $
+                    linelistz[line] = $
+                       reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
+                              initdat.maxncomp)
                  
            structinit = ifsf_fitspec(cube.wave,flux,err,zstar,linelist,$
                                      linelistz,ncomp,initdat,quiet=quiet,$
@@ -223,23 +228,32 @@ fit:
            
            if not keyword_set(onefit) then begin
            
-;             Set emission line mask parameters
-              linepars = ifsf_sepfitpars(linelist,structinit.param,$
-                                         structinit.perror,structinit.parinfo)
-              linelistz = linepars.wave
-              if tag_exist(initdat,'masksig_secondfit') then $
-                 masksig_secondfit = initdat.masksig_secondfit $
-              else masksig_secondfit = masksig_secondfit_def           
-              maskwidths = hash(initdat.lines)
-              foreach line,initdat.lines do $
-                 maskwidths[line] = masksig_secondfit*linepars.sigma[line]
+              if ~ tag_exist(initdat,'noemlinfit') then begin
+;                Set emission line mask parameters
+                 linepars = ifsf_sepfitpars(linelist,structinit.param,$
+                                            structinit.perror,structinit.parinfo)
+                 linelistz = linepars.wave
+                 if tag_exist(initdat,'masksig_secondfit') then $
+                    masksig_secondfit = initdat.masksig_secondfit $
+                 else masksig_secondfit = masksig_secondfit_def           
+                 maskwidths = hash(initdat.lines)
+                 foreach line,initdat.lines do $
+                    maskwidths[line] = masksig_secondfit*linepars.sigma[line]
+                 maskwidths_tmp = maskwidths
+                 peakinit_tmp = linepars.fluxpk
+                 siginit_gas_tmp = linepars.sigma
+              endif else begin
+                 maskwidths_tmp=0
+                 peakinit_tmp=0
+                 siginit_gas_tmp=0
+              endelse
 
               struct = ifsf_fitspec(cube.wave,flux,err,structinit.zstar,$
                                     linelist,$
                                     linelistz,ncomp,initdat,quiet=quiet,$
-                                    maskwidths=maskwidths,$
-                                    peakinit=linepars.fluxpk,$
-                                    siginit_gas=linepars.sigma,$
+                                    maskwidths=maskwidths_tmp,$
+                                    peakinit=peakinit_tmp,$
+                                    siginit_gas=siginit_gas_tmp,$
                                     tweakcntfit=tweakcntfit)           
               testsize = size(struct)
               if testsize[0] eq 0 then begin
@@ -259,7 +273,8 @@ fit:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
            if tag_exist(initdat,'fcncheckcomp') AND $
-              tag_exist(initdat,'siglim_gas') then begin
+              tag_exist(initdat,'siglim_gas') AND $
+              ~ tag_exist(initdat,'noemlinfit') then begin
 
               linepars = ifsf_sepfitpars(linelist,struct.param,$
                                          struct.perror,struct.parinfo)           
@@ -270,7 +285,7 @@ fit:
               else goodcomp = $
                  call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
                                ncomp,newncomp,initdat.siglim_gas)
-              
+
               if newncomp.count() gt 0 then begin
                  foreach nc,newncomp,line do $
                     print,'IFSF: Repeating the fit of ',line,$
