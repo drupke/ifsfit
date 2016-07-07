@@ -89,7 +89,7 @@ function ifsf_inituvabs,initnadabs,initnadem,siglimnadabs,siglimnadem,$
                       
 
    c = 299792.458d
-;  NaD optical depth ratio (blue to red)
+;  NV optical depth ratio (blue to red)
    NVLogLF = 2.289-1.988d
    tratio = 10^NVLogLF
    
@@ -120,10 +120,10 @@ function ifsf_inituvabs,initnadabs,initnadem,siglimnadabs,siglimnadem,$
 ;   parinfo[0].parname = 'No. of HeI components'
    parinfo[0].value = nnadabs
    parinfo[0].fixed = 1B
-   parinfo[0].parname = 'No. of NaD absorption components'
+   parinfo[0].parname = 'No. of Doublet absorption components'
    parinfo[1].value = nnadem
    parinfo[1].fixed = 1B
-   parinfo[1].parname = 'No. of NaD emission components'
+   parinfo[1].parname = 'No. of Doublet emission components'
 
 ;;  HeI
 ;   if nhei gt 0 then begin
@@ -183,8 +183,8 @@ function ifsf_inituvabs,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_w].limited[0] = 1B
       parinfo[ind_w].limited[1] = 1B
       for i=0,nnadabs-1 do begin
-         parinfo[ilo+2+i*4].limits[0] = initnadabs[i,2]-10d
-         parinfo[ilo+2+i*4].limits[1] = initnadabs[i,2]+10d
+         parinfo[ilo+2+i*4].limits[0] = initnadabs[i,2]-2d
+         parinfo[ilo+2+i*4].limits[1] = initnadabs[i,2]+2d
       endfor
       if keyword_set(nadabsfix) then $
          parinfo[ilo:ilo+nnadabs*4-1].fixed = $

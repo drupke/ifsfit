@@ -73,7 +73,12 @@ function ifsf_uvabsfcn, wave, param, lratio, tratio, modhei=modhei, modnadabs=mo
                       cont=cont
    c = 299792.458d
 ;  NaD wavelength ratio (red to blue)
-   lratio = 1242.804/1238.821d 
+   IF doublet eq 'NV' THEN BEGIN
+   lratio = 1242.804/1238.821d
+   ENDIF
+   IF doublet eq 'OVI' THEN BEGIN
+   lratio = 1037.613/1031.912d
+   ENDIF 
 
 ;  Numbers of components
 ;   nhei = param[0]

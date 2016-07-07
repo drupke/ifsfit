@@ -109,6 +109,11 @@ function ifsf_linelist,inlines
   lines['[CII]1335.6'] = 1335.6627d
   lines['[CII]1335.7'] = 1335.7077d
   lines['[CII]1347'] = 1347.2396d
+  lines['[SiII]1190'] = 1190.416d
+  lines['[SiII]1193'] = 1193.2890d
+  lines['[NI]1199.5'] = 1199.5496d
+  lines['[NI]1200.2'] = 1200.2233d
+  lines['[NI]1200.71']  = 1200.7098d
   
 
 

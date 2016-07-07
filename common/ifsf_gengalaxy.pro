@@ -1,7 +1,9 @@
-FUNCTION IFSF_GENGALAXY, initmaps=initmaps, initnad=initnad
-  readcol, 'galaxyinitproc', gal, ncols, nrows, centcol, centrow, format = '(A,D,D,D,D,D,D,D)'
-  bad=1d99
+FUNCTION IFSF_GENGALAXYNbgV, directoryname, gal, zgal, profileshifts, profilesig, _initmaps=initmaps, initnad=initnad
 
+
+;readcol, initfile, gal, ncols, nrows, centcol, centrow, format = '(A,D,D,D,D,D,D,D)'
+;bad=1d99
+  bad = 1d99
   gal = gal
   bin = 2d
   ncols = 1
@@ -9,10 +11,13 @@ FUNCTION IFSF_GENGALAXY, initmaps=initmaps, initnad=initnad
   centcol = 1
   centrow = 1
   outstr = 'rb'+string(bin,format='(I0)')
-  readcol,gal+'n.txt', ignore, relativeflux, SKIPLINE=34
-  readcol,gal+'.txt', wavelength, ignore, error
-  readcol,gal+'f.txt', ignore, continuum, SKIPLINE=34
-  
+;  FOR K =0,(FILE_LINES('galaxyinitproc')-1) DO BEGIN
+;  readcol,gal[K]+'n.txt', ignore, relativeflux, SKIPLINE=34
+;  readcol,gal[K]+'.txt', wavelength, ignore, error
+;  readcol,gal[K]+'f.txt', ignore, continuum, SKIPLINE=34
+  readcol,directoryname+gal+'n.txt', ignore, relativeflux, SKIPLINE=34
+  readcol,directoryname+gal+'.txt', wavelength, ignore, error
+  readcol,directoryname+gal+'f.txt', ignore, continuum, SKIPLINE=34
 
   ; distance from central pixel
   x_pix = rebin(indgen(ncols)+1,ncols,nrows)
@@ -32,7 +37,8 @@ FUNCTION IFSF_GENGALAXY, initmaps=initmaps, initnad=initnad
 
   ; Input file
   ;  infile='/Users/drupke/ifs/gmos/cubes/'+gal+'/'+gal+outstr+'.fits'
-  infile='/Users/to/ToIRAF/spectra/galaxies/'+gal+'.txt'
+;  infile='/Users/to/ToIRAF/spectra/galaxies/'+gal[K]+'.txt'
+  infile=directoryname+gal+'.txt'
   if ~ file_test(infile) then begin
     print,"ERROR: Data cube not found."
     return,0
@@ -74,12 +80,18 @@ FUNCTION IFSF_GENGALAXY, initmaps=initmaps, initnad=initnad
   zinit_gas = hash(lines)
   siginit_gas = hash(lines)
   ; note that siginit_gas is technically optional, put here for convenience
+;  foreach j,lines do begin
+;    ncomp[j] = dblarr(ncols,nrows)+maxncomp
+;    zinit_gas[j] = dblarr(ncols,nrows,maxncomp) + zgal[K]
+;    siginit_gas[j] = dblarr(maxncomp)
+;  endforeach
   foreach i,lines do begin
-    ncomp[i] = dblarr(ncols,nrows)+maxncomp
-    zinit_gas[i] = dblarr(ncols,nrows,maxncomp) + 0.0882d
-    siginit_gas[i] = dblarr(maxncomp)
+  ncomp[i] = dblarr(ncols,nrows)+maxncomp
+  zinit_gas[i] = dblarr(ncols,nrows,maxncomp) + zgal
+  siginit_gas[i] = dblarr(maxncomp)
   endforeach
-  zinit_stars=dblarr(ncols,nrows) + 0.0882d
+;  zinit_stars=dblarr(ncols,nrows) + zgal[K]
+  zinit_stars=dblarr(ncols,nrows) + zgal
 ;  linetie = hash(lines,'[NV1]1239')
 ;  ncomp = hash(lines)
 ;  zinit_gas = hash(lines)
@@ -101,7 +113,7 @@ FUNCTION IFSF_GENGALAXY, initmaps=initmaps, initnad=initnad
 ;    zinit_gas[i] = dblarr(ncols,nrows,maxncomp) + 0.0882d
 ;    siginit_gas[i] = dblarr(maxncomp) + 150d
 ;  endforeach
-  zinit_stars=dblarr(ncols,nrows) + 0.0882d
+  zinit_stars=dblarr(ncols,nrows) + zgal
   ; Carbon
 ;  tmplines = ['[NV1]1239','[NV2]1243','[CII]1335','[CII]1335.6','[CII]1347', '[CII]1335.7']
 ;  foreach i,tmplines do begin
@@ -181,10 +193,10 @@ FUNCTION IFSF_GENGALAXY, initmaps=initmaps, initnad=initnad
     label: gal,$
     lines: lines,$
     linetie: linetie,$
-    mapdir: '/Users/to/ToIRAF/spectra/galaxies/ifsfit output/',$
+    mapdir: 'files/',$
     maxncomp: maxncomp,$
     ncomp: ncomp,$
-    outdir: '/Users/to/ToIRAF/spectra/galaxies/ifsfit output/',$
+    outdir: 'files/',$
     platescale: 0.11d,$
     specres: 1.6d,$
     positionangle: 0d,$
@@ -208,7 +220,7 @@ FUNCTION IFSF_GENGALAXY, initmaps=initmaps, initnad=initnad
     siginit_gas: siginit_gas,$
     siginit_stars: 100d,$
     ;        first # is max sig, second is step size
-    startempfile: '/Users/to/ToIRAF/spectra/galaxies/ifsf_output',$
+    startempfile: 'files/',$
     tweakcntfit: tweakcntfit $
   }
 
@@ -354,34 +366,36 @@ if keyword_set(initnad) then begin
   hei_siginit = dblarr(ncols,nrows,nad_maxncomp)
 
   nnadabs = dblarr(ncols,nrows)
-  nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+.0882d
-;  nadabs_zinit[*,*,0] += .0028248d
-;  nadabs_zinit[*,*,1] += .0036320d
-;  nadabs_zinit[*,*,2] += .0060532d
-;  nadabs_zinit[*,*,3] += .0071215d
-;  nadabs_zinit[*,*,4] += .0028158d
-;  nadabs_zinit[*,*,5] += .0036203d
-;  nadabs_zinit[*,*,6] += .0060338d
-;  nadabs_zinit[*,*,7] += .0068383d
-  nadabs_zinit[*,*,0] += .00484261501d
-;  nadabs_zinit[*,*,1] += .00419693301d
-;  nadabs_zinit[*,*,2] += .003874092d
-  nadabs_zinit[*,*,3] += .00395480225d
-  nadabs_zinit[*,*,4] += .002582728d
-;  nadabs_zinit[*,*,5] += .001614205d
-;  nadabs_zinit[*,*,6] += .00104923325d
-  nadabs_zinit[*,*,7] += .001291364d
+;  nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+zgal[K]
+;  nadabs_zinit[*,*,0] += (6/1238.8210)
+;  nadabs_zinit[*,*,1] += (5/1238.8210)
+;  nadabs_zinit[*,*,2] += (3.2/1238.8210)
+;  nadabs_zinit[*,*,3] += (1.6/1238.8210)
+  nadabs_zinit = dblarr(ncols,nrows,nad_maxncomp)+zgal
+  FOR I = 0, N_ELEMENTS(profilesig)-1 DO BEGIN
+    nadabs_zinit[*,*,I] += profileshifts[I]/1238.8210
+  ENDFOR
+;  nadabs_zinit[*,*,0] += .00484261501d
+;  nadabs_zinit[*,*,3] += .00395480225d
+;  nadabs_zinit[*,*,4] += .002582728d
+;  nadabs_zinit[*,*,7] += .001291364d
   
   
   nadabs_siginit = dblarr(ncols,nrows,nad_maxncomp)+100d
-  nadabs_siginit[*,*,0] = 10d
-;  nadabs_siginit[*,*,1] = 10d
+  ;PROPOSED
+;  nadabs_siginit[*,*,0] = 10d
+;  nadabs_siginit[*,*,1] = 100d
 ;  nadabs_siginit[*,*,2] = 10d
-  nadabs_siginit[*,*,3] = 100d
-  nadabs_siginit[*,*,4] = 10d
-;  nadabs_siginit[*,*,5] = 10d
-;  nadabs_siginit[*,*,6] = 10d
-  nadabs_siginit[*,*,7] = 100d
+;  nadabs_siginit[*,*,3] = 100d
+  ;PROPOSED
+  
+  FOR I = 0, N_ELEMENTS(profilesig)-1 DO BEGIN
+    nadabs_siginit[*,*,I] += profilesig[I]
+  ENDFOR
+;  nadabs_siginit[*,*,0] = 10d  
+;  nadabs_siginit[*,*,1] = 100d
+;  nadabs_siginit[*,*,2] = 10d
+;  nadabs_siginit[*,*,3] = 100d
   
   nadabs_siglim = [6d,1000d]
   nadabs_fix = bytarr(ncols,nrows,nad_maxncomp,4)
@@ -403,7 +417,7 @@ if keyword_set(initnad) then begin
   nnadabs[*,0] = 8
 
   nnadem = dblarr(ncols,nrows)
-  nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+0.0882d
+  nadem_zinit = dblarr(ncols,nrows,nad_maxncomp)+zgal
   ;      nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+150d
   nadem_siginit = dblarr(ncols,nrows,nad_maxncomp)+75d
   nadem_finit = dblarr(ncols,nrows,nad_maxncomp)+0.1d
@@ -425,7 +439,7 @@ if keyword_set(initnad) then begin
   ;      nadem_fix[17,22,*,3] = 0b
 
 
-  nadem_zinit[0,0,0]=0.0882d
+  nadem_zinit[0,0,0]=zgal
 
 
   ;      nnadem[0,9:15]=1
@@ -487,5 +501,6 @@ if keyword_set(initnad) then begin
 endif
 
 return,init
+;  ENDFOR
 
 END

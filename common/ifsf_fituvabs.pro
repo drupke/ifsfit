@@ -13,8 +13,19 @@
 ;    all spaxels.
 ;
 ; :Params:
-;    initproc: in, required, type=string
-;      Name of procedure to initialize the fit.
+;    initfile: in, required, type=string
+;      Name of file with two columns; first column is a list of galaxies 
+;      and second column is a list of the corresponding redshift.
+;      
+;    directoryname: in, required, type=string
+;      Directory path where spectra data is located and where results are to outputted.
+;      
+;    galaxyname: in, required, type=string
+;      Name of target galaxy to fit.
+;      
+;    doublet: in, required, type=string
+;      Doublet profiles to fit. Currently can fit OVI and NV doublets.
+;      Captilization is required.
 ;
 ; :Keywords:
 ;    cols: in, optional, type=intarr, default=all
@@ -38,6 +49,9 @@
 ;    verbose: in, optional, type=byte
 ;      Print error and progress messages. Propagates to most/all
 ;      subroutines.
+;    weights: in, optional, type=string
+;      Changes fitting procedure to automatically weight each value. 
+;      If not used, instead uses the error spectra to produce weights
 ; 
 ; :Authors:
 ;    David S. N. Rupke::
@@ -76,12 +90,13 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
-                noerr=noerr,noplot=noplot,noxdr=noxdr,nomc=nomc
+pro ifsf_fituvabs,initfile,directoryname,galaxyname,doublet,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
+                noerr=noerr,noplot=noplot,noxdr=noxdr,nomc=nomc,weights=weights
 
    bad = 1d99
-   tratio = 2.005d ; NaD optical depth ratio (blue to red)
+   tratio = 2.005d ; UVAbs optical depth ratio (blue to red)
    nad_emrat_init = 1.5d
+   c = 299792.458d
 
    starttime = systime(1)
    time = 0
@@ -91,7 +106,18 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 
    ; Get fit initialization
    initnad={dumy: 1}
-   initdat = call_function(initproc,initnad=initnad)
+   directoryname+='/'
+   readcol, directoryname+initfile, galaxynamelist,redshiftlist, SKIPLINE=1,format = '(A,D)'
+   Galaxiestoloop = FILE_LINES(directoryname+initfile)-1
+   selectionparameter=WHERE(galaxynamelist eq galaxyname)
+   galaxyname=galaxynamelist[selectionparameter[0]]
+   redshift=redshiftlist[selectionparameter]
+   readcol, directoryname+galaxyname+'/'+galaxyname+doublet+'param', profileshifts, profilesig, coveringfactor, opticaldepth, FORMAT='(A,D,D,D,D)'
+   initproc = 'ifsf_'+galaxyname+doublet
+   comps=N_ELEMENTS(profilesig)
+   initdat = call_function(initproc,directoryname, galaxyname, redshift, profileshifts, profilesig, coveringfactor, $
+    opticaldepth, initnad=initnad)
+
    maxncomp = initnad.maxncomp
    
    ; Get linelist
@@ -125,7 +151,9 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
    nz = 1
    nadcube = {err: initnad.error, $
     dat : initnad.relativeflux, $
-    wave : initnad.wavelength $    
+    wave : initnad.wavelength, $ 
+    cont: initnad.continuum, $
+    flux: initnad.flux $   
     }
 ;   nadcube.err=[1,1,initnad.error]
 ;   nadcube.dat=[1,1,initnad.relativeflux]
@@ -167,24 +195,50 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 ;            restore,file=infile
          endif
 
-;        Get NaD absorption parameters
+;        Get UVAbs absorption parameters
          nnadabs = initnad.nnadabs[i,j]
-         if nnadabs gt 0 then begin
-            if tag_exist(initnad,'nadabs_cfinit') then $
-               cfinit = reform((initnad.nadabs_cfinit)[i,j,0:nnadabs-1],nnadabs) $
-            else cfinit = dblarr(nnadabs)+0.5d
-            if tag_exist(initnad,'nadabs_tauinit') then $
-               tauinit = reform((initnad.nadabs_tauinit)[i,j,0:nnadabs-1],nnadabs) $
-            else tauinit = dblarr(nnadabs)+0.5d
+         IF (doublet eq 'OVI') THEN BEGIN
+          if nnadabs gt 0 then begin
+            if tag_exist(initnad,'nadabs_cfinit') then BEGIN
+              cfinit=initnad.nadabs_cfinit
+;               cfinit = reform((initnad.nadabs_cfinit)[i,j,0:nnadabs-1],nnadabs) $
+            ENDIF else cfinit = dblarr(nnadabs)+0.5d
+            if tag_exist(initnad,'nadabs_tauinit') then BEGIN
+              tauinit=initnad.nadabs_tauinit
+;               tauinit = reform((initnad.nadabs_tauinit)[i,j,0:nnadabs-1],nnadabs) $
+            ENDIF else tauinit = dblarr(nnadabs)+0.5d
             winit = reform(((initnad.nadabs_zinit)[i,j,0:nnadabs-1]$
-                            +1d)*linelist['[NV1]1239'],nnadabs)
+                            +1d)*linelist['[OVI1]1032'],nnadabs)
             siginit = reform((initnad.nadabs_siginit)$
                                  [i,j,0:nnadabs-1],nnadabs)
             initnadabs = [[cfinit],[tauinit],[winit],[siginit]]
-         endif else initnadabs=0
+          endif else initnadabs=0
+         ENDIF
+         IF (doublet eq 'NV') THEN BEGIN
+           if nnadabs gt 0 then begin
+             if tag_exist(initnad,'nadabs_cfinit') then BEGIN
+               cfinit=initnad.nadabs_cfinit
+               ;               cfinit = reform((initnad.nadabs_cfinit)[i,j,0:nnadabs-1],nnadabs) $
+             ENDIF else cfinit = dblarr(nnadabs)+0.5d
+             if tag_exist(initnad,'nadabs_tauinit') then BEGIN
+               tauinit=initnad.nadabs_tauinit
+               ;               tauinit = reform((initnad.nadabs_tauinit)[i,j,0:nnadabs-1],nnadabs) $
+             ENDIF else tauinit = dblarr(nnadabs)+0.5d
+             winit = reform(((initnad.nadabs_zinit)[i,j,0:nnadabs-1]$
+               +1d)*linelist['[NV1]1239'],nnadabs)
+             siginit = reform((initnad.nadabs_siginit)$
+               [i,j,0:nnadabs-1],nnadabs)
+             initnadabs = [[cfinit],[tauinit],[winit],[siginit]]
+           endif else initnadabs=0
+         ENDIF
          
-         linename = '[NV1]1239'
-;        Get NaD emission parameters
+         IF (doublet eq 'NV') THEN BEGIN
+          linename = '[NV1]1239'
+         ENDIF
+         IF (doublet eq 'OVI') THEN BEGIN
+          linename = '[OVI1]1032'
+         ENDIF
+;        Get UVAbs emission parameters
          nnadem = initnad.nnadem[i,j]
 ;        placeholders for case of separately fitting emission and absorption
          dofirstemfit=0b
@@ -193,8 +247,8 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
          first_modflux=0d
          if nnadem gt 0 then begin
                
-            if nadem_siglim[0] eq 0 then print,'IFSF_FITNAD: ERROR: Emission '+$
-               'line sigma limits not set (NADEM_SIGLIM) in INITNAD '+$
+            if nadem_siglim[0] eq 0 then print,'IFSF_FITUVABS: ERROR: Emission '+$
+               'line sigma limits not set (UVABSEM_SIGLIM) in INITUVABS '+$
                'structure, but emission lines need to be fit.'
                
             winit = reform(((initnad.nadem_zinit)[i,j,0:nnadem-1]+1d)$
@@ -211,8 +265,8 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                nademfix=reform((initnad.nadem_fix)[i,j,0:nnadem-1,*],nnadem,4) $
             else nademfix=0b
             
-;           Fit the emission line region only if requested, and if NaD emission 
-;           and absorption (or NaD emission and HeI emission) are to be fit.
+;           Fit the emission line region only if requested, and if UVAbs emission 
+;           and absorption (or UVAbs emission and HeI emission) are to be fit.
 ;            if tag_exist(initnad,'nadem_fitinit') AND $
 ;               (nnadabs gt 0 OR nhei gt 0) then begin
 ;
@@ -230,7 +284,7 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 ;                                heifix=0,nademfix=nademfix)
 ;
 ;;              This block looks for automatically-determined absorption and 
-;;              emission line indices (from IFSF_CMPNADWEQ, invoked by IFSFA)
+;;              emission line indices (from IFSF_CMPUVABSWEQ, invoked by IFSFA)
 ;;              and uses these to only fit the emission line region by setting
 ;;              anything blueward to 1. Note that if only an emission line was 
 ;;              found, then the index used is shifted blueward slightly to make
@@ -241,7 +295,7 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 ;;               else if (nadcube.iweq)[i,j,2] ne -1 then $
 ;;                  tmpind = (nadcube.iweq)[i,j,2]-1 $
 ;;               else begin
-;;                  print,'IFSF_FITNAD: No absorption or emission indices. Aborting.'                  
+;;                  print,'IFSF_FITUVABS: No absorption or emission indices. Aborting.'                  
 ;;                  goto,finish
 ;;               endelse
 ;;               tmpdat[0:tmpind] = 1d
@@ -256,13 +310,13 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 ;                                nfev=nfev,niter=niter_emonly,status=status,$
 ;                                quiet=quiet,$
 ;                                npegged=npegged,ftol=1D-6,errmsg=errmsg)
-;               if status eq 5 then print,'IFSF_FITNAD: Max. iterations reached.'
+;               if status eq 5 then print,'IFSF_FITuvabs: Max. iterations reached.'
 ;               if status eq 0 OR status eq -16 then begin
-;                  print,'IFSF_FITNAD: Error in MPFIT. Aborting.'
+;                  print,'IFSF_FITuvabs: Error in MPFIT. Aborting.'
 ;                  goto,finish
 ;               endif
 ;
-;               first_nademfix = nademfix
+;               first_UVABSemfix = nademfix
 ;               first_parinit = parinit
 ;               first_modflux = tmpdat
 ;               initnadem = transpose(reform(param[3:2+nnadem*4],4,nnadem))
@@ -288,15 +342,25 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             call_function(initnad.fcninitpar,initnadabs,initnadem,$
                           initnad.nadabs_siglim,nadem_siglim,$
                           nadabsfix=nadabsfix,nademfix=nademfix)
-
-         param = Mpfitfun(initnad.fcnfitnad,$
-                          (nadcube.wave)[6000:6600],$
-                          (nadcube.dat)[6000:6600],$
-                          (nadcube.err)[6000:6600],$
-                          parinfo=parinit,perror=perror,maxiter=100,$
-                          bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
-                          nfev=nfev,niter=niter,status=status,quiet=quiet,$
-                          npegged=npegged,ftol=1D-6,errmsg=errmsg,/WEIGHTS)
+         if (~ keyword_set(weights)) then begin
+           param = Mpfitfun(initnad.fcnfitnad,$
+                            (nadcube.wave)[initnad.fitindex[0]:initnad.fitindex[1]],$
+                            (nadcube.dat)[initnad.fitindex[0]:initnad.fitindex[1]],$
+                            (nadcube.err)[initnad.fitindex[0]:initnad.fitindex[1]],$
+                            parinfo=parinit,perror=perror,maxiter=500,$
+                            bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
+                            nfev=nfev,niter=niter,status=status,quiet=quiet,$
+                            npegged=npegged,ftol=1D-6,errmsg=errmsg)
+         endif else begin
+           param = Mpfitfun(initnad.fcnfitnad,$
+                            (nadcube.wave)[initnad.fitindex[0]:initnad.fitindex[1]],$
+                            (nadcube.dat)[initnad.fitindex[0]:initnad.fitindex[1]],$
+                            (nadcube.err)[initnad.fitindex[0]:initnad.fitindex[1]],$
+                            parinfo=parinit,perror=perror,maxiter=500,$
+                            bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
+                            nfev=nfev,niter=niter,status=status,quiet=quiet,$
+                            npegged=npegged,ftol=1D-6,errmsg=errmsg,/WEIGHTS)          
+         endelse
          if status eq 5 then print,'IFSF_FITUVABS: Max. iterations reached.'
          if status eq 0 OR status eq -16 then begin
             print,'IFSF_FITUVABS: Error in MPFIT. Aborting.'
@@ -312,22 +376,33 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 ;         else 
          zuse = initdat.zsys_gas
          if ~ noplot then begin
+          print, 'Plotting...'
             if tag_exist(initnad,'argspltfitnad') then $
-               ifsf_pltuvabsfit,(nadcube.wave)[*],$
-                              (nadcube.dat)[*],$
-                              param,outfile+'_uvabs_fit',zuse,$
+               ifsf_pltuvabsfit,galaxyname,(nadcube.wave)[initnad.plotindex[0]:initnad.plotindex[1]],$
+                              (nadcube.dat)[initnad.plotindex[0]:initnad.plotindex[1]],$
+                              (nadcube.cont)[initnad.plotindex[0]:initnad.plotindex[1]],$
+                              (nadcube.flux)[initnad.plotindex[0]:initnad.plotindex[1]],$
+                              param,doublet,directoryname,outfile+'_uvabs'+doublet+'_fit',zuse,$
                               _extra=initnad.argspltfitnad $
             else $
-               ifsf_pltuvabsfit,(nadcube.wave)[*],$
-                              (nadcube.dat)[*],$
-                              param,outfile+'_uvabs_fit',zuse
+               ifsf_pltuvabsfit,galaxyname,(nadcube.wave)[initnad.plotindex[0]:initnad.plotindex[1]],$
+                              (nadcube.dat)[initnad.plotindex[0]:initnad.plotindex[1]],$
+                              (nadcube.cont)[initnad.plotindex[0]:initnad.plotindex[1]],$
+                              (nadcube.flux)[initnad.plotindex[0]:initnad.plotindex[1]],$
+                              param,doublet,directoryname,outfile+'_uvabs'+doublet+'_fit',zuse
          endif
 
 ;        Compute model equivalent widths
          weq=1
          nademflux=1
-         modspec = ifsf_uvabsfcn((nadcube.wave)[*],param,weq=weq,$
+         IF (doublet eq 'OVI') THEN BEGIN
+          modspec = ifsf_uvabsfcnOVI((nadcube.wave)[*],param,weq=weq,$
                                nademflux=nademflux)
+         ENDIF
+         IF (doublet eq 'NV') THEN BEGIN
+          modspec = ifsf_uvabsfcnNV((nadcube.wave)[*],param,weq=weq,$
+                               nademflux=nademflux)
+         ENDIF
 
 ;;        Compute errors in fit
 ;         if ~ keyword_set(noerr) then begin
@@ -370,7 +445,7 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                 wavehei: dblarr(ncols,nrows,maxncomp)+bad,$
                 sigmahei: dblarr(ncols,nrows,maxncomp)+bad,$
                 fluxhei: dblarr(ncols,nrows,maxncomp)+bad,$
-;               NaD absorption line parameters
+;               UVAbs absorption line parameters
                 cf: dblarr(ncols,nrows,maxncomp)+bad,$
                 cferr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 tau: dblarr(ncols,nrows,maxncomp)+bad,$
@@ -379,7 +454,7 @@ pro ifsf_fituvabs,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                 waveabserr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 sigmaabs: dblarr(ncols,nrows,maxncomp)+bad,$
                 sigmaabserr: dblarr(ncols,nrows,maxncomp,2)+bad,$
-;               NaD emission line parameters
+;               UVAbs emission line parameters
                 waveem: dblarr(ncols,nrows,maxncomp)+bad,$
                 waveemerr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 sigmaem: dblarr(ncols,nrows,maxncomp)+bad,$
@@ -444,19 +519,34 @@ nofit:
       
    endfor
 
+;  Velocity calculations
+  zcomp=MAKE_ARRAY(2+4*comps)
+  delz=MAKE_ARRAY(comps)
+  velocity=MAKE_ARRAY(comps)
+  FOR M = 0, comps-1 DO BEGIN
+    zcomp[M] = param[4+4*M]/1242.804d - 1d
+    delz[M]= zcomp[M]-redshift
+    velocity[M] = c*((delz[M]+1)^2-1)/((delz[M]+1)^2+1)
+  ENDFOR
+    
 
 finish:
-
+  
    if ~ keyword_set(noxdr) then begin
-      output=initdat.outdir+initdat.label+'.uvabs.txt'
+      output=initdat.outdir+initdat.label+'_uvabs'+doublet+'.txt'
       openw, lun, output, /GET_LUN
-      printf, lun, param
+      printf, lun,'Covering Factor','Optical Depth','Wavelength ($\Angstrom$)','Sigma','Velocity (km/s)', FORMAT='(A-20,A-20,A-20,A-20,A-20)'
+      FOR M = 0, comps-1 DO BEGIN
+        printf,lun, param[2+4*M:2+4*M+3],velocity[M], FORMAT='(F-20.4,F-20.4,F-20.4,F-20.4,F-20.4)'
+      ENDFOR
+      printf,lun,'============'
+      printf, lun, 'Number of Absorption Components:',param[0], FORMAT='(A-30,I)'
+      printf, lun, 'Number of Emission Components:',param[1], FORMAT='(A-30,I)'
       close, lun
       FREE_LUN, lun
    endif
 
 ;   free_lun,nadparlun
-
    print,'Total runtime: ',systime(1)-starttime,' s.',$
          format='(/,A0,I0,A0,/)'
 

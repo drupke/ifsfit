@@ -61,22 +61,37 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_pltuvabsfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran
+pro ifsf_pltuvabsfit,gal,wave,relativeflux,continuum,flux,param,doublet,directoryname,outfile,zsys,xran=xran,yran=yran
 
 ; Default wavelengths
   c = 299792.458d
-  linelist = ifsf_linelist(['[NV1]1239','[NV2]1243','[CII]1347'])
+  IF (doublet eq 'NV') THEN BEGIN
+    linelist = ifsf_linelist(['[NV1]1239','[NV2]1243','[CII]1347'])
 
 ; Observed-frame wavelengths
-  w_nad1 = linelist['[NV1]1239']*(1d +zsys)
-  w_nad2 = linelist['[NV2]1243']*(1d +zsys)
-  w_hei = linelist['[CII]1347']*(1d +zsys)
+    w_nad1 = linelist['[NV1]1239']*(1d +zsys)
+    w_nad2 = linelist['[NV2]1243']*(1d +zsys)
+    w_hei = linelist['[CII]1347']*(1d +zsys)
+  END
+  IF (doublet eq 'OVI') THEN BEGIN
+    linelist = ifsf_linelist(['[OVI1]1032','[OVI2]1038','[CII]1347'])
 
+; Observed-frame wavelengths
+    w_nad1 = linelist['[OVI1]1032']*(1d +zsys)
+    w_nad2 = linelist['[OVI2]1038']*(1d +zsys)
+    w_hei = linelist['[CII]1347']*(1d +zsys)
+  END
   modhei=1
   modnadabs=1
   modnadem=1
-  modflux = ifsf_uvabsfcn(wave,param,modhei=modhei,modnadabs=modnadabs,$
+  IF (doublet eq 'NV') THEN BEGIN
+    modflux = ifsf_uvabsfcnNV(wave,param,modhei=modhei,modnadabs=modnadabs,$
                         modnadem=modnadem)
+  ENDIF
+  IF (doublet eq 'OVI') THEN BEGIN
+    modflux = ifsf_uvabsfcnOVI(wave,param,modhei=modhei,modnadabs=modnadabs,$
+      modnadem=modnadem)
+  ENDIF
 ;  size_hei = size(modhei)
 ;  if size_hei[0] eq 1 then nhei = 1 $
 ;  else if size_hei[0] eq 2 then nhei = fix(size_hei[2]) $
@@ -101,9 +116,9 @@ pro ifsf_pltuvabsfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran
 ;  if ~ keyword_set(xran) then xran = [min(wave),max(wave)]
 ;  if ~ keyword_set(yran) then yran = [0d,1.5d]
   yran = [0d,1.5d]
-  xran = [min(wave)+180,max(wave)-117]
+  xran = [min(wave),max(wave)]
   
-  cgplot,wave,flux,xran=xran,yran=yran,xstyle=1,ystyle=1,$
+  cgplot,wave,relativeflux,xran=xran,yran=yran,xstyle=1,ystyle=1,$
          backg='Black',axiscolor='White',color='White',$
          xtit='Wavelength ($\Angstrom$)',ytit='Normalized F$\down$$\lambda$'
   cgoplot,[w_nad1,w_nad1],yran,color='Green',linesty=2
@@ -115,5 +130,26 @@ pro ifsf_pltuvabsfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran
   cgoplot,wave,modflux,color='Red',thick=4
 
   img = cgsnapshot(filename=outfile,/jpeg,/nodialog,quality=100)
-
+  
+; Getting plot data for figures
+  output=directoryname+'/'+gal+'/'+gal+doublet+'_fit_data'
+  openw, lun, output+'.txt',/GET_LUN
+  FOR M =0, N_ELEMENTS(wave)-1 DO BEGIN
+  printf, lun, wave[M], modflux[M], continuum[M], flux[M], relativeflux[M], FORMAT='(F10.4,2X,F7.4,2X,E13.6,2X,E13.6,2X,F7.4)'
+  ENDFOR
+  close,lun
+  FREE_LUN,lun
+  
+  openw,lun,output+'param.txt',/GET_LUN
+  printf,lun,xran[0],xran[1],yran[0],yran[1],w_nad1,w_nad2,FORMAT='(6(F10.2))'
+  close, lun
+  FREE_LUN,lun
+  
+  openw,lun, output+'modabs'+'.txt',/GET_LUN
+  abssize = size(modnadabs)
+  abssize=abssize(1)
+  printf, lun, nnadabs, abssize, FORMAT='(I4,2X,I4)'
+  for i=0,nnadabs-1 do printf, lun, modnadabs[*,i], FORMAT='(F10.7)'
+  close,lun
+  free_lun, lun
 end

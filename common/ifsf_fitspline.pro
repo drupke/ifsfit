@@ -13,8 +13,7 @@
 ;    those fit).
 ;
 ; :Params:
-;    lambda: in, required, type=dblarr(N)
-;    flux: in, required, type=dblarr(N)
+;    galaxypint: in, required, type=string(A)
 ;    weight: in, required, type=dblarr(N)
 ;    template_flux: in, required, type=any
 ;      Ignored. When stellar templates are fit, contatins templates.
@@ -66,16 +65,16 @@
 ;-
 function ifsf_fitspline,lambda,flux,weight,template_flux,index,$
                         ct_coeff,quiet=quiet,refit=refit,argsbkpts=argsbkpts
+                        
 
   err = 1d/sqrt(weight)
-
   mask = bytarr(n_elements(lambda))
   mask[index]=1b
   if keyword_set(argsbkpts) then $
-     sset = bspline_iterfit(lambda,flux,invvar=1/err,inmask=mask,$
+     sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,$
                             _extra=argsbkpts) $
   else $
-     sset = bspline_iterfit(lambda,flux,invvar=1/err,inmask=mask,everyn=50)
+     sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,everyn=50)
   continuum = bspline_valu(lambda,sset)
   ct_coeff = 0
   
