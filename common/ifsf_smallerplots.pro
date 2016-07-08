@@ -167,21 +167,42 @@ LineWavelength = $
     'C IV $\lambda$1548',$
     'C IV $\lambda$1551']
 
+;Read galaxy full names
+readcol,directoryname+'/'+'Redshifts', galaxyfullnamelist, format='(A)'
 
 ;Picks out the redshift of the specified galaxy.
 readcol, directoryname+'/'+initfile, galaxynamelist,redshiftlist, SKIPLINE=1,format = '(A,D)' 
 selectionparameter=WHERE(galaxynamelist eq galaxyname)
 galaxyname=galaxynamelist[selectionparameter[0]]
+galaxyfullname=galaxyfullnamelist[selectionparameter[0]]
 zsys=redshiftlist[selectionparameter[0]]
 
 
 ;Shifts the emission/absorption wavelengths by the galaxy's redshift
 ShiftedLines= LineWavelength*(1+zsys)
 
+;Sets window size in inches
+aspectRatio = FLOAT(!D.Y_VSIZE) / !D.X_VSIZE
+xsize=7.5
+ysize=8.5 
+IF ysize GT 10.5 THEN BEGIN
+  ysize = 10.5
+  xsize = ysize / aspectRatio
+ENDIF  
+  
+xoffset=(8.5-xsize)/2.0d
+yoffset=(11.0-ysize)/2.0d
+  
+  
 ;Opens a Postscript file to draw plots on.
-CGPS_OPEN,directoryname+'/'+galaxyname+'/'+galaxyname+'smallplot',/ENCAPSULATED
-!P.Background='WHITE'
+
+CGPS_OPEN,directoryname+'/'+galaxyname+'/'+galaxyname+'smallplot',/ENCAPSULATED, /NOMATCH
+DEVICE, xsize=xsize, ysize=ysize, xoffset=xoffset, yoffset=yoffset, /Inches
+!P.Background=cgColor('White')
 !P.CharThick=.8
+
+cgText, .5,.98,galaxyfullname +','+ 'z='+String(zsys), alignment=.5, Charsize = 1
+
 
 print, 'Plotting...'    
 
@@ -218,7 +239,7 @@ IF (keyword_set(OVI)) AND (~ keyword_set(NV)) THEN BEGIN
 ;Normalized plot and legend
   cgplot,wave,normalizedflux,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
     backg='White',axiscolor='Black',color='Black',$
-    xtit='Wavelength ($\Angstrom$)',ytit='Normalized F!I$\lambda$',$
+    xtit='Observed Wavelength ($\Angstrom$)',ytit='Normalized F!I$\lambda$',$
     position= [.1,.5,.5,.9], CHARSIZE=.6,thick=1, Title= 'O VI'
   AL_LEGEND,['Intrinsic','ISM','Continuum','Components','Continuum w/Absorption'], $
     Color=['Red','Blue','Orange','Sky Blue','Purple'], charsize=.3, $
@@ -238,7 +259,7 @@ IF (keyword_set(OVI)) AND (~ keyword_set(NV)) THEN BEGIN
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], yrannormalized, color = 'Red', thick=4
     index=Where(LineWavelength lt Max(wave) AND LineWavelength gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.05, $
         .4*yrannormalized[1],  $
         LineLabel[I], $
         /Data, $
@@ -247,7 +268,7 @@ IF (keyword_set(OVI)) AND (~ keyword_set(NV)) THEN BEGIN
     ENDFOR
     index=Where(ShiftedLines lt Max(wave) AND ShiftedLines gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.05, $
         .4*yrannormalized[1],  $
         LineLabel[I], $
         /Data, $
@@ -269,7 +290,7 @@ IF (keyword_set(OVI)) AND (~ keyword_set(NV)) THEN BEGIN
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=4
     index=Where(LineWavelength lt Max(wave) AND LineWavelength gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.05, $
         .4*yran[1],  $
         LineLabel[I], $
         /Data, $
@@ -278,7 +299,7 @@ IF (keyword_set(OVI)) AND (~ keyword_set(NV)) THEN BEGIN
     ENDFOR
     index=Where(ShiftedLines lt Max(wave) AND ShiftedLines gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.05, $
         .4*yran[1],  $
         LineLabel[I], $
         /Data, $
@@ -323,7 +344,7 @@ IF (keyword_set(NV)) AND (~ keyword_set(OVI)) THEN BEGIN
 ;Normalized plot and legend
   cgplot,wave,normalizedflux,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
     backg='White',axiscolor='Black',color='Black',$
-    xtit='Wavelength ($\Angstrom$)',ytit='Normalized F!I$\lambda$',$
+    xtit='Observed Wavelength ($\Angstrom$)',ytit='Normalized F!I$\lambda$',$
     position= [.1,.5,.5,.9], CHARSIZE=.6,thick=1, Title= 'N V'  
   AL_LEGEND,['Intrinsic','ISM','Continuum','Components','Continuum w/Absorption'], $
     Color=['Red','Blue','Orange','Sky Blue','Purple'], charsize=.3, $
@@ -343,7 +364,7 @@ IF (keyword_set(NV)) AND (~ keyword_set(OVI)) THEN BEGIN
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], yrannormalized, color = 'Red', thick=4
     index=Where(LineWavelength lt Max(wave) AND LineWavelength gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.05, $
         .4*yrannormalized[1],  $
         LineLabel[I], $
         /Data, $
@@ -352,7 +373,7 @@ IF (keyword_set(NV)) AND (~ keyword_set(OVI)) THEN BEGIN
     ENDFOR
     index=Where(ShiftedLines lt Max(wave) AND ShiftedLines gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.05, $
         .4*yrannormalized[1],  $
         LineLabel[I], $
         /Data, $
@@ -374,7 +395,7 @@ IF (keyword_set(NV)) AND (~ keyword_set(OVI)) THEN BEGIN
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=4
     index=Where(LineWavelength lt Max(wave) AND LineWavelength gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.05, $
         .4*yran[1],  $
         LineLabel[I], $
         /Data, $
@@ -383,7 +404,7 @@ IF (keyword_set(NV)) AND (~ keyword_set(OVI)) THEN BEGIN
     ENDFOR
     index=Where(ShiftedLines lt Max(wave) AND ShiftedLines gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.05, $
         .4*yran[1],  $
         LineLabel[I], $
         /Data, $
@@ -428,7 +449,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
 ;Plots normalized spectra
   cgplot,wave,normalizedflux,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
     backg='White',axiscolor='Black',color='Black',$
-    xtit='Wavelength ($\Angstrom$)',ytit='Normalized F!I$\lambda$',$
+    xtit='Observed Wavelength ($\Angstrom$)',ytit='Normalized F!I$\lambda$',$
     position= [.1,.5,.5,.9], CHARSIZE=.6,thick=1, Title= 'O VI'
   AL_LEGEND,['Intrinsic','ISM','Continuum','Components','Continuum w/Absorption'], $
     Color=['Red','Blue','Orange','Sky Blue','Purple'], charsize=.3, $
@@ -448,7 +469,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], yrannormalized, color = 'Red', thick=4
     index=Where(LineWavelength lt Max(wave) AND LineWavelength gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.05, $
         .4*yrannormalized[1],  $
         LineLabel[I], $
         /Data, $
@@ -457,7 +478,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     ENDFOR
     index=Where(ShiftedLines lt Max(wave) AND ShiftedLines gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.05, $
         .4*yrannormalized[1],  $
         LineLabel[I], $
         /Data, $
@@ -479,7 +500,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=4
     index=Where(LineWavelength lt Max(wave) AND LineWavelength gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.05, $
         .4*yran[1],  $
         LineLabel[I], $
         /Data, $
@@ -488,7 +509,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     ENDFOR
     index=Where(ShiftedLines lt Max(wave) AND ShiftedLines gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.05, $
         .4*yran[1],  $
         LineLabel[I], $
         /Data, $
@@ -526,7 +547,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
 ;Plots normalized spectra
   cgplot,wave,normalizedflux,xran=xran,yran=yrannormalized,xstyle=1,ystyle=1,$
     backg='White',axiscolor='Black',color='Black',$
-    xtit='Wavelength ($\Angstrom$)',ytit='Normalized F!I$\lambda$',$
+    xtit='Observed Wavelength ($\Angstrom$)',ytit='Normalized F!I$\lambda$',$
     position= [.55,.5,.95,.9], /NoErase, CHARSIZE=.6, Title= 'N V'
     
 ;Plots absorption features, unity, and outlines spectra
@@ -543,7 +564,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], yrannormalized, color = 'Red', thick=4
     index=Where(LineWavelength lt Max(wave) AND LineWavelength gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.05, $
         .4*yrannormalized[1],  $
         LineLabel[I], $
         /Data, $
@@ -552,7 +573,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     ENDFOR
     index=Where(ShiftedLines lt Max(wave) AND ShiftedLines gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.05, $
         .4*yrannormalized[1],  $
         LineLabel[I], $
         /Data, $
@@ -574,7 +595,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=4
     index=Where(LineWavelength lt Max(wave) AND LineWavelength gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.05, $
         .4*yran[1],  $
         LineLabel[I], $
         /Data, $
@@ -583,7 +604,7 @@ IF (keyword_set(OVI)) AND (keyword_set(NV)) THEN BEGIN
     ENDFOR
     index=Where(ShiftedLines lt Max(wave) AND ShiftedLines gt Min(wave))
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.05, $
         .4*yran[1],  $
         LineLabel[I], $
         /Data, $

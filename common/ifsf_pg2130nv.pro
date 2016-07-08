@@ -18,7 +18,7 @@ FUNCTION IFSF_pg2130nv, directoryname, gal, zgal, profileshifts, profilesig, cov
 
   ;Controls and plots the continuum fit
   ;
-  ; Finding the index to fit over
+  ;Finding the index to fit over
   linefit=CALL_FUNCTION('ifsf_linelist',['[NV1]1239','[NV2]1243'])
   zgalint=DOUBLE(zgal)
   doubletregion=[1308,1322]

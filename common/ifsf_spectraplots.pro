@@ -159,6 +159,9 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     'Si IV $\lambda$1403',$
     'C IV $\lambda$1548',$
     'C IV $\lambda$1551']
+    
+;Read galaxy full names   
+  readcol,directoryname+'/'+'Redshifts', galaxyfullnamelist, format='(A)'
 
 ;Read wavelength and flux
   readcol, directoryname+'/'+galaxyname+'/'+galaxyname+'.txt', wave, flux
@@ -167,10 +170,11 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
   readcol, directoryname+'/'+initfile, galaxynamelist,redshiftlist, SKIPLINE=1,format = '(A,D)'
   selectionparameter=WHERE(galaxynamelist eq galaxyname)
   galaxyname=galaxynamelist[selectionparameter[0]]
+  galaxyfullname=galaxyfullnamelist[selectionparameter[0]]
   zsys=redshiftlist[selectionparameter[0]]
 
 ;Set ASPECT RATIO for plots. Equivalent to (y-range)/(x-range) in data coords.
-  aratio=(.11)/(.95)
+  aratio=(.11)/(.9)
   
 ;Shifts the absorption/emission waveelngths by the galaxy's redshift
   ShiftedLines= LineWavelength*(1+zsys)
@@ -184,25 +188,37 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
 ;Acquires the range of the wavelength values
   baserange=Max(wave)-Min(wave)
   
+;Sets window size in inches
+  aspectRatio = FLOAT(!D.Y_VSIZE) / !D.X_VSIZE
+  xsize=7.5
+  ysize=8.5 
+  IF ysize GT 10.5 THEN BEGIN
+    ysize = 10.5
+    xsize = ysize / aspectRatio
+  ENDIF  
+  
+  xoffset=(8.5-xsize)/2.0d
+  yoffset=(11.0-ysize)/2.0d
+  
+  
 ;Opens a Postscript value to draw plots on
   cgPS_OPEN,directoryname+'/'+galaxyname+'/'+galaxyname+'spectraplot',/Encapsulated,scale_factor=1, $
-    Charsize=.15,font=-1
+    Charsize=.15,font=-1, /NOMATCH
+  DEVICE, xsize=xsize, ysize=ysize, xoffset=xoffset, yoffset=yoffset, /Inches
   !Y.MINOR=1
   !Y.THICK=.8
   !X.THICK=.8
   !Y.TICKFORMAT='(F5.1)'
   
+  cgText, .5,.98,galaxyfullname +','+ 'z='+String(zsys), alignment=.5, Charsize = 1
+  
 ;Full range plot
   cgplot, wave, relativeflux, xstyle=1, ystyle=0, yran=yran, $
     axiscolor='Black',color='Black',$
-    xtit='Wavelength ($\Angstrom$)' ,ytit='F!I$\lambda$!N/10!E-14!N (ergs s!E-1 !Ncm!E-2 !N$\Angstrom$!E-1!N)', $
-    Position = [0,.86,.95,.97], CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4,/NoErase
+    xtit='Observe Wavelength ($\Angstrom$)' ,ytit='F!I$\lambda$!N/10!E-14!N (ergs s!E-1 !Ncm!E-2 !N$\Angstrom$!E-1!N)', $
+    Position = [.05,.86,.95,.97], CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4,/NoErase
 
-;Plots absorption and emission lines
-  FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
-    cgoplot, [LineWavelength[M],LineWavelength[M]], yran, color = 'Blue', thick=1
-    cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=1
-  ENDFOR
+
   
 ;Plot legend
   AL_LEGEND,['Intrinsic','ISM'], $
@@ -218,14 +234,14 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(0d/6)*baserange): $
     value_locate(wave,Min(wave)+(1d/6)*baserange)])^2))], $
-    Position = [0,.715,.95,.825], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [.05,.715,.95,.825], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
-    cgoplot, [LineWavelength[M],LineWavelength[M]], yran, color = 'Blue', thick=1
-    cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=1
+    cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
+    cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
     xran=[Min(wave),Min(wave)+(1d/6)*baserange]
     index=Where(LineWavelength lt xran[1] AND LineWavelength gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(0d/6)*baserange): $
         value_locate(wave,Min(wave)+(1d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -236,7 +252,7 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(0d/6)*baserange): $
         value_locate(wave,Min(wave)+(1d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -252,14 +268,14 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(1d/6)*baserange): $
     value_locate(wave,Min(wave)+(2d/6)*baserange)])^2))], $
-    Position = [0,.575,.95,.685], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [.05,.575,.95,.685], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
-    cgoplot, [LineWavelength[M],LineWavelength[M]], yran, color = 'Blue', thick=1
-    cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=1
+    cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
+    cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
     xran=[Min(wave)+(1d/6)*baserange,Min(wave)+(2d/6)*baserange]
     index=Where(LineWavelength lt xran[1] AND LineWavelength gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(1d/6)*baserange): $
         value_locate(wave,Min(wave)+(2d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -270,7 +286,7 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(1d/6)*baserange): $
         value_locate(wave,Min(wave)+(2d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -286,14 +302,14 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(2d/6)*baserange): $
     value_locate(wave,Min(wave)+(3d/6)*baserange)])^2))], $
-    Position = [0,.435,.95,.545], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [.05,.435,.95,.545], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
-    cgoplot, [LineWavelength[M],LineWavelength[M]], yran, color = 'Blue', thick=1
-    cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=1
+    cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
+    cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
     xran=[Min(wave)+(2d/6)*baserange,Min(wave)+(3d/6)*baserange]
     index=Where(LineWavelength lt xran[1] AND LineWavelength gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(2d/6)*baserange): $
         value_locate(wave,Min(wave)+(3d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -304,7 +320,7 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(2d/6)*baserange): $
         value_locate(wave,Min(wave)+(3d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -320,14 +336,14 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(3d/6)*baserange): $
     value_locate(wave,Min(wave)+(4d/6)*baserange)])^2))], $
-    Position = [0,.295,.95,.405], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [.05,.295,.95,.405], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
-    cgoplot, [LineWavelength[M],LineWavelength[M]], yran, color = 'Blue', thick=1
-    cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=1
+    cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
+    cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
     xran=[Min(wave)+(3d/6)*baserange,Min(wave)+(4d/6)*baserange]
     index=Where(LineWavelength lt xran[1] AND LineWavelength gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(3d/6)*baserange): $
         value_locate(wave,Min(wave)+(4d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -338,7 +354,7 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(3d/6)*baserange): $
         value_locate(wave,Min(wave)+(4d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -354,14 +370,14 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(4d/6)*baserange): $
     value_locate(wave,Min(wave)+(5d/6)*baserange)])^2))], $
-    Position = [0,.155,.95,.265], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [.05,.155,.95,.265], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
-    cgoplot, [LineWavelength[M],LineWavelength[M]], yran, color = 'Blue', thick=1
-    cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=1
+    cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
+    cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
     xran=[Min(wave)+(4d/6)*baserange,Min(wave)+(5d/6)*baserange]
     index=Where(LineWavelength lt xran[1] AND LineWavelength gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(4d/6)*baserange): $
         value_locate(wave,Min(wave)+(5d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -372,7 +388,7 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(4d/6)*baserange): $
         value_locate(wave,Min(wave)+(5d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -388,14 +404,14 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     yran=[0, $
     3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(5d/6)*baserange): $
     value_locate(wave,Min(wave)+(6d/6)*baserange)])^2))], $
-    Position = [0,.02,.95,.13], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
+    Position = [.05,.02,.95,.13], /NoErase, CHARSIZE=.35,thick=1, aspect=aratio,charthick=.4
   FOR M = 0, N_ELEMENTS(LineWavelength)-1 DO BEGIN
-    cgoplot, [LineWavelength[M],LineWavelength[M]], yran, color = 'Blue', thick=1
-    cgoplot, [ShiftedLines[M],ShiftedLines[M]], yran, color = 'Red', thick=1
+    cgoplot, [LineWavelength[M],LineWavelength[M]], 2*yran, color = 'Blue', thick=1
+    cgoplot, [ShiftedLines[M],ShiftedLines[M]], 2*yran, color = 'Red', thick=1
     xran=[Min(wave)+(5d/6)*baserange,Min(wave)+(6d/6)*baserange]
     index=Where(LineWavelength lt xran[1] AND LineWavelength gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,LineWavelength[I], $
+      cgTEXT,LineWavelength[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(5d/6)*baserange): $
         value_locate(wave,Min(wave)+(6d/6)*baserange)])^2)),  $
         LineLabel[I], $
@@ -406,7 +422,7 @@ PRO ifsf_spectraplots, initfile, directoryname, galaxyname
     ENDFOR
     index=Where(ShiftedLines lt xran[1] AND ShiftedLines gt xran[0])
     FOR I = Min(index), Max(index) DO BEGIN
-      cgTEXT,ShiftedLines[I], $
+      cgTEXT,ShiftedLines[I]-.1, $
         .5*3*Sqrt(Mean((relativeflux[value_locate(wave,Min(wave)+(5d/6)*baserange): $
         value_locate(wave,Min(wave)+(6d/6)*baserange)])^2)),  $
         LineLabel[I], $
