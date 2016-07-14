@@ -69,6 +69,8 @@
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;      2014may08, DSNR, added ability to check components automagically.
 ;      2016jan06, DSNR, allow no emission line fit with initdat.noemlinfit
+;      2016feb12, DSNR, changed treatment of sigma limits for emission lines
+;                       so that they can be specified on a pixel-by-pixel basis
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -163,13 +165,22 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
                  if oned then ncomp[line] = (initdat.ncomp)[line,i] $
                  else ncomp[line] = (initdat.ncomp)[line,i,j]
 
-           endif
+           endif             
              
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; First fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 fit:
+
+           if tag_exist(initdat,'siglim_gas') then begin
+              size_siglim = size(initdat.siglim_gas)
+              if size_siglim[0] eq 1 then siglim_gas = initdat.siglim_gas $
+              else begin
+                 if oned then siglim_gas = initdat.siglim_gas[i,*] $
+                 else siglim_gas = initdat.siglim_gas[i,j,*]
+              endelse
+           endif else siglim_gas = 0b
            
 ;          Initialize stellar redshift for this spaxel
            if oned then zstar = initdat.zinit_stars[i] $
@@ -209,6 +220,7 @@ fit:
                  
            structinit = ifsf_fitspec(cube.wave,flux,err,zstar,linelist,$
                                      linelistz,ncomp,initdat,quiet=quiet,$
+                                     siglim_gas=siglim_gas,$
                                      tweakcntfit=tweakcntfit)
            
            testsize = size(structinit)
@@ -254,6 +266,7 @@ fit:
                                     maskwidths=maskwidths_tmp,$
                                     peakinit=peakinit_tmp,$
                                     siginit_gas=siginit_gas_tmp,$
+                                    siglim_gas=siglim_gas,$
                                     tweakcntfit=tweakcntfit)           
               testsize = size(struct)
               if testsize[0] eq 0 then begin
@@ -273,18 +286,19 @@ fit:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
            if tag_exist(initdat,'fcncheckcomp') AND $
-              tag_exist(initdat,'siglim_gas') AND $
               ~ tag_exist(initdat,'noemlinfit') then begin
+
+              siglim_gas = struct.siglim
 
               linepars = ifsf_sepfitpars(linelist,struct.param,$
                                          struct.perror,struct.parinfo)           
               if tag_exist(initdat,'argscheckcomp') then goodcomp = $
                  call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
-                               ncomp,newncomp,initdat.siglim_gas,$
+                               ncomp,newncomp,siglim_gas,$
                                _extra=initdat.argscheckcomp) $
               else goodcomp = $
                  call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
-                               ncomp,newncomp,initdat.siglim_gas)
+                               ncomp,newncomp,siglim_gas)
 
               if newncomp.count() gt 0 then begin
                  foreach nc,newncomp,line do $

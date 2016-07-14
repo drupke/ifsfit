@@ -42,9 +42,10 @@
 ;      2014jan16, DSNR, fixed one wrong label
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;      2015jan06, DSNR, added Mg1b lines
+;      2016jul12, DSNR, added line labels
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -61,56 +62,97 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_linelist,inlines
+function ifsf_linelist,inlines,linelab=linelab
 
-; Associated line labels:
-  lines = hash()
-  lines['Halpha'] = 6562.80d
-  lines['Hbeta'] = 4861.32d
-  lines['Hgamma'] = 4340.47d
-  lines['HeI5876'] = 5875.661d
-  lines['HeI6678'] = 6678.15d
-  lines['HeI7065'] = 7065.19d
-  lines['HeII4686'] = 4686.7d
-  lines['[NeIII]3869'] = 3868.76d
-  lines['[NI]5198'] = 5197.90d
-  lines['[NI]5200'] = 5200.26d
-  lines['[NII]5755'] = 5754.59
-  lines['[NII]6548'] = 6548.05d
-  lines['[NII]6583'] = 6583.45d
-  lines['[OI]5577'] = 5577.34d
-  lines['[OI]6300'] = 6300.30d
-  lines['[OI]6364'] = 6363.78d
-  lines['[OII]3726'] = 3726.032d
-  lines['[OII]3729'] = 3728.815d
-  lines['[OIII]4959'] = 4958.91d
-  lines['[OIII]5007'] = 5006.84d
-  lines['[SII]6716'] = 6716.44d
-  lines['[SII]6731'] = 6730.82d
-  lines['[SIII]6312'] = 6312.06d
-  lines['Mg1b5167'] = 5167.3213
-  lines['Mg1b5173'] = 5172.6844
-  lines['Mg1b5184'] = 5183.6043  
-  lines['NaD2'] = 5889.95d
-  lines['NaD1'] = 5895.92d
-  lines['OH8344'] = 8344.602d
-  lines['OH8399'] = 8399.160d
-  lines['OH8430'] = 8430.170d
-  lines['[CaV]5309'] = 5309.11d
-  lines['[FeVII]5159'] = 5158.89d
-  lines['[FeVII]5276'] = 5276.38d
-  lines['[FeVII]5721'] = 5720.7d
-  lines['[FeVII]6087'] = 6087.0d
-  lines['[FeX]6375'] = 6374.51d
-  
-  outlines = hash()
-  for i=0, n_elements(inlines)-1 do begin
-     imatch = where(inlines[i] eq lines->keys(),ctmatch)
-     if ctmatch eq 1 then outlines[inlines[i]] = lines[inlines[i]] $
-     else print,'IFSF_LINELIST: ERROR: ',inlines[i],$
-                ' not found in wavelength list.'
-  endfor
-
-  return,outlines
-
+;  Associated line labels:
+   lines = hash()
+   lines['Halpha'] = 6562.80d
+   lines['Hbeta'] = 4861.32d
+   lines['Hgamma'] = 4340.47d
+   lines['HeI5876'] = 5875.661d
+   lines['HeI6678'] = 6678.15d
+   lines['HeI7065'] = 7065.19d
+   lines['HeII4686'] = 4686.7d
+   lines['[NeIII]3869'] = 3868.76d
+   lines['[NI]5198'] = 5197.90d
+   lines['[NI]5200'] = 5200.26d
+   lines['[NII]5755'] = 5754.59
+   lines['[NII]6548'] = 6548.05d
+   lines['[NII]6583'] = 6583.45d
+   lines['[OI]5577'] = 5577.34d
+   lines['[OI]6300'] = 6300.30d
+   lines['[OI]6364'] = 6363.78d
+   lines['[OII]3726'] = 3726.032d
+   lines['[OII]3729'] = 3728.815d
+   lines['[OIII]4959'] = 4958.91d
+   lines['[OIII]5007'] = 5006.84d
+   lines['[SII]6716'] = 6716.44d
+   lines['[SII]6731'] = 6730.82d
+   lines['[SIII]6312'] = 6312.06d
+   lines['Mg1b5167'] = 5167.3213
+   lines['Mg1b5173'] = 5172.6844
+   lines['Mg1b5184'] = 5183.6043  
+   lines['NaD2'] = 5889.95d
+   lines['NaD1'] = 5895.92d
+   lines['OH8344'] = 8344.602d
+   lines['OH8399'] = 8399.160d
+   lines['OH8430'] = 8430.170d
+   lines['[CaV]5309'] = 5309.11d
+   lines['[FeVII]5159'] = 5158.89d
+   lines['[FeVII]5276'] = 5276.38d
+   lines['[FeVII]5721'] = 5720.7d
+   lines['[FeVII]6087'] = 6087.0d
+   lines['[FeX]6375'] = 6374.51d
+   
+   outlines = hash()
+   for i=0, n_elements(inlines)-1 do begin
+      imatch = where(inlines[i] eq lines->keys(),ctmatch)
+      if ctmatch eq 1 then outlines[inlines[i]] = lines[inlines[i]] $
+      else print,'IFSF_LINELIST: ERROR: ',inlines[i],$
+                 ' not found in wavelength list.'
+   endfor 
+ 
+   if keyword_set(linelab) then begin
+      linelab = hash()
+      linelab['Halpha'] = 'H$\alpha$'
+      linelab['Hbeta'] = 'H$\beta$'
+      linelab['Hgamma'] = 'H$\gamma$'
+      linelab['HeI5876'] = 'HeI 5876'
+      linelab['HeI6678'] = 'HeI 6678'
+      linelab['HeI7065'] = 'HeI 7065'
+      linelab['HeII4686'] = 'HeII 4686'
+      linelab['[NeIII]3869'] = '[NeIII] 3869'
+      linelab['[NI]5198'] = '[NI] 5198'
+      linelab['[NI]5200'] = '[NI] 5200'
+      linelab['[NII]5755'] = '[NII] 5755'
+      linelab['[NII]6548'] = '[NII] 6548'
+      linelab['[NII]6583'] = '[NII] 6583'
+      linelab['[OI]5577'] = '[OI] 5577'
+      linelab['[OI]6300'] = '[OI] 6300'
+      linelab['[OI]6364'] = '[OI] 6364'
+      linelab['[OII]3726'] = '[OII] 3726'
+      linelab['[OII]3729'] = '[OII] 3729'
+      linelab['[OIII]4959'] = '[OIII] 4959'
+      linelab['[OIII]5007'] = '[OIII] 5007'
+      linelab['[SII]6716'] = '[SII] 6716'
+      linelab['[SII]6731'] = '[SII] 6731'
+      linelab['[SIII]6312'] = '[SIII] 6312'
+      linelab['Mg1b5167'] = 'MgI 5167'
+      linelab['Mg1b5173'] = 'MgI 5173'
+      linelab['Mg1b5184'] = 'MgI 5184'
+      linelab['NaD2'] = 'NaI 5890'
+      linelab['NaD1'] = 'NaI 5896'
+      linelab['OH8344'] = ''
+      linelab['OH8399'] = ''
+      linelab['OH8430'] = ''
+      linelab['[CaV]5309'] = '[CaV] 5309'
+      linelab['[FeVII]5159'] = '[FeVII] 5159'
+      linelab['[FeVII]5276'] = '[FeVII] 5276'
+      linelab['[FeVII]5721'] = '[FeVII] 5721'
+      linelab['[FeVII]6087'] = '[FeVII] 6087'
+      linelab['[FeX]6375'] = '[FeX] 6375'
+   endif
+ 
+   return,outlines
+ 
 end

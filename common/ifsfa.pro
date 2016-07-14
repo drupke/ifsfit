@@ -338,6 +338,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif
         endif
         if tag_exist(initdat,'decompose_qso_fit') then begin
+;          Note: the QSO and host cubes that this decomposition produces
+;          do not account for "tweaks" in the local continuum to better fit
+;          emission lines. This might be corrected for (if desired) by
+;          subtracting the QSO-only model from the raw continuum fit output by
+;          IFSF. However, this will require making sure the wavelength indices match up.
            if initdat.fcncontfit eq 'ifsf_fitqsohost' then begin
               if tag_exist(initdat.argscontfit,'fitord') then $
                  fitord=initdat.argscontfit.fitord else fitord=0b
@@ -347,11 +352,13 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                  expterms=initdat.argscontfit.expterms else expterms=0b
 ;             These lines mirror ones in IFSF_FITQSOHOST
               struct_tmp = struct
+;             Get and renormalize template
               restore,file=initdat.argscontfit.qsoxdr
               qsowave = struct.wave
               qsoflux = struct.cont_fit
               qsoflux /= median(qsoflux)
               struct = struct_tmp
+;             Produce fit with template only and with template + host
               ifsf_qsohostfcn,struct.wave,struct.ct_coeff,qsomod,fitord=fitord,$
                               qsoord=qsoord,expterms=expterms,/qsoonly,$
                               qsoflux=qsoflux
@@ -366,9 +373,6 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               restore,file=initdat.qsotempfile
               struct_qso = struct
               struct = struct_star
-              size_temp = size(template)
-              ntemp = size_temp[0]
-              qsowave = struct.wave
               qsomod = struct_qso.cont_fit * $
                        struct.ct_coeff[n_elements(struct.ct_coeff)-1]
               contcube.qso[i,j,*] = qsomod
@@ -376,6 +380,17 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               contcube.host[i,j,*] = host
            endif
         endif
+        
+;       Plot host-only continuum fit
+        if tag_exist(initdat,'decompose_qso_fit') then begin
+           struct_host = struct
+           struct_host.spec -= qsomod
+           struct_host.cont_dat -= qsomod
+           struct_host.cont_fit -= qsomod
+           call_procedure,fcnpltcont,struct_host,outfile+'_cnt_host'
+        endif
+
+        
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Process NaD (normalize, compute quantities and save, plot)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -396,40 +411,40 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               normnad = ifsf_normnad(struct.wave,$
                                      nadnormcont,$
                                      nadnormconterr,$
-                                     struct.zstar,fitpars,$
+                                     struct.zstar,fitpars_normnad,$
                                      _extra=initnad.argsnormnad)
               normnadem = ifsf_normnad(struct.wave,$
                                        struct.emlin_dat,$
                                        struct.spec_err,$
-                                       struct.zstar,fitpars,/subtract,$
+                                       struct.zstar,fitpars_normnadem,/subtract,$
                                        _extra=initnad.argsnormnad)
               normnadstel = ifsf_normnad(struct.wave,$
                                          nadnormstel,$
                                          struct.spec_err,$
-                                         struct.zstar,fitpars,$
+                                         struct.zstar,fitpars_normnadstel,$
                                          _extra=initnad.argsnormnad)
            endif else begin
               normnad = ifsf_normnad(struct.wave,$
                                      nadnormcont,$
                                      nadnormconterr,$
-                                     struct.zstar,fitpars)
+                                     struct.zstar,fitpars_normnad)
               normnadem = ifsf_normnad(struct.wave,$
                                        struct.emlin_dat,$
                                        struct.spec_err,$
-                                       struct.zstar,fitpars,/subtract)
+                                       struct.zstar,fitpars_normnadem,/subtract)
               normnadstel = ifsf_normnad(struct.wave,$
                                          nadnormstel,$
                                          struct.spec_err,$
-                                         struct.zstar,fitpars)
+                                         struct.zstar,fitpars_normnadstel)
            endelse
 ;          Compute empirical equivalent widths and emission-line fluxes
            emflux=dblarr(2)
            emul=dblarr(4)+bad
            if tag_exist(initnad,'argsnadweq') then begin
               weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
-                                   snflux=normnadem.nflux,unerr=normnadem.nerr,$
-                                   emflux=emflux,emul=emul,$
-                                   _extra=initnad.argsnadweq)
+                                      snflux=normnadem.nflux,unerr=normnadem.nerr,$
+                                      emflux=emflux,emul=emul,$
+                                      _extra=initnad.argsnadweq)
 
 ;             These need to be compatible with the IFSF_CMPNADWEQ defaults
               if tag_exist(initnad.argsnadweq,'emwid') then $
@@ -489,11 +504,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;          Plot data
            if not keyword_set(noplots) then $
               if tag_exist(initnad,'argspltnormnad') then $
-                 ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
+                 ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
                     outfile+'_nad_norm',autoindices=weq[*,1],$
                     emwid=emwid,iabsoff=iabsoff,$
                     _extra=initnad.argspltnormnad else $
-                 ifsf_pltnaddat,normnad,fitpars,struct.zstar,$
+                 ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
                     outfile+'_nad_norm',autoindices=weq[*,1],$
                     emwid=emwid,iabsoff=iabsoff
         endif

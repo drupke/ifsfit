@@ -45,6 +45,8 @@
 ;      Routine prioritizes the keyword definition.
 ;    siginit_gas: in, optional, type=hash(lines\,maxncomp)
 ;      Initial guess for emission line widths for fitting.
+;    siglim_gas: in, optional, type=dblarr(2)
+;      Sigma limits for line fitting.
 ;    tweakcntfit: in, optional, type=dblarr(3\,nregions)
 ;      Parameters for tweaking continuum fit with localized polynomials. For 
 ;      each of nregions regions, array contains lower limit, upper limit, and 
@@ -95,6 +97,8 @@
 ;      2014apr23, DSNR, changed MAXITER from 1000 to 100 in call to MPFIT
 ;      2016jan06, DSNR, allow no emission line fit with initdat.noemlinfit
 ;      2016feb02, DSNR, handle cases with QSO+stellar PPXF continuum fits
+;      2016feb12, DSNR, changed treatment of sigma limits for emission lines
+;                       so that they can be specified on a pixel-by-pixel basis
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -117,7 +121,7 @@
 function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
                       ncomp,initdat,maskwidths=maskwidths,$
                       peakinit=peakinit,quiet=quiet,siginit_gas=siginit_gas,$
-                      tweakcntfit=tweakcntfit
+                      siglim_gas=siglim_gas,tweakcntfit=tweakcntfit
 
   c = 299792.458d        ; speed of light, km/s
   maskwidths_def = 1000d ; default half-width in km/s for emission line masking
@@ -126,6 +130,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
   nlines = n_elements(initdat.lines)
 
   if keyword_set(quiet) then quiet=1b else quiet=0b
+  if keyword_set(siglim_gas) then siglim_gas=siglim_gas else siglim_gas=0b
   if tag_exist(initdat,'fcnlinefit') then fcnlinefit=initdat.fcnlinefit $
   else fcnlinefit='ifsf_manygauss'
   if tag_exist(initdat,'argslinefit') then argslinefit=initdat.argslinefit
@@ -278,7 +283,8 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ;       This ensures PPXF doesn't look for lambda if no reddening is done
         if n_elements(redinit) eq 0 then redlambda = [] else redlambda=gdlambda
 
-; Attempt to add QSO template as sky spectrum ... didn't work.
+;       Add QSO template as sky spectrum so that it doesn't get convolved with
+;       anything.
         if tag_exist(initdat,'qsotempfile') then begin
            restore,initdat.qsotempfile
            log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],$
@@ -390,11 +396,13 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ; Fill out parameter structure with initial guesses and constraints
   if tag_exist(initdat,'argsinitpar') then parinit = $
      call_function(initdat.fcninitpar,linelist,linelistz,$
-                   initdat.linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp,$
+                   initdat.linetie,peakinit,siginit_gas,initdat.maxncomp,$
+                   ncomp,siglim=siglim_gas,$
                    _extra=initdat.argsinitpar) $
   else parinit = $
      call_function(initdat.fcninitpar,linelist,linelistz,$
-                   initdat.linetie,peakinit,siginit_gas,initdat.maxncomp,ncomp)
+                   initdat.linetie,peakinit,siginit_gas,initdat.maxncomp,$
+                   ncomp,siglim=siglim_gas)
 
   testsize = size(parinit)
   if testsize[0] eq 0 then begin
@@ -470,7 +478,8 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
            parinfo: parinit, $
            param: param, $
            perror: perror, $
-           covar: covar $
+           covar: covar, $
+           siglim: siglim_gas $
            }
 
 finish:

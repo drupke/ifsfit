@@ -286,6 +286,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
          linetie: linetie,$
          mapdir: '/Users/drupke/ifs/gmos/maps/'+gal+'/'+outstr+'/',$
          maxncomp: maxncomp,$
+         name: 'F05189-2524',$
          ncomp: ncomp,$
          outdir: '/Users/drupke/specfits/gmos/'+gal+'/'+outstr+'/',$
          platescale: 0.2d,$
@@ -322,11 +323,12 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
    if keyword_set(initmaps) then begin
-      argslinratmaps_comp = hash()
-      argslinratmaps_comp['lrat1'] = [['1_n2ha','2_n2ha'],$
-                                      ['1_o3hb','2_o3hb'],$
-                                      ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb']]
-      argslinratmaps_comp['ebv'] = ['1_ebv','2_ebv']
+      comp_lr_args = hash()
+      comp_lr_args['lrat1'] = [['1_n2ha','2_n2ha'],$
+                               ['1_o3hb','2_o3hb'],$
+                               ['1_n2ha_vs_o3hb','2_n2ha_vs_o3hb']]
+      comp_lr_args['ebv'] = ['1_ebv','2_ebv']
+      
       cvdf_lr_args = hash()
       cvdf_lr_args['lrat1'] = $
          [['ftot_n2ha','fpk_n2ha'],$
@@ -389,7 +391,7 @@ function ifsf_f05189,initmaps=initmaps,initnad=initnad
                   ctradprof_psffwhm: 0.6d,$
                   contourlevels: contourlevels,$
                   contourmax: contourmax,$
-                  argslinratmaps_comp: argslinratmaps_comp,$
+                  comp_lr_args: comp_lr_args,$
                   cvdf_lr_args: cvdf_lr_args,$
                   cvdf_lr_ftags: cvdf_lr_ftags,$
                   cvdf_lr_ftitles: cvdf_lr_ftitles,$

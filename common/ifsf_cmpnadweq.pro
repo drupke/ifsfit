@@ -71,9 +71,11 @@
 ;      2014junXY, DSNR, added ability to output emission line flux
 ;      2014jun18, DSNR, added ability to output emission line flux upper limits
 ;      2014jul29, DSNR, updated input keywords for emission line limits
+;      2016may03, DSNR, added trigger to deal with very noisy data or data
+;                       where continuum goes below 0
 ;    
 ; :Copyright:
-;    Copyright (C) 2014 David S. N. Rupke
+;    Copyright (C) 2014--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -102,6 +104,17 @@ function ifsf_cmpnadweq,wave,flux,err,$
    if ~ keyword_set(smoothkernel) then smoothkernel=5l
    if ~ keyword_set(iabsoff) then iabsoff = 4l
    if ~ keyword_set(emwid) then emwid = 20d 
+
+;  Case if IFSF_NORMNAD decided the data was bad   
+   inz = where(flux gt 0,ctnz)
+   if ctnz eq 0 then begin
+      out = [0d,0d,0d,0d]
+      if keyword_set(autowavelim) then begin
+         autoindices=[0d,0d,0d,0d]
+         out=[[out],[autoindices]]
+      endif
+      goto,baddata
+   endif
    
 ;  If wavelength limits not set, then integration defaults to entire wavelength 
 ;  range and absorption only.
@@ -224,6 +237,8 @@ function ifsf_cmpnadweq,wave,flux,err,$
       autoindices=[iabslo,iabsup,iemlo,iemup]
       out=[[out],[autoindices]]
    endif
+
+baddata:
 
    return,out
   

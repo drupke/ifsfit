@@ -15,6 +15,9 @@
 ;      flux, type=dblarr(ncols, nrows, nwave)
 ;      fluxnorm, type=dblarr(ncols, nrows, nwave), flux divided by total flux
 ;      cumfluxnorm, type=dblarr(ncols, nrows, nwave), cumulative fluxes at each 
+;        wavelength, summed from low to high wavelengths, normalized so that
+;        area under curve is 1.
+;      cumfluxnorm, type=dblarr(ncols, nrows, nwave), cumulative fluxes at each
 ;        wavelength, summed from low to high wavelengths
 ;
 ; :Params:
@@ -51,9 +54,10 @@
 ; :History:
 ;    ChangeHistory::
 ;      2014jun03, DSNR, created
+;      2016jul12, DSNR, added un-normalized, cumulative fluxes
 ;    
 ; :Copyright:
-;    Copyright (C) 2014 David S. N. Rupke
+;    Copyright (C) 2014--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -130,11 +134,18 @@ function ifsf_cmplinspecmaps,pkfluxes,pkwaves,sigmas,maxncomp,waveref,zref,$
       endif
    endfor
    
+;  TOTAL(modfluxes,3) gives model flux summed over wavelength; REBIN then grids
+;  this number back over wavelength for dividing into MODFLUXES. MODFLUXES_NORM
+;  is a somewhat ambiguous quantity, since it then depends on the binning of the 
+;  model. CUMFLUXES_NORM, however, doesn't depend on the binning; it
+;  regardless represents the percent area that has been covered as one moves 
+;  through the distribution.
    totalfluxes = rebin(total(modfluxes,3),size_fluxes[1],size_fluxes[2],nwave)
    modfluxes_norm = dblarr(size_fluxes[1],size_fluxes[2],nwave)
    inz = where(totalfluxes ne 0,ctnz)
    if ctnz gt 0 then modfluxes_norm[inz] = modfluxes[inz] / totalfluxes[inz]
 
+   cumfluxes = dblarr(size_fluxes[1],size_fluxes[2],nwave)
    cumfluxes_norm = dblarr(size_fluxes[1],size_fluxes[2],nwave)
    cumfluxes_norm[*,*,0] = modfluxes_norm[*,*,0]
    for i=1,nwave-1 do $
@@ -147,8 +158,7 @@ function ifsf_cmplinspecmaps,pkfluxes,pkwaves,sigmas,maxncomp,waveref,zref,$
 
    return,{wave: modwaves,$
            vel: modvels,$
-           flux: modfluxes,$
-           fluxnorm: modfluxes_norm,$
+           flux: modfluxes,$           
            cumfluxnorm: cumfluxes_norm}
 
 end

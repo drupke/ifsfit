@@ -31,6 +31,8 @@
 ;      Wavelength limits of region above Na D to use in fit.
 ;    subtract: in, optional, type=byte
 ;      Subtract fitted continuum instead of dividing.
+;    snavg_thresh: in, optional, type=double
+;      Average flux/err in fit region below which spaxel is rejected.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -49,9 +51,11 @@
 ;                       subtraction-normalized flux; converted output to a 
 ;                       structure
 ;      2014jun10, DSNR, now outputs indices into original arrays, as well
+;      2016may03, DSNR, added trigger to deal with very noisy data or data
+;                       where continuum goes below 0
 ;    
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -69,7 +73,9 @@
 ;
 ;-
 function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
-                      fitranlo=fitranlo,fitranhi=fitranhi,subtract=subtract
+                      fitranlo=fitranlo,fitranhi=fitranhi,subtract=subtract,$
+                      snavg_thresh=snavg_thresh
+
 
    if ~ keyword_set(fitord) then fitord=2
    if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
@@ -77,29 +83,42 @@ function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
 
    ifit = where((wave ge fitranlo[0] AND wave le fitranlo[1]) OR $
                 (wave ge fitranhi[0] AND wave le fitranhi[1]))
-   igd = where(wave ge fitranlo[0] AND wave le fitranhi[1])
+   igd = where(wave ge fitranlo[0] AND wave le fitranhi[1],ctgd)
 
-   parinfo = replicate({value:0d},fitord)
-   pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],parinfo=parinfo,/quiet)
+;  Check to make sure data is OK
+   snavg = mean(flux[ifit]/err[ifit])
+   if ~ keyword_set(snavg_thresh) then snavg_thresh = 1d
+   if snavg ge snavg_thresh then begin
+
+      parinfo = replicate({value:0d},fitord)
+      pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],parinfo=parinfo,/quiet)
+
+      if keyword_set(subtract) then begin
+         nflux = flux[igd] - poly(wave[igd],pars)
+         nerr = err[igd]
+      endif else begin
+         nflux = flux[igd] / poly(wave[igd],pars)
+         nerr = err[igd] / poly(wave[igd],pars)
+      endelse
+      
+   endif else begin
+  
+      pars = dblarr(n_elements(fitord))
+      nflux = dblarr(ctgd)
+      nerr = dblarr(ctgd)
+   
+   endelse
 
    nwave = wave[igd]
    unflux = flux[igd]
    unerr = err[igd]
-   if keyword_set(subtract) then begin
-      nflux = flux[igd] - poly(wave[igd],pars)
-      nerr = err[igd]
-   endif else begin
-      nflux = flux[igd] / poly(wave[igd],pars)
-      nerr = err[igd] / poly(wave[igd],pars)
-   endelse
-
-  out = {wave: nwave,$
-         flux: unflux,$
-         err: unerr,$
-         nflux: nflux,$
-         nerr: nerr,$
-         ind: igd}
-         
-  return,out
+   out = {wave: nwave,$
+          flux: unflux,$
+          err: unerr,$
+          nflux: nflux,$
+          nerr: nerr,$
+          ind: igd}
+   
+   return,out
 
 end

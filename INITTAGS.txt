@@ -46,6 +46,8 @@ Required structure tags from initialization procedure:
     Filename (possibly including path) of input data cube.
   label: in, required, type=string
     Common label for output files.
+  name: in, required, type=string
+    Name of object.
   lines: in, required, type=strarr(nlines)
     Names of emission lines to fit.
   linetie: in, required, type=hash(lines)

@@ -107,6 +107,7 @@ pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
    cgplot,wave[iplt],flux[iplt],xran=pltran,yran=yran,/xsty,/ysty,$
           color='White',axisc='White',layout=[1,2,1],backg='Black',$
           ytit='Actual Flux',xtit='Observed Wavelength ($\Angstrom$)'
+   cgoplot,pltran,[0,0],color='White'
    cgoplot,wave[iplt],poly(wave[iplt],fitpars),color=cntcol
    cgoplot,[nad1,nad1],yran,color=lincol,linesty=2
    cgoplot,[nad2,nad2],yran,color=lincol,linesty=2

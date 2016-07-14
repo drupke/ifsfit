@@ -33,6 +33,8 @@
 ;      Flux errors.
 ;    ebverr: in, optional, type=dblarr(N)
 ;      Errors in E(B-V)
+;    nocorr: in, optional, type=byte
+;      Process input into output array but don't correct for extinction.
 ;    relative: in, optional, type=byte
 ;      Compute dust correction relative to another wavelength. In this case, 
 ;      the input wavelength array should have two elements.
@@ -53,9 +55,10 @@
 ;      2015apr17, DSNR, copied to IFSFIT package; added documentation, license,
 ;                       and copyright
 ;      2015sep19, DSNR, modified to accept 2D array
+;      2016feb11, DSNR, added option to process without extinction correction
 ;
 ; :Copyright:
-;    Copyright (C) 2014-2015 David S. N. Rupke
+;    Copyright (C) 2014--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -73,45 +76,51 @@
 ;
 ;-
 function ifsf_dustcor_ccm,lambda,flux,ebv,rv=rv,fluxerr=fluxerr,$
-                          ebverr=ebverr,relative=relative,tran=tran
+                          ebverr=ebverr,relative=relative,tran=tran,$
+                          nocorr=nocorr
 
    if ~ keyword_set(rv) then rv=3.1d
-
+   if keyword_set(fluxerr) OR keyword_set(ebverr) then doerr=1 else doerr=0
    alamav = extcurve_ccm(lambda,rv=rv)
    if keyword_set(relative) then coeff = 0.4d *(alamav[0]-alamav[1])*rv $
    else coeff = 0.4d * alamav[0] * rv
 
 ;  Only apply extinction correction if calculated extinction is greater
-;  than 0.
+;  than or equal to 0.
    posebv = where(ebv ge 0,ctpos)
    negebv = where(ebv lt 0,ctneg)
 
+   if ~ keyword_set(nocorr) then begin
+
 ;  Fluxes
-   fint = ebv*0d
-   finterr = fint
-   if ctpos gt 0 then $
-      fint[posebv] = flux[posebv] * 10d^(coeff * ebv[posebv])
-   if ctneg gt 0 then $
-      fint[negebv] = flux[negebv]
+      fint = ebv*0d
+      finterr = fint
+      if ctpos gt 0 then $
+         fint[posebv] = flux[posebv] * 10d^(coeff * ebv[posebv])
+      if ctneg gt 0 then $
+         fint[negebv] = flux[negebv]
 
 ;  Errors
-   doerr=0
-   if keyword_set(fluxerr) then begin
-      doerr=1
-      if ctpos gt 0 then $
-         finterr[posebv] += fluxerr[posebv] * 10d^(coeff * ebv[posebv])
-      if ctneg gt 0 then $
-         finterr[negebv] = fluxerr[negebv]
-   endif
-   if keyword_set(ebverr) then begin
-      doerr=1
-      if ctpos gt 0 then $
-         finterr[posebv] += ebverr[posebv] * flux[posebv] * coeff * $
-                            alog(10d) * exp(coeff * alog(10d) * $
-                            ebv[posebv])
-      if ctneg gt 0 then $
-         finterr[negebv] = fluxerr[negebv]
-   endif
+      if doerr then begin
+         if ctpos gt 0 then $
+            finterr[posebv] += fluxerr[posebv] * 10d^(coeff * ebv[posebv])
+         if ctneg gt 0 then $
+            finterr[negebv] = fluxerr[negebv]
+      endif
+      if keyword_set(ebverr) then begin
+         if ctpos gt 0 then $
+            finterr[posebv] += ebverr[posebv] * flux[posebv] * coeff * $
+                               alog(10d) * exp(coeff * alog(10d) * $
+                               ebv[posebv])
+         if ctneg gt 0 then $
+            finterr[negebv] = fluxerr[negebv]
+      endif
+   
+   endif else begin
+      fint = flux
+      if doerr then finterr = fluxerr
+   endelse      
+      
    if doerr then begin
       sizef = size(fint)
       if sizef[0] eq 0 OR sizef[0] eq 1 then fint = [[fint],[finterr]] $

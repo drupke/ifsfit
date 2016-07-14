@@ -235,6 +235,7 @@ function ifsf_cmplinspecpars,linmap,linpararr=linpararr,ofpars=ofpars,$
          endif
       endfor
    endfor
+;  Sum total fluxes over components
    ftot = total(linmap.flux,3)   
 
    if keyword_set(linpararr) then $
