@@ -24,6 +24,7 @@
 ; 
 ; :Author:
 ;    David S. N. Rupke::
+;    Anthony To::
 ;      Rhodes College
 ;      Department of Physics
 ;      2000 N. Parkway
@@ -42,10 +43,11 @@
 ;      2014jan16, DSNR, fixed one wrong label
 ;      2014feb26, DSNR, replaced ordered hashes with hashes
 ;      2015jan06, DSNR, added Mg1b lines
+;      2015xxxYY, AT, added UV lines
 ;      2016jul12, DSNR, added line labels
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke, Anthony To
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -66,6 +68,7 @@ function ifsf_linelist,inlines,linelab=linelab
 
 ;  Associated line labels:
    lines = hash()
+;  Optical lines
    lines['Halpha'] = 6562.80d
    lines['Hbeta'] = 4861.32d
    lines['Hgamma'] = 4340.47d
@@ -103,17 +106,30 @@ function ifsf_linelist,inlines,linelab=linelab
    lines['[FeVII]5721'] = 5720.7d
    lines['[FeVII]6087'] = 6087.0d
    lines['[FeX]6375'] = 6374.51d
-   
-   outlines = hash()
-   for i=0, n_elements(inlines)-1 do begin
-      imatch = where(inlines[i] eq lines->keys(),ctmatch)
-      if ctmatch eq 1 then outlines[inlines[i]] = lines[inlines[i]] $
-      else print,'IFSF_LINELIST: ERROR: ',inlines[i],$
-                 ' not found in wavelength list.'
-   endfor 
+;  UV lines
+   lines['[OVI1]1032'] = 1031.912d
+   lines['[OVI2]1038'] = 1037.613d
+   lines['[LyB]1026'] = 1025.7223d
+   lines['[LyA]1216'] = 1215.67d
+   lines['[NV1]1239'] = 1238.8210d
+   lines['[NV2]1243'] = 1242.804d
+   lines['[NiII]1317'] = 1317.21d
+   lines['[OI1]1302'] = 1302.1685d
+   lines['[OI2]1304'] = 1304.3702d
+   lines['[CI]1329'] = 1328.83d
+   lines['[CII]1335'] = 1334.432d
+   lines['[CII]1335.6'] = 1335.6627d
+   lines['[CII]1335.7'] = 1335.7077d
+   lines['[CII]1347'] = 1347.2396d
+   lines['[SiII]1190'] = 1190.416d
+   lines['[SiII]1193'] = 1193.2890d
+   lines['[NI]1199.5'] = 1199.5496d
+   lines['[NI]1200.2'] = 1200.2233d
+   lines['[NI]1200.71']  = 1200.7098d
  
    if keyword_set(linelab) then begin
       linelab = hash()
+;     Optical lines
       linelab['Halpha'] = 'H$\alpha$'
       linelab['Hbeta'] = 'H$\beta$'
       linelab['Hgamma'] = 'H$\gamma$'
@@ -151,7 +167,16 @@ function ifsf_linelist,inlines,linelab=linelab
       linelab['[FeVII]5721'] = '[FeVII] 5721'
       linelab['[FeVII]6087'] = '[FeVII] 6087'
       linelab['[FeX]6375'] = '[FeX] 6375'
+;     UV lines
    endif
+
+   outlines = hash()
+   for i=0, n_elements(inlines)-1 do begin
+      imatch = where(inlines[i] eq lines->keys(),ctmatch)
+      if ctmatch eq 1 then outlines[inlines[i]] = lines[inlines[i]] $
+      else print,'IFSF_LINELIST: ERROR: ',inlines[i],$
+         ' not found in wavelength list.'
+   endfor
  
    return,outlines
  

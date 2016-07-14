@@ -16,7 +16,7 @@
 ;    galaxypint: in, required, type=string(A)
 ;    weight: in, required, type=dblarr(N)
 ;    template_flux: in, required, type=any
-;      Ignored. When stellar templates are fit, contatins templates.
+;      Ignored. When stellar templates are fit, contains templates.
 ;    index: in, required, type=intarr
 ;      Contains indices of continuum regions to fit
 ;    ct_coeff: out, required, type=integer, default=0
@@ -63,18 +63,19 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitspline,lambda,flux,weight,template_flux,index,$
-                        ct_coeff,quiet=quiet,refit=refit,argsbkpts=argsbkpts
+function ifsf_fitsplineuvabs,inputgalaxy, quiet=quiet,refit=refit,argsbkpts=argsbkpts
                         
 
-  err = 1d/sqrt(weight)
+;  err = 1d/sqrt(weight)
+  readcol,inputgalaxy,lambda,flux,err
+  index=INDGEN(400)
   mask = bytarr(n_elements(lambda))
   mask[index]=1b
   if keyword_set(argsbkpts) then $
-     sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,$
+     sset = bspline_iterfit(lambda,flux,invvar=1/err,inmask=mask,$
                             _extra=argsbkpts) $
   else $
-     sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,everyn=50)
+     sset = bspline_iterfit(lambda,flux,invvar=1/err,inmask=mask,everyn=50)
   continuum = bspline_valu(lambda,sset)
   ct_coeff = 0
   

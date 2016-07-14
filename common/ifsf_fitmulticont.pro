@@ -60,6 +60,7 @@ function ifsf_fitmulticont,lambda,flux,weight,template_flux,index,$
                            fitargs=fitargs
 
    if not keyword_set(quiet) then quiet=0b
+   
 
    continuum = dblarr(n_elements(lambda))
    sizetmp = size(fitreg)
