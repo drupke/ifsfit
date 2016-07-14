@@ -222,6 +222,8 @@ Misc. optional tags:
     string variables in the array TAGS_OPLOTS (see below).
   fluxfactor: in, optional, type=double
     Factor by which emission-line fluxes are multiplied.
+  fluxunfactor: in, optional, type=double
+  fluxunits: in, optional, type=double
   noemlinfit: in, optional, type=byte
     Set this switch if the spectrum was not first processed with
     IFSF.

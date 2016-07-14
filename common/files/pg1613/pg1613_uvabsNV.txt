@@ -1,5 +1,0 @@
-Covering Factor     Optical Depth       Wavelength ($\AngstrSigma               Velocity (km/s)     
-0.1260              1.4237              1385.6289           31.3154             -4250.3374          
-============
-Number of Absorption Component           1
-Number of Emission Components:           0

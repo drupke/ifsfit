@@ -2368,9 +2368,9 @@ pro ifsf_makemaps,initproc
          if ctbd gt 0 then map[ibd] = bad
 
          if tag_exist(xsec,'nearest') then nearest=1b else nearest=0b
-         slit = ifsfit_xsec(map,[xsec.xcenter[i],xsec.ycenter[i]],$
-                            xsec.length[i],xsec.angle[i],bad=bad,$
-                            nearest=nearest,ends=ends)
+         slit = ifsf_xsec(map,[xsec.xcenter[i],xsec.ycenter[i]],$
+                          xsec.length[i],xsec.angle[i],bad=bad,$
+                          nearest=nearest,ends=ends)
          xsec_endpoints[*,*,i] = ends
          islitgd = where(slit[*,1] ne bad,ctslitgd)
          if ctslitgd gt 0 then begin

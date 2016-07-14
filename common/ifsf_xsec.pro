@@ -43,9 +43,10 @@
 ;      2015nov24, DSNR, documented
 ;      2015dec08, DSNR, finished re-writing; added bad data masking and radial
 ;                       computation
+;      2016jul14, DSNR, renamed to match convention
 ;    
 ; :Copyright:
-;    Copyright (C) 2015 David S. N. Rupke
+;    Copyright (C) 2015--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -62,8 +63,8 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsfit_xsec,map,center,length,angle,nearest=nearest,bad=bad,$
-                     ends=ends
+function ifsf_xsec,map,center,length,angle,nearest=nearest,bad=bad,$
+                   ends=ends
 
    if not keyword_set(bad) then bad = 1d99
 
