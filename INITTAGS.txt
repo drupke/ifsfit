@@ -46,8 +46,6 @@ Required structure tags from initialization procedure:
     Filename (possibly including path) of input data cube.
   label: in, required, type=string
     Common label for output files.
-  name: in, required, type=string
-    Name of object.
   lines: in, required, type=strarr(nlines)
     Names of emission lines to fit.
   linetie: in, required, type=hash(lines)
@@ -57,6 +55,8 @@ Required structure tags from initialization procedure:
     Directory for output maps.
   maxncomp: in, required, type=double
     Maximum number of components to fit.
+  name: in, required, type=string
+    Name of object.
   ncomp: in, required, type=hash(lines,ncols,nrows)
     For each spaxel and emission line, # of components to fit.
   outdir: in, required, type=string
@@ -223,7 +223,8 @@ Misc. optional tags:
   fluxfactor: in, optional, type=double
     Factor by which emission-line fluxes are multiplied.
   fluxunfactor: in, optional, type=double
-  fluxunits: in, optional, type=double
+    Factor by which ...
+  fluxunits: in, optional, type=string
   noemlinfit: in, optional, type=byte
     Set this switch if the spectrum was not first processed with
     IFSF.
@@ -255,6 +256,9 @@ Optional tags for continuum images:
        Width of (square) window in kpc for doing peak fitting.
      sumrange: in, required, type=dblarr(2)
        Lower and upper wavelength limits for summing the continuum.
+     sumrange_hstcomp: in, required, type=dblarr(2)
+       Lower and upper wavelength limits for summing the continuum
+       (for comparing to HST images).
      scllim: in, required, type=dblarr(2)
        Lower and upper flux limits for byte scaling.
      stretch: in, required, type=int

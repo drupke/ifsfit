@@ -9,6 +9,7 @@
 ;   2. HeI 4686 -- found random wavelength compilation. In NIST, shows
 ;                  up as a complex of many fine structure lines with
 ;                  range of several tenths of an A.
+;   3. [OVI] and [NeV]: Morton 2003
 ;
 ; :Categories:
 ;    IFSFIT
@@ -45,6 +46,7 @@
 ;      2015jan06, DSNR, added Mg1b lines
 ;      2015xxxYY, AT, added UV lines
 ;      2016jul12, DSNR, added line labels
+;      2016aug03, DSNR, edited UV line labels
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke, Anthony To
@@ -107,15 +109,15 @@ function ifsf_linelist,inlines,linelab=linelab
    lines['[FeVII]6087'] = 6087.0d
    lines['[FeX]6375'] = 6374.51d
 ;  UV lines
-   lines['[OVI1]1032'] = 1031.912d
-   lines['[OVI2]1038'] = 1037.613d
-   lines['[LyB]1026'] = 1025.7223d
-   lines['[LyA]1216'] = 1215.67d
-   lines['[NV1]1239'] = 1238.8210d
-   lines['[NV2]1243'] = 1242.804d
+   lines['[OVI]1032'] = 1031.9261d
+   lines['[OVI]1038'] = 1037.6167d
+   lines['Lyalpha'] = 1215.67d
+   lines['Lybeta'] = 1025.7223d
+   lines['[NV]1239'] = 1238.8210d
+   lines['[NV]1243'] = 1242.804d
    lines['[NiII]1317'] = 1317.21d
-   lines['[OI1]1302'] = 1302.1685d
-   lines['[OI2]1304'] = 1304.3702d
+   lines['[OI]1302'] = 1302.1685d
+   lines['[OI]1304'] = 1304.3702d
    lines['[CI]1329'] = 1328.83d
    lines['[CII]1335'] = 1334.432d
    lines['[CII]1335.6'] = 1335.6627d

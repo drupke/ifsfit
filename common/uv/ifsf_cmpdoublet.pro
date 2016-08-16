@@ -2,13 +2,13 @@
 ;
 ;+
 ;
-; Compute Na D profile. (Presently, absorption only.)
+; Compute general doublet absortpion profile.
 ;
 ; :Categories:
 ;    IFSFIT
 ;
 ; :Returns:
-;    Flat spectrum normalized to unity, Na D absorption included.
+;    Flat spectrum normalized to unity.
 ;
 ; :Params:
 ;    wave: in, required, type=dblarr(N)
@@ -16,7 +16,11 @@
 ;    pars: in, required, type=dblarr(4)
 ;      Parameters of profile: covering factor, optical depth, central
 ;      wavelength, and sigma (in km/s). Optical depth and wavelength
-;      apply to D2 line (blue).
+;      apply to red line.
+;    tratio: in, required, type=double
+;      Optical depth ratio of blue line to that of red line.
+;    lratio: in, required, type=double
+;      Wavelength ratio of red line to that of blue line.
 ;
 ; :Keywords:
 ; 
@@ -34,9 +38,10 @@
 ;      2013nov21, DSNR, documented, renamed, added license and copyright
 ;      2014may13, DSNR, now uses sigma parameter instead of b (Doppler param).
 ;      2014may14, DSNR, fixed floating underflow
+;      2016xxxYY, AT, adapted to UV lines
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke, Anthony To
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -53,16 +58,10 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_cmpuvabsOVI,wave,pars,tratio,lratio
+function ifsf_cmpdoublet,wave,pars,tratio,lratio
   
    c = 299792.458d
-   NVLogLF = 2.289-1.988d
-;  wavelength ratio (red to blue)
-   lratio = 1037.613/1031.912d 
-;  optical depth ratio (blue to red)
-   tratio = 10^NVLogLF
    
-  
    denom = pars[2]*pars[3]/c
    arg1 = (wave-pars[2])/denom
    arg2 = (lratio * wave - pars[2])/denom
