@@ -327,10 +327,11 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      endfor
   endif
 
-  ; [OII] ratio
-  ; Limits from Pradhan et al. 2006, MNRAS, 366, L6
+; [OII] ratio
+; Limits from Pradhan et al. 2006, MNRAS, 366, L6
+; 28aug2016, DSNR, changed limits to be more physically reasonable for AGN physics
   ilratlim = 4
-  lratlab = '[OII]3726/3729'
+  lratlab = '[OII]3729/3726'
   if ncomp->haskey('[OII]3726') then tmp_ncomp = ncomp['[OII]3726'] $
   else tmp_ncomp=0
   if tmp_ncomp gt 0 then begin
@@ -340,11 +341,12 @@ function ifsf_gmos,linelist,linelistz,linetie,$
     fb = initflux['[OII]3729',0:tmp_ncomp-1]
     frat = dblarr(tmp_ncomp)+1d ; default if initial s2b flux = 0
     inz = where(fb gt 0,ctnz)
-    if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
+    if ctnz gt 0 then frat[inz] = fb[inz]/fa[inz]
     parinfo[ip1:ip2].value = frat
     parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
-    parinfo[ip1:ip2].limits  = rebin([0.35d,1.5d],2,tmp_ncomp)
-    parinfo[ip1:ip2].parname = '[OII]3726/3729 line ratio'
+;    parinfo[ip1:ip2].limits  = rebin([0.35d,1.5d],2,tmp_ncomp)
+    parinfo[ip1:ip2].limits  = rebin([0.75d,1.4d],2,tmp_ncomp)
+    parinfo[ip1:ip2].parname = '[OII]3729/3726 line ratio'
     parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
     ;    Check to see if line ratio is fixed
     ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
@@ -360,12 +362,12 @@ function ifsf_gmos,linelist,linelistz,linetie,$
         endif
       endif
       if ~ lratfixed then begin
-        ;          case of pegging at or exceeding upper limit
+;          case of pegging at or exceeding upper limit
         if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
           parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
           (parinfo[ip1+i].limits[1] - $
           parinfo[ip1+i].limits[0])*0.1
-        ;          case of pegging at or dipping below lower limit
+;          case of pegging at or dipping below lower limit
         if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
           parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
           (parinfo[ip1+i].limits[1] - $

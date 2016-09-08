@@ -85,7 +85,7 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
       LogLF = 2.136d -1.834d
       tratio = 10d^LogLF
       lratio = 1037.6167d/1031.9261d
-      linename = '[OVI]1038'
+      linename = 'OVI1037'
    endif else begin
 ;     Data from Morton 2003
 ;     optical depth ratio
@@ -93,7 +93,7 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
       tratio = 10d^LogLF
 ;     corresponding wavelength ratio
       lratio = 1242.804d/1238.821d      
-      linename = '[NV]1243'
+      linename = 'NV1242'
    endelse
     
    c = 299792.458d

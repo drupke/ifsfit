@@ -34,9 +34,11 @@
 ;      2013oct09, DSNR, documented
 ;      2013nov21, DSNR, renamed, added license and copyright
 ;      2014jan16, DSNR, changed to Coyote Graphics routines
+;      2016aug31, DSNR, added overplotting of continuum ranges masked during
+;                       continuum fit with thick cyan line
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -98,7 +100,33 @@ pro ifsf_pltcont,instr,outfile,ps=ps
   i1 = where(wave gt xran1[0] AND wave lt xran1[1],ct1)
   i2 = where(wave gt xran2[0] AND wave lt xran2[1],ct2)
   i3 = where(wave gt xran3[0] AND wave lt xran3[1],ct3)
-  
+
+;  Find masked regions during continuum fit
+   nmasked = 0 ; # of masked regions
+;  Find consecutive unmasked regions
+   consec,instr.ct_indx,lct,hct,nct
+;  Set interior masked regions
+   if nct gt 1 then begin
+      nmasked = nct-1
+      masklam = dblarr(2,nmasked)
+      for i=0,nmasked-1 do $
+         masklam[*,i] = [wave[instr.ct_indx[hct[i]]],$
+                         wave[instr.ct_indx[lct[i+1]]]]
+   endif
+;  Set masked region if it occurs at beginning of lambda array
+   if instr.ct_indx[0] ne 0 then begin
+      nmasked++
+      masklam = [[wave[0],wave[instr.ct_indx[lct[0]-1]]],[masklam]]
+   endif
+;  Set masked region if it occurs at end of lambda array
+   if instr.ct_indx[n_elements(instr.ct_indx)-1] ne $
+      n_elements(instr.wave)-1 then begin
+      nmasked++
+      masklam = [[masklam],$
+                 [wave[instr.ct_indx[hct[nct-1]]],$
+                  wave[n_elements(instr.wave)-1]]]
+   endif
+
   maxthresh=0.2
   ntop = 20
   nbottom = 20
@@ -132,6 +160,10 @@ pro ifsf_pltcont,instr,outfile,ps=ps
   cgplot,wave,ydat,xran=xran1,yran=yran,/xsty,/ysty,$
          color='White',axiscol='White'
   cgoplot,wave,ymod,color='Red'
+  if nmasked gt 0 then $
+     for j=0,nmasked-1 do $
+        cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
+                color='Cyan'
   multiplot,/doyaxis,/doxaxis
   ydat = specstars
   ymod = modstars
@@ -151,6 +183,10 @@ pro ifsf_pltcont,instr,outfile,ps=ps
   cgplot,wave,ydat,xran=xran2,yran=yran,/xsty,/ysty,$
          color='White',axiscol='White'
   cgoplot,wave,ymod,color='Red'
+  if nmasked gt 0 then $
+     for j=0,nmasked-1 do $
+        cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
+                color='Cyan'
   if ct3 gt 0 then begin
      multiplot,/doyaxis,/doxaxis
      ydat = specstars
@@ -171,6 +207,10 @@ pro ifsf_pltcont,instr,outfile,ps=ps
      cgplot,wave,ydat,xran=xran3,yran=yran,/xsty,/ysty,$
           color='White',axiscol='White'
      cgoplot,wave,ymod,color='Red'
+     if nmasked gt 0 then $
+        for j=0,nmasked-1 do $
+           cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
+                   color='Cyan'
   endif else multiplot
   multiplot,/reset
 

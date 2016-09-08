@@ -49,6 +49,8 @@
 ;      Number of Gaussian terms to include (3 x number of Gaussian components).
 ;    expterms: in, optional, type=integer, default=0
 ;      Number of exponential terms by which to normalize, up to 4
+;    hostonly: in, optional, type=byte
+;      Output host only.
 ;    fitord: in, optional, type=integer, default=3
 ;      Specifies order of additive renormalization
 ;    quiet: in, optional, type=byte
@@ -72,9 +74,11 @@
 ;      2015sep04, DSNR, added option to include broad components as a way
 ;                       to either fit a BLR or to deal with scattered
 ;                       light issues with BLR emission (PG1411+442 et al.)
+;      2016sep02, DSNR, added HOSTONLY keyword; set so that BLR emission
+;                       goes in QSO only spectrum
 ;    
 ; :Copyright:
-;    Copyright (C) 2015 David S. N. Rupke
+;    Copyright (C) 2015--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -91,7 +95,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-;
-pro ifsf_qsohostfcn,x,p,ymod,fitord=fitord,$
+pro ifsf_qsohostfcn,x,p,ymod,fitord=fitord,hostonly=hostonly,$
                     qsoflux=qsoflux,qsoord=qsoord,$
                     qsoonly=qsoonly,expterms=expterms,$
                     blrterms=blrterms
@@ -141,11 +145,13 @@ pro ifsf_qsohostfcn,x,p,ymod,fitord=fitord,$
   if expterms eq 4 then $
      qsoscl += p[fitord+expterms+qsoord+3] * $
                (1d - exp(-(xc_hi-p[itot+fitord+expterms+qsoord+3])/dx))
-  ymod += qsoscl*qsoflux
+  if ~ keyword_set(hostonly) then ymod += qsoscl*qsoflux
 
 ; BLR model
-  ngauss = fix(blrterms/3)
-  for i=0,ngauss-1 do $
-     ymod += double(gaussian(x,p[npar-blrterms+0+3*i:npar-blrterms+3*(i+1)-1]))
+  if ~ keyword_set(hostonly) then begin
+     ngauss = fix(blrterms/3)
+     for i=0,ngauss-1 do $
+        ymod += double(gaussian(x,p[npar-blrterms+0+3*i:npar-blrterms+3*(i+1)-1]))
+  endif
 
 end

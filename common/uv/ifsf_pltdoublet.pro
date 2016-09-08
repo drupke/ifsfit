@@ -79,16 +79,16 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
 ; Default wavelengths
   c = 299792.458d
   IF (doublet eq 'NV') THEN BEGIN
-    linelist = ifsf_linelist(['[NV]1239','[NV]1243'])
+    linelist = ifsf_linelist(['NV1238','NV1242'])
 ; Observed-frame wavelengths
-    w_doublet1 = linelist['[NV]1239']*(1d +zsys)
-    w_doublet2 = linelist['[NV]1243']*(1d +zsys)
+    w_doublet1 = linelist['NV1238']*(1d +zsys)
+    w_doublet2 = linelist['NV1242']*(1d +zsys)
   END
   IF (doublet eq 'OVI') THEN BEGIN
-    linelist = ifsf_linelist(['[OVI]1032','[OVI]1038'])
+    linelist = ifsf_linelist(['OVI1031','OVI1037'])
 ; Observed-frame wavelengths
-    w_doublet1 = linelist['[OVI]1032']*(1d +zsys)
-    w_doublet2 = linelist['[OVI]1038']*(1d +zsys)
+    w_doublet1 = linelist['OVI1031']*(1d +zsys)
+    w_doublet2 = linelist['OVI1037']*(1d +zsys)
   END
   moddoubletabs=1
   moddoubletem=1

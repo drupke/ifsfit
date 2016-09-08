@@ -99,6 +99,8 @@
 ;      2016feb02, DSNR, handle cases with QSO+stellar PPXF continuum fits
 ;      2016feb12, DSNR, changed treatment of sigma limits for emission lines
 ;                       so that they can be specified on a pixel-by-pixel basis
+;      2016aug31, DSNR, added option to mask continuum range(s) by hand with
+;                       INITDAT tag MASKCTRAN
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -236,6 +238,19 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
         ct_indx  = ifsf_masklin(gdlambda, linelistz, maskwidths, $
                                 nomaskran=nomaskran)
      endif else ct_indx = indgen(n_elements(gdlambda))
+
+;    Mask other regions
+     if tag_exist(initdat,'maskctran') then begin
+        mrsize = size(initdat.maskctran)
+        nreg = 1
+        if mrsize[0] gt 1 then nreg = mrsize[2]
+        for k=0,nreg-1 do begin
+            indx_mask = where(gdlambda ge initdat.maskctran[0,k] AND $
+                              gdlambda le initdat.maskctran[1,k],ct)
+            if ct gt 0 then ct_indx = cgsetdifference(ct_indx,indx_mask)
+        endfor
+     endif
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Option 1: Input function

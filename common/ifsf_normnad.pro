@@ -53,6 +53,7 @@
 ;      2014jun10, DSNR, now outputs indices into original arrays, as well
 ;      2016may03, DSNR, added trigger to deal with very noisy data or data
 ;                       where continuum goes below 0
+;      2016sep02, DSNR, fixed bug where fitting order was too small by 1
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -90,7 +91,7 @@ function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
    if ~ keyword_set(snavg_thresh) then snavg_thresh = 1d
    if snavg ge snavg_thresh then begin
 
-      parinfo = replicate({value:0d},fitord)
+      parinfo = replicate({value:0d},fitord+1)
       pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],parinfo=parinfo,/quiet)
 
       if keyword_set(subtract) then begin

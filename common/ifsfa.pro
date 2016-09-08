@@ -71,6 +71,9 @@
 ;      2015sep20, DSNR, output line fluxes/errors summed over components
 ;      2016jan06, DSNR, allow no emission line fit with initdat.noemlinfit
 ;      2016feb02, DSNR, handle cases with QSO+stellar continuum fits
+;      2016sep02, DSNR, modified decomposition of QSO/host so that
+;                       continuum tweaks are split between the two models;
+;                       still need to implement for QSO+stellar case
 ;
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -362,11 +365,22 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               ifsf_qsohostfcn,struct.wave,struct.ct_coeff,qsomod,fitord=fitord,$
                               qsoord=qsoord,expterms=expterms,/qsoonly,$
                               qsoflux=qsoflux
-              ifsf_qsohostfcn,struct.wave,struct.ct_coeff,totmod,fitord=fitord,$
-                              qsoord=qsoord,expterms=expterms,qsoflux=qsoflux
+              ifsf_qsohostfcn,struct.wave,struct.ct_coeff,hostmod,fitord=fitord,$
+                              qsoord=qsoord,expterms=expterms,/hostonly,$
+                              qsoflux=qsoflux
+;             If continuum is tweaked in any region, divide the resulting
+;             residual proportionally (at each wavelength) between the QSO
+;             and host components.
+              if tag_exist(initdat,'tweakcntfit') then begin
+                 modresid = struct.cont_fit - (qsomod+hostmod)
+                 qsofrac = qsomod/(qsomod+hostmod)
+                 qsomod += modresid*qsofrac
+                 hostmod += modresid*(1d - qsofrac)
+              endif
               contcube.qso[i,j,*] = qsomod
-              host = totmod - qsomod
-              contcube.host[i,j,*] = host
+;              hostmod = totmod - qsomod
+;              contcube.host[i,j,*] = hostmod
+              contcube.host[i,j,*] = hostmod
            endif else if initdat.fcncontfit eq 'ppxf' AND $
                          tag_exist(initdat,'qsotempfile') then begin
               struct_star = struct
@@ -376,8 +390,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               qsomod = struct_qso.cont_fit * $
                        struct.ct_coeff[n_elements(struct.ct_coeff)-1]
               contcube.qso[i,j,*] = qsomod
-              host = struct.cont_fit - qsomod
-              contcube.host[i,j,*] = host
+              hostmod = struct.cont_fit - qsomod
+              contcube.host[i,j,*] = hostmod
            endif
         endif
         
@@ -398,9 +412,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         if tag_exist(initdat,'donad') then begin
 
            if tag_exist(initdat,'decompose_qso_fit') then begin
-              nadnormcont = (struct.cont_dat - qsomod)/host
-              nadnormconterr = struct.spec_err/host
-              nadnormstel = host
+              nadnormcont = (struct.cont_dat - qsomod)/hostmod
+              nadnormconterr = struct.spec_err/hostmod
+              nadnormstel = hostmod
            endif else begin
               nadnormcont = struct.cont_dat/struct.cont_fit
               nadnormconterr = struct.spec_err/struct.cont_fit

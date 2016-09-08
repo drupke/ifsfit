@@ -43,9 +43,11 @@
 ;      2013nov21, DSNR, renamed, added license and copyright 
 ;      2015may13, DSNR, switched from using LAYOUT keyword to using CGLAYOUT
 ;                       procedure to fix layout issues
+;      2016aug31, DSNR, added overplotting of continuum ranges masked during
+;                       continuum fit with thick cyan line
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -99,6 +101,32 @@ pro ifsf_pltlin,instr,pltpar,outfile
 
   zbase = instr.zstar
 
+;  Find masked regions during continuum fit
+   nmasked = 0 ; # of masked regions
+;  Find consecutive unmasked regions
+   consec,instr.ct_indx,lct,hct,nct
+;  Set interior masked regions
+   if nct gt 1 then begin
+      nmasked = nct-1
+      masklam = dblarr(2,nmasked)
+      for i=0,nmasked-1 do $
+         masklam[*,i] = [wave[instr.ct_indx[hct[i]]],$
+                         wave[instr.ct_indx[lct[i+1]]]]
+   endif
+;  Set masked region if it occurs at beginning of lambda array
+   if instr.ct_indx[0] ne 0 then begin
+      nmasked++
+      masklam = [[wave[0],wave[instr.ct_indx[lct[0]-1]]],[masklam]]
+   endif
+;  Set masked region if it occurs at end of lambda array
+   if instr.ct_indx[n_elements(instr.ct_indx)-1] ne $
+      n_elements(instr.wave)-1 then begin
+      nmasked++
+      masklam = [[masklam],$
+                 [wave[instr.ct_indx[hct[nct-1]]],$
+                  wave[n_elements(instr.wave)-1]]]
+   endif
+
   nlin = n_elements(pltpar.label)
   linlab = pltpar.label
   linwav = pltpar.wave
@@ -144,6 +172,10 @@ pro ifsf_pltlin,instr,pltpar,outfile
         cgtext,xran[0]+(xran[1]-xran[0])*0.05d,$
                yran[0]+(yran[1]-yran[0])*0.85d,$
                linlab[i],charsize=1.5,charthick=2,/dat
+        if nmasked gt 0 then $
+           for j=0,nmasked-1 do $
+              cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
+                      color='Cyan'
         pos_res = [xwin[0],ywin[0],$
                    xwin[1],ywin[0]+0.3*dywin]
         ydat = specstars

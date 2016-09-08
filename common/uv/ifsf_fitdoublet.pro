@@ -98,8 +98,8 @@ pro ifsf_fitdoublet,table,dir,galshort,doublet,$
    doublet_emrat_init = 1.5d
    c = 299792.458d
 
-   IF (doublet eq 'NV') THEN linename = '[NV]1243'
-   IF (doublet eq 'OVI') THEN linename = '[OVI]1038'
+   IF (doublet eq 'NV') THEN linename = 'NV1242'
+   IF (doublet eq 'OVI') THEN linename = 'OVI1037'
 
    starttime = systime(1)
    time = 0
@@ -126,8 +126,8 @@ pro ifsf_fitdoublet,table,dir,galshort,doublet,$
    
    ; Get linelist
    linelist = $
-      ifsf_linelist(['[OVI]1032','[OVI]1038','Lyalpha','Lybeta',$
-                     '[NV]1239','[NV]1243'])
+      ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
+                     'NV1238','NV1242'])
 
    if tag_exist(initstr,'taumax') then taumax=initstr.taumax $
    else taumax = 5d
