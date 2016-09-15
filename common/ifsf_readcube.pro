@@ -22,7 +22,8 @@
 ;    oned: in, optional, type=byte
 ;      [Deprecated.] Input cube has only one non-wavelength dimension.
 ;    datext: in, optional, type=integer, default=1
-;      Extension # of data plane.
+;      Extension # of data plane. Set to a negative number if the correct 
+;      extension is 0, since an extension of 0 ignores the keyword.
 ;    varext: in, optional, type=integer, default=2
 ;      Extension # of variance plane.
 ;    dqext: in, optional, type=integer, default=3
@@ -46,9 +47,12 @@
 ;      2015may20, DSNR, updated logic in reading # of rows, cols, and wavelength
 ;                       points to be more flexible; added wavedim to output
 ;                       structure
+;      2016sep12, DSNR, fixed DATEXT logic so can specify an extension of 0;
+;                       added warning when correct wavelength keywords not found;
+;                       added second dispersion keyword option.
 ;    
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -69,12 +73,23 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
                        datext=datext,varext=varext,dqext=dqext
 
   if ~ keyword_set(quiet) then print,'IFSF_READCUBE: Loading data.'
-  if ~ keyword_set(datext) then datext=1
+
+  if ~ keyword_set(datext) then begin
+     datext=1
+     print,'IFSF_READCUBE: Setting data extension to 1.'
+     print,'IFSF_READCUBE: Set DATEXT to a negative # if it needs to be 0.'
+  endif
+  if datext lt 0 then datext=0
   if ~ keyword_set(varext) then varext=2
   if ~ keyword_set(dqext) then dqext=3
 
 ; Read fits file.
-  phu = readfits(infile,header_phu,ext=0,silent=quiet)
+  if datext ne 0 then begin
+     phu = readfits(infile,header_phu,ext=0,silent=quiet)
+  endif else begin
+     phu = 0b
+     header_phu = ''
+  endelse
   dat = readfits(infile,header_dat,ext=datext,silent=quiet)
   var = readfits(infile,header_var,ext=varext,silent=quiet)
   if dqext ge 0 then $
@@ -92,6 +107,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      crvalstr = 'CRVAL3'
      crpixstr = 'CRPIX3'
      cdeltstr = 'CD3_3'
+     cdeltstropt = 'CDELT3'
   endif else if datasize[0] eq 2 then begin
      ncols = (datasize[1] gt datasize[2]) ? datasize[2] : datasize[1]
      nz = (datasize[1] gt datasize[2]) ? datasize[1] : datasize[2]
@@ -112,9 +128,15 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
 
 ; Create wavelength array.
   pix = dindgen(nz)
-  crval = double(sxpar(header_dat,crvalstr,silent=quiet))
-  crpix = double(sxpar(header_dat,crpixstr,silent=quiet))
-  cdelt = double(sxpar(header_dat,cdeltstr,silent=quiet))
+  crval = double(sxpar(header_dat,crvalstr,silent=quiet,count=countval))
+  crpix = double(sxpar(header_dat,crpixstr,silent=quiet,count=countpix))
+  cdelt = double(sxpar(header_dat,cdeltstr,silent=quiet,count=countdel))
+  if countdel eq 0 then $
+     cdelt = double(sxpar(header_dat,cdeltstropt,silent=quiet,count=countdel))
+  if countval eq 0 OR countpix eq 0 OR countdel eq 0 then begin
+     print,'IFSF_READCUBE: WARNING -- missing a header parameter. Wavelength'
+     print,'               solution will be incorrect.'
+  endif
   wave = crval + cdelt*(pix-crpix+1) 
 
   cube = { $

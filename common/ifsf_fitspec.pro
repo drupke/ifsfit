@@ -101,6 +101,7 @@
 ;                       so that they can be specified on a pixel-by-pixel basis
 ;      2016aug31, DSNR, added option to mask continuum range(s) by hand with
 ;                       INITDAT tag MASKCTRAN
+;      2016sep13, DSNR, added internal logic to check if emission-line fit present
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -142,6 +143,12 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
   if tag_exist(initdat,'loglam') then loglam=1b else loglam=0b
   if tag_exist(initdat,'vacuum') then vacuum=1b else vacuum=0b
   if tag_exist(initdat,'dored') then redinit=1d else redinit=[]
+
+  nocomp_emlist = ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist)
+
+  if tag_exist(initdat,'noemlinfit') OR ct_comp_emlist eq 0 then $
+     noemlinfit = 1b $
+  else noemlinfit = 0b
 
   if istemp then begin
 ;    Get stellar templates
@@ -226,7 +233,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
   if tag_exist(initdat,'fcncontfit') then begin
      
 ;    Mask emission lines
-     if ~ tag_exist(initdat,'noemlinfit') then begin
+     if ~ noemlinfit then begin
         if not keyword_set(maskwidths) then $
            if tag_exist(initdat,'maskwidths') then $
               maskwidths = initdat.maskwidths $
@@ -384,7 +391,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ; Fit emission lines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if ~ tag_exist(initdat,'noemlinfit') then begin
+  if ~ noemlinfit then begin
 
 ; Initial guesses for emission line peak fluxes (above continuum)
 ; If initial guess is negative, set to 0 to prevent MPFITFUN from choking 
@@ -439,6 +446,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
      goto,finish
   endif
 
+  outlinelist = linelist ; this bit of logic prevents overwriting of linelist
   cont_dat = gdflux - specfit
 
   endif else begin
@@ -448,7 +456,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
     dof = 1
     niter = 0
     status = 0
-    linelist = 0
+    outlinelist = 0
     parinit = 0
     param = 0
     perror = 0
@@ -485,10 +493,11 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
            ct_indx: ct_indx, $        ; where emission is not masked
            gd_indx: gd_indx, $        ; cuts on various criteria
 ;          Line fit parameters
+           noemlinfit: noemlinfit,$   ; was emission line fit done?
            redchisq: chisq/dof, $
            niter: niter, $
            fitstatus: status, $
-           linelist: linelist, $
+           linelist: outlinelist, $
            linelabel: initdat.lines, $
            parinfo: parinit, $
            param: param, $

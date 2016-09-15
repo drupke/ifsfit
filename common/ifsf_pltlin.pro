@@ -26,6 +26,9 @@
 ;      Full path and name of output plot.
 ;
 ; :Keywords:
+;    micron: in, optional, type=byte
+;      Label output plots in um rather than A. Input wavelengths still assumed
+;      to be in A.
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -45,6 +48,7 @@
 ;                       procedure to fix layout issues
 ;      2016aug31, DSNR, added overplotting of continuum ranges masked during
 ;                       continuum fit with thick cyan line
+;      2016sep13, DSNR, added MICRON keyword
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -76,7 +80,10 @@ pro ifsf_pltlin,instr,pltpar,outfile
    defaultXminor=!X.minor
    !X.tickinterval=25
    !X.minor=10
-
+   if tag_exist(pltpar,'micron') then begin
+      !X.tickinterval /= 0.25d4
+      !X.minor /= 0.5d4
+   endif
    pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
                   oxmar=[10,0],oymar=[10,0],xgap=6,ygap=6)
 
@@ -100,6 +107,8 @@ pro ifsf_pltlin,instr,pltpar,outfile
   modlines /= norm
 
   zbase = instr.zstar
+
+   if tag_exist(pltpar,'micron') then wave /= 10000d
 
 ;  Find masked regions during continuum fit
    nmasked = 0 ; # of masked regions
@@ -189,7 +198,10 @@ pro ifsf_pltlin,instr,pltpar,outfile
 
   endfor
 
-  xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
+  if tag_exist(pltpar,'micron') then $
+    xtit = 'Observed Wavelength ($\mu$m)' $
+  else $
+     xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
   cgtext,0.5,0.02,xtit,/norm,align=0.5,charsize=2,charthick=2
   
   tmpfile = outfile

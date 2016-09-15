@@ -143,11 +143,11 @@ pro ifsf_fitdoublet,table,dir,galshort,doublet,$
    oned=1
    nz = 1
    doubletcube = {err: initstr.error, $
-              dat : initstr.relativeflux, $
-              wave : initstr.wavelength, $ 
-              cont: initstr.continuum, $
-              flux: initstr.flux $   
-   }
+                  dat : initstr.relativeflux, $
+                  wave : initstr.wavelength, $ 
+                  cont: initstr.continuum, $
+                  flux: initstr.flux $   
+                 }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels

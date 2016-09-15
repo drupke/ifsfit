@@ -74,6 +74,7 @@
 ;      2016sep02, DSNR, modified decomposition of QSO/host so that
 ;                       continuum tweaks are split between the two models;
 ;                       still need to implement for QSO+stellar case
+;      2016sep13, DSNR, added internal logic to check if emission-line fit present
 ;
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -102,10 +103,19 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
   if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  initnad={dumy: 1}
-  initdat = call_function(initproc,initnad=initnad,_extra=ex)
+  if keyword_set(_extra) then $
+     initdat = call_function(initproc,_extra=ex) $
+  else $
+     initdat = call_function(initproc)   
+  if tag_exist(initdat,'donad') then begin
+    initnad={dumy: 1}
+    if keyword_set(_extra) then $
+      initdat = call_function(initproc,initnad=initnad,_extra=ex) $
+    else $
+      initdat = call_function(initproc,initnad=initnad)
+  endif
 
-  if ~ tag_exist(initdat,'noemlinfit') then begin  
+  if ~ tag_exist(initdat,'noemlinfit') then begin
 ;   Get linelist
     linelist = ifsf_linelist(initdat.lines)
     nlines = linelist.count()
@@ -204,7 +214,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;       TODO: Is this necessary?
         struct.spec_err = err[struct.gd_indx]
 
-        if ~ tag_exist(initdat,'noemlinfit') then begin
+        if ~ struct.noemlinfit then begin
 ;          Get line fit parameters
            tflux=1b
            linepars = ifsf_sepfitpars(linelist,struct.param,struct.perror,$
@@ -221,9 +231,13 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            if tag_exist(initdat,'fcnpltcont') then $
               fcnpltcont=initdat.fcnpltcont $
            else fcnpltcont='ifsf_pltcont'
-           call_procedure,fcnpltcont,struct,outfile+'_cnt'
+;          Make sure fit doesn't indicate no continuum; avoids
+;          plot range error in continuum fitting routine, as well as a blank
+;          plot!
+           if total(struct.cont_fit) ne 0d then $
+              call_procedure,fcnpltcont,struct,outfile+'_cnt'
 ;          Plot emission lines
-           if ~ tag_exist(initdat,'noemlinfit') then begin
+           if ~ struct.noemlinfit then begin
               if not linepars.nolines then begin
                  if tag_exist(initdat,'fcnpltlin') then $
                     fcnpltlin=initdat.fcnpltlin else fcnpltlin='ifsf_pltlin'
@@ -241,7 +255,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;       Print fit parameters to a text file
         ifsf_printfitpar,fitlun,i+1,j+1,struct
 
-        if ~ tag_exist(initdat,'noemlinfit') then begin
+        if ~ struct.noemlinfit then begin
 ;          Save fit parameters to an array
            foreach line,outlines do begin
               linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
@@ -341,11 +355,6 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif
         endif
         if tag_exist(initdat,'decompose_qso_fit') then begin
-;          Note: the QSO and host cubes that this decomposition produces
-;          do not account for "tweaks" in the local continuum to better fit
-;          emission lines. This might be corrected for (if desired) by
-;          subtracting the QSO-only model from the raw continuum fit output by
-;          IFSF. However, this will require making sure the wavelength indices match up.
            if initdat.fcncontfit eq 'ifsf_fitqsohost' then begin
               if tag_exist(initdat.argscontfit,'fitord') then $
                  fitord=initdat.argscontfit.fitord else fitord=0b
@@ -401,7 +410,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            struct_host.spec -= qsomod
            struct_host.cont_dat -= qsomod
            struct_host.cont_fit -= qsomod
-           call_procedure,fcnpltcont,struct_host,outfile+'_cnt_host'
+;          Make sure fit to host doesn't indicate no continuum; avoids
+;          plot range error in continuum fitting routine, as well as a blank
+;          plot!
+           if total(struct_host.cont_fit) ne 0d then $
+              call_procedure,fcnpltcont,struct_host,outfile+'_cnt_host'
         endif
 
         
@@ -539,7 +552,7 @@ nofit:
      free_lun,linlun
      save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
      save,tlinmaps,file=initdat.outdir+initdat.label+'.tlin.xdr'
-   endif
+  endif
 
   if tag_exist(initdat,'decompose_ppxf_fit') OR $
      tag_exist(initdat,'decompose_qso_fit') then $

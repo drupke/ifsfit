@@ -325,7 +325,7 @@ pro ifsf_makemaps,initproc
    if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
    if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
    datacube = ifsf_readcube(initdat.infile,/quiet,oned=oned,$
-                          datext=datext,varext=varext,dqext=dqext)
+                            datext=datext,varext=varext,dqext=dqext)
    if tag_exist(initmaps,'fluxfactor') then begin
       datacube.dat *= initmaps.fluxfactor
       datacube.var *= (initmaps.fluxfactor)^2d
@@ -1545,6 +1545,13 @@ pro ifsf_makemaps,initproc
       else ctsumrange_tmp = initmaps.ct.sumrange
       capifs = string(ctsumrange_tmp[0],'-',ctsumrange_tmp[1],$
                       format='(I0,A0,I0)')
+      if tag_exist(initmaps.ct,'sumrange_lab') then begin
+         if initmaps.ct.sumrange_lab eq 'microns' then $
+            capifs = string(ctsumrange_tmp[0]/1d4,'-',ctsumrange_tmp[1]/1d4,$
+                            format='(D0.2,A0,D0.2)')
+      endif
+      if tag_exist(initmaps.ct,'charscale') then charscale=initmaps.ct.charscale $
+      else charscale = 1d
    endif
    if dohst then $
       if dohstrd AND dohstbl then $
@@ -1619,14 +1626,15 @@ pro ifsf_makemaps,initproc
 
    endelse
 
-   cgps_open,initdat.mapdir+initdat.label+'cont_roworient.eps',charsize=1,$
+   cgps_open,initdat.mapdir+initdat.label+'cont_roworient.eps',$
+             charsize=1d*charscale,$
              /encap,/inches,xs=xsize_in,ys=ysize_in,/qui
 
    if dohst then begin
       
       cgarrow,xhstline[0],yhstline[0],xhstline[1],yhstline[1],$
               /norm,thick=8,hsize=0,color='Red'
-      cgtext,'HST: '+caphst,xhstline_tpos,yhstline_tpos,chars=1,$
+      cgtext,'HST: '+caphst,xhstline_tpos,yhstline_tpos,chars=1d*charscale,$
              color='Red',/norm,align=0.5d
       
 ;     HST continuum, large scale
@@ -1803,17 +1811,23 @@ pro ifsf_makemaps,initproc
 
       cgarrow,xifsline[0],yifsline[0],xifsline[1],yifsline[1],$
          /norm,thick=8,hsize=0,color='Blue'
-      cgtext,'IFS',xifsline_tpos,yifsline_tpos,chars=1,$
+      cgtext,'IFS',xifsline_tpos,yifsline_tpos,chars=1d*charscale,$
          color='Blue',/norm,align=0.5
 
       ictlo = value_locate(datacube.wave,ctsumrange_tmp[0])
       icthi = value_locate(datacube.wave,ctsumrange_tmp[1])
       zran = initmaps.ct.scllim
       dzran = zran[1]-zran[0]
-      ctmap = total(datacube.dat[*,*,ictlo:icthi],3)
+      if tag_exist(initmaps.ct,'domedian') then $
+         ctmap = median(datacube.dat[*,*,ictlo:icthi],dim=3,/double)*$
+                 double(icthi-ictlo+1) $
+      else $
+         ctmap = total(datacube.dat[*,*,ictlo:icthi],3)
       ctmap /= max(ctmap)
+      if tag_exist(initmaps.ct,'beta') then beta=initmaps.ct.beta else beta=1d
       mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
-                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+                        minval=zran[0],max=zran[1],$
+                        stretch=initmaps.ct.stretch,beta=beta)                        
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_ifsfov[*,fix(npanels_ifsfov) - 1],$
               opos=truepos,/noerase,missing_value=bad,missing_index=255,$
@@ -1849,7 +1863,7 @@ pro ifsf_makemaps,initproc
       endelse
       if npanels_ifsfov eq 1 then $
          cgtext,initdat.name,0.5,1d - yfrac_margin,$
-                /norm,align=0.5,chars=1.25
+                /norm,align=0.5,chars=1.25d*charscale
       if npanels_ifsfov gt 1 then begin
          nolab_tmp=1b
          toplab_tmp=0b
@@ -1865,7 +1879,7 @@ pro ifsf_makemaps,initproc
              capifs,/data,color='white'
       if npanels_ifsfov eq 1 then $
          ifsf_plotcompass,xarr_kpc,yarr_kpc,carr=carr,/nolab,$
-         hsize=150d,hthick=2d
+                          hsize=150d,hthick=2d
 
    endif
 
@@ -2060,6 +2074,11 @@ pro ifsf_makemaps,initproc
       endelse
       capran = string(ctsumrange_tmp[0],'-',ctsumrange_tmp[1],$
                       format='(I0,A0,I0)')
+      if tag_exist(initmaps.ct,'sumrange_lab') then begin
+         if initmaps.ct.sumrange_lab eq 'microns' then $
+            capran = string(ctsumrange_tmp[0]/1d4,'-',ctsumrange_tmp[1]/1d4,$
+                            format='(D0.2,A0,D0.2)')
+      endif
       ctmap /= max(ctmap)
       cgplot,map_rkpc_ifs,alog10(ctmap),yran=[-4,0],$
              xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$

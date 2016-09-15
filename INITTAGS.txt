@@ -253,15 +253,23 @@ Optional tags for continuum images:
   ct: in, optional, type=structure
      If set, IFS continuum image is created. The following
      tags govern the image.
+     beta: in, optional, type=double
+       Beta parameter if stretch = 5 (ASINH).
+     domedian: in, optional, type=byte
+       Use the (median x (# of pixels)) to compute total of continuum, rather
+       than the average, if there's too much junk data.
      fitifspeak: in, optional, type=byte
        Whether or not to fit nuclear peak of IFS continuum data.
      fitifspeakwin_kpc: in, optional, type=double
        Width of (square) window in kpc for doing peak fitting.
      sumrange: in, required, type=dblarr(2)
        Lower and upper wavelength limits for summing the continuum.
-     sumrange_hstcomp: in, required, type=dblarr(2)
+     sumrange_hstcomp: in, optional, type=dblarr(2)
        Lower and upper wavelength limits for summing the continuum
        (for comparing to HST images).
+     sumrange_lab: in, optional, type=string
+       Set to 'microns' to print continuum region labels in microns
+       (instead of A, the default).
      scllim: in, required, type=dblarr(2)
        Lower and upper flux limits for byte scaling.
      stretch: in, required, type=int
@@ -371,6 +379,18 @@ Optional tags for continuum images:
        possible values.
      ncbdiv: in, required, type=int
        Number of color bar divisions for color maps.
+  xsec: in, optional, type=structure
+     If set, computes cross sections in the CVDF velocity or flux map
+     of choice.
+     line: in, required, type=strarr
+     tag: in, required, type=strarr
+       Which CVDF property to X-section (vpk, v50, fpk, etc.)
+     angle: in, required, type=dblarr
+       Angle CCW from +y axis.
+     length: in, required, type=dblarr
+       Total length of X-section in spaxels.
+
+
 
 
 =======

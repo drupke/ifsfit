@@ -76,6 +76,7 @@
 ;                       light issues with BLR emission (PG1411+442 et al.)
 ;      2016sep02, DSNR, added HOSTONLY keyword; set so that BLR emission
 ;                       goes in QSO only spectrum
+;      2016sep13, DSNR, fixed small bug in last if statement
 ;    
 ; :Copyright:
 ;    Copyright (C) 2015--2016 David S. N. Rupke
@@ -148,7 +149,7 @@ pro ifsf_qsohostfcn,x,p,ymod,fitord=fitord,hostonly=hostonly,$
   if ~ keyword_set(hostonly) then ymod += qsoscl*qsoflux
 
 ; BLR model
-  if ~ keyword_set(hostonly) then begin
+  if ~ keyword_set(hostonly) AND keyword_set(blrterms) then begin
      ngauss = fix(blrterms/3)
      for i=0,ngauss-1 do $
         ymod += double(gaussian(x,p[npar-blrterms+0+3*i:npar-blrterms+3*(i+1)-1]))

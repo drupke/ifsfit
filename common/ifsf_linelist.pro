@@ -9,6 +9,12 @@
 ;   2. HeI 4686 -- found random wavelength compilation. In NIST, shows
 ;                  up as a complex of many fine structure lines with
 ;                  range of several tenths of an A.
+; For IR lines:
+;   1. H_2: http://www.jach.hawaii.edu/UKIRT/astronomy/calib/spec_cal/h2_s.html
+;   2. He: http://www.jach.hawaii.edu/UKIRT/astronomy/calib/spec_cal/he_4.html
+;   3. H: http://www.jach.hawaii.edu/UKIRT/astronomy/calib/spec_cal/recomb_menu.html
+;   4. [SiVI]: NIST
+;   Checked He and H lines in NIST and there is good agreement.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -49,6 +55,7 @@
 ;      2016jul12, DSNR, added line labels
 ;      2016aug03, DSNR, edited UV line labels
 ;      2016sep07, DSNR, heavily edited UV lines; added ALL keyword
+;      2016sep12, DSNR, added IR lines
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke, Anthony To
@@ -72,6 +79,21 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
 
 ;  Associated line labels:
    lines = hash()
+
+;  IR lines (vacuum)
+   lines['Paa'] = 18756d
+   lines['Brg'] = 21661d
+   lines['Brd'] = 19451d
+   lines['Bre'] = 18181d
+   lines['H2_10_S1'] = 21218d
+   lines['H2_10_S2'] = 20338d
+   lines['H2_10_S3'] = 19575d
+   lines['H2_10_S4'] = 18920d
+   lines['H2_10_S5'] = 18358d
+   lines['HeI206'] = 20587d
+   lines['HeI187'] = 18691d
+   lines['[SiVI]196'] = 19646d
+   
 ;  Optical lines
    lines['Halpha'] = 6562.80d
    lines['Hbeta'] = 4861.32d
@@ -258,6 +280,21 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
  
    if keyword_set(linelab) then begin
       linelab = hash()
+
+;     IR lines
+      linelab['Paa'] = 'P$\alpha$'
+      linelab['Brg'] = 'Br$\gamma$'
+      linelab['Brd'] = 'Br$\delta$'
+      linelab['Bre'] = 'Br$\epsilon$'
+      linelab['H2_10_S1'] = 'H$\down2$(1-0) S(1)'
+      linelab['H2_10_S2'] = 'H$\down2$(1-0) S(2)'
+      linelab['H2_10_S3'] = 'H$\down2$(1-0) S(3)'
+      linelab['H2_10_S4'] = 'H$\down2$(1-0) S(4)'
+      linelab['H2_10_S5'] = 'H$\down2$(1-0) S(5)'
+      linelab['HeI206'] = 'HeI 2.06$\mu$m'
+      linelab['HeI187'] = 'HeI 1.87$\mu$m'
+      linelab['[SiVI]196'] = '[SiVI] 1.96$\mu$m'
+
 ;     Optical lines
       linelab['Halpha'] = 'H$\alpha$'
       linelab['Hbeta'] = 'H$\beta$'

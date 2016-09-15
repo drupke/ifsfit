@@ -71,6 +71,7 @@
 ;      2016jan06, DSNR, allow no emission line fit with initdat.noemlinfit
 ;      2016feb12, DSNR, changed treatment of sigma limits for emission lines
 ;                       so that they can be specified on a pixel-by-pixel basis
+;      2016sep13, DSNR, added internal logic to check if emission-line fit present
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -99,7 +100,8 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
   if keyword_set(oned) then oned=1 else oned=0
 
 ; Get fit initialization
-  initdat = call_function(initproc,_extra=ex)
+  if keyword_set(_extra) then initdat = call_function(initproc,_extra=ex) $
+  else initdat = call_function(initproc)
   
 ; Get linelist
   linelist = ifsf_linelist(initdat.lines)
@@ -173,6 +175,9 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 
 fit:
 
+           nocomp_emlist = $
+              ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist)
+
            if tag_exist(initdat,'siglim_gas') then begin
               size_siglim = size(initdat.siglim_gas)
               if size_siglim[0] eq 1 then siglim_gas = initdat.siglim_gas $
@@ -207,7 +212,7 @@ fit:
 
 ;          Initialize starting wavelengths
            linelistz = hash(initdat.lines)
-           if ~ tag_exist(initdat,'noemlinfit') then $
+           if ~ tag_exist(initdat,'noemlinfit') AND ct_comp_emlist gt 0 then $
               foreach line,initdat.lines do $
 ;                 if oned then $
 ;                    linelistz[line] = $
@@ -240,7 +245,7 @@ fit:
            
            if not keyword_set(onefit) then begin
            
-              if ~ tag_exist(initdat,'noemlinfit') then begin
+              if ~ tag_exist(initdat,'noemlinfit') AND ct_comp_emlist gt 0 then begin
 ;                Set emission line mask parameters
                  linepars = ifsf_sepfitpars(linelist,structinit.param,$
                                             structinit.perror,structinit.parinfo)
@@ -286,7 +291,8 @@ fit:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
            if tag_exist(initdat,'fcncheckcomp') AND $
-              ~ tag_exist(initdat,'noemlinfit') then begin
+              ~ tag_exist(initdat,'noemlinfit') AND $
+              ct_comp_emlist gt 0 then begin
 
               siglim_gas = struct.siglim
 
