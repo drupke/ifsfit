@@ -22,6 +22,8 @@
 ;    cols: in, optional, type=intarr, default=all
 ;      Columns to fit, in 1-offset format. Either a scalar or a
 ;      two-element vector listing the first and last columns to fit.
+;    ncores: in, optional, type=int, default=1
+;      Number of cores to split processing over.
 ;    rows: in, optional, type=intarr, default=all
 ;      Rows to fit, in 1-offset format. Either a scalar or a
 ;      two-element vector listing the first and last rows to fit.
@@ -72,6 +74,12 @@
 ;      2016feb12, DSNR, changed treatment of sigma limits for emission lines
 ;                       so that they can be specified on a pixel-by-pixel basis
 ;      2016sep13, DSNR, added internal logic to check if emission-line fit present
+;      2016sep16, DSNR, changed logic of ONEFIT so component checking doesn't
+;                       happen
+;      2016sep17, DSNR, removed GOTO statements; moved separate row/col loops
+;                       to a single loop; moved loop commands to IFSF_FITLOOP
+;                       to enable multicore processing
+;      2016sep20, DSNR, implemented multicore processing
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -91,14 +99,18 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
+pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,ncores=ncores,$
          verbose=verbose,_extra=ex
   
   starttime = systime(1)
   time = 0
-  if keyword_set(verbose) then quiet=0 else quiet=1
-  if keyword_set(oned) then oned=1 else oned=0
-
+  if ~ keyword_set(ncores) then ncores=1
+  if ncores gt !CPU.HW_NCPU -1 then $
+     message,'Number of processes to spawn greater than number of CPUs available.'
+  if keyword_set(oned) then oned=1b else oned=0b
+  if keyword_set(onefit) then onefit=1b else onefit=0b
+  if keyword_set(verbose) then quiet=0b else quiet=1b
+  
 ; Get fit initialization
   if keyword_set(_extra) then initdat = call_function(initproc,_extra=ex) $
   else initdat = call_function(initproc)
@@ -106,8 +118,6 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 ; Get linelist
   linelist = ifsf_linelist(initdat.lines)
   nlines = linelist.count()
-
-  masksig_secondfit_def = 2d
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
@@ -124,219 +134,67 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,$
 ; Loop through spaxels
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if ~ keyword_set(cols) then cols=[1,cube.ncols] $
-  else if n_elements(cols) eq 1 then cols = [cols,cols]
+  if ~ keyword_set(cols) then begin
+     cols=[1,cube.ncols]
+     ncols = cube.ncols
+  endif else if n_elements(cols) eq 1 then begin
+     cols = [cols,cols]
+     ncols = 1
+  endif else begin
+     ncols = cols[1]-cols[0]+1
+  endelse
   cols = fix(cols)
-  for i=cols[0]-1,cols[1]-1 do begin
-
-     print,'Column ',i+1,' of ',cube.ncols,format='(A,I0,A,I0)'
-
-     if ~ keyword_set(rows) then rows=[1,cube.nrows] $
-     else if n_elements(rows) eq 1 then rows = [rows,rows]
-     rows = fix(rows)
-     for j=rows[0]-1,rows[1]-1 do begin
-
-        if oned then begin
-           flux = cube.dat[*,i]
-;          absolute value takes care of a few deviant points
-           err = sqrt(abs(cube.var[*,i]))
-           bad = cube.dq[*,i]
-        endif else begin
-           print,'  Row ',j+1,' of ',cube.nrows,format='(A,I0,A,I0)'
-           flux = reform(cube.dat[i,j,*],cube.nz)
-           err = reform(sqrt(abs(cube.var[i,j,*])),cube.nz)
-           bad = reform(cube.dq[i,j,*],cube.nz)
-        endelse
-
-;       Apply DQ plane
-        indx_bad = where(bad gt 0,ct)
-        if ct gt 0 then begin
-           flux[indx_bad] = 0d
-           err[indx_bad] = max(err)*100d
-        endif
-
-        nodata = where(flux ne 0d,ct)
-        if ct ne 0 then begin
-
-           if ~ tag_exist(initdat,'noemlinfit') then begin
-           
-;             Extract # of components and initial redshift guesses
-;             specific to this spaxel, and write as hashes.
-              ncomp = hash(initdat.lines)
-              foreach line,initdat.lines do $
-                 if oned then ncomp[line] = (initdat.ncomp)[line,i] $
-                 else ncomp[line] = (initdat.ncomp)[line,i,j]
-
-           endif             
-             
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; First fit
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-fit:
-
-           nocomp_emlist = $
-              ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist)
-
-           if tag_exist(initdat,'siglim_gas') then begin
-              size_siglim = size(initdat.siglim_gas)
-              if size_siglim[0] eq 1 then siglim_gas = initdat.siglim_gas $
-              else begin
-                 if oned then siglim_gas = initdat.siglim_gas[i,*] $
-                 else siglim_gas = initdat.siglim_gas[i,j,*]
-              endelse
-           endif else siglim_gas = 0b
-           
-;          Initialize stellar redshift for this spaxel
-           if oned then zstar = initdat.zinit_stars[i] $
-           else zstar = initdat.zinit_stars[i,j]
-           
-;          Ignore NaI D line for purposes of continuum fit by maximizing
-;          error. This doesn't actually remove these data points from the fit,
-;          but it minimizes their weight.
-           if not tag_exist(initdat,'keepnad') then begin
-              if not tag_exist(initdat,'nad_contcutrange') then begin
-                 nadran_rest = [5850d,5900d]
-                 nadran = (1d + zstar) * nadran_rest
-              endif else nadran = initdat.nad_contcutrange
-              indx_nad = where(cube.wave ge nadran[0] AND $
-                               cube.wave le nadran[1],ct)
-              if ct gt 0 then err[indx_nad]=max(err)
-           endif
-
-;          Option to tweak cont. fit
-           if tag_exist(initdat,'tweakcntfit') then $
-              tweakcntfit = reform(initdat.tweakcntfit[i,j,*,*],3,$
-                                   n_elements(initdat.tweakcntfit[i,j,0,*])) $
-           else tweakcntfit = 0
-
-;          Initialize starting wavelengths
-           linelistz = hash(initdat.lines)
-           if ~ tag_exist(initdat,'noemlinfit') AND ct_comp_emlist gt 0 then $
-              foreach line,initdat.lines do $
-;                 if oned then $
-;                    linelistz[line] = $
-;                       reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
-;                              initdat.maxncomp) $
-;                 else $
-                    linelistz[line] = $
-                       reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
-                              initdat.maxncomp)
-                 
-           structinit = ifsf_fitspec(cube.wave,flux,err,zstar,linelist,$
-                                     linelistz,ncomp,initdat,quiet=quiet,$
-                                     siglim_gas=siglim_gas,$
-                                     tweakcntfit=tweakcntfit)
-           
-           testsize = size(structinit)
-           if testsize[0] eq 0 then begin
-              print,'IFSF: Aborting.'
-              goto,nofit
-           endif
-           if not quiet then print,'FIT STATUS: ',structinit.fitstatus
-           if structinit.fitstatus eq -16 then begin
-              print,'IFSF: Aborting.'
-              goto,nofit
-           endif
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Second fit
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-           
-           if not keyword_set(onefit) then begin
-           
-              if ~ tag_exist(initdat,'noemlinfit') AND ct_comp_emlist gt 0 then begin
-;                Set emission line mask parameters
-                 linepars = ifsf_sepfitpars(linelist,structinit.param,$
-                                            structinit.perror,structinit.parinfo)
-                 linelistz = linepars.wave
-                 if tag_exist(initdat,'masksig_secondfit') then $
-                    masksig_secondfit = initdat.masksig_secondfit $
-                 else masksig_secondfit = masksig_secondfit_def           
-                 maskwidths = hash(initdat.lines)
-                 foreach line,initdat.lines do $
-                    maskwidths[line] = masksig_secondfit*linepars.sigma[line]
-                 maskwidths_tmp = maskwidths
-                 peakinit_tmp = linepars.fluxpk
-                 siginit_gas_tmp = linepars.sigma
-              endif else begin
-                 maskwidths_tmp=0
-                 peakinit_tmp=0
-                 siginit_gas_tmp=0
-              endelse
-
-              struct = ifsf_fitspec(cube.wave,flux,err,structinit.zstar,$
-                                    linelist,$
-                                    linelistz,ncomp,initdat,quiet=quiet,$
-                                    maskwidths=maskwidths_tmp,$
-                                    peakinit=peakinit_tmp,$
-                                    siginit_gas=siginit_gas_tmp,$
-                                    siglim_gas=siglim_gas,$
-                                    tweakcntfit=tweakcntfit)           
-              testsize = size(struct)
-              if testsize[0] eq 0 then begin
-                 print,'IFSF: Aborting.'
-                 goto,nofit
-              endif
-              if not quiet then print,'FIT STATUS: ',struct.fitstatus
-              if struct.fitstatus eq -16 then begin
-                 print,'IFSF: Aborting.'
-                 goto,nofit
-              endif
-
-           endif else struct = structinit
-           
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Check components
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-           if tag_exist(initdat,'fcncheckcomp') AND $
-              ~ tag_exist(initdat,'noemlinfit') AND $
-              ct_comp_emlist gt 0 then begin
-
-              siglim_gas = struct.siglim
-
-              linepars = ifsf_sepfitpars(linelist,struct.param,$
-                                         struct.perror,struct.parinfo)           
-              if tag_exist(initdat,'argscheckcomp') then goodcomp = $
-                 call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
-                               ncomp,newncomp,siglim_gas,$
-                               _extra=initdat.argscheckcomp) $
-              else goodcomp = $
-                 call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
-                               ncomp,newncomp,siglim_gas)
-
-              if newncomp.count() gt 0 then begin
-                 foreach nc,newncomp,line do $
-                    print,'IFSF: Repeating the fit of ',line,$
-                          ' with ',string(nc,format='(I0)'),' components.',$
-                          format='(5A0)'
-                 goto,fit
-              endif
-
-           endif
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Save result to a file
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-           if oned then $
-              save,struct,file=$
-                   string(initdat.outdir,initdat.label,'_',i+1,'.xdr',$
-                          format='(A,A,A,I04,A,I04,A)') $
-           else $
-              save,struct,file=$
-                   string(initdat.outdir,initdat.label,'_',i+1,'_',j+1,$
-                          '.xdr',format='(A,A,A,I04,A,I04,A)')
-
-nofit:
-        
-        endif
-
+  if ~ keyword_set(rows) then begin
+     rows=[1,cube.nrows]
+     nrows = cube.nrows
+  endif else if n_elements(rows) eq 1 then begin
+     rows = [rows,rows]
+     nrows = 1
+  endif else begin
+     nrows = rows[1]-rows[0]+1
+  endelse
+  rows = fix(rows)
+  
+  colarr = rebin(dindgen(ncols)+cols[0]-1d,ncols,nrows)
+  rowarr = rebin(transpose(dindgen(nrows)+rows[0]-1d),ncols,nrows)
+  nspax = ncols*nrows
+  
+  dolog=0b
+  if ncores eq 1 then begin
+     if tag_exist(initdat,'logfile') then begin
+        dolog=1b
+        logloop=replicate(initdat.logfile,nspax)
+     endif
+     for ispax=0,nspax-1 do begin
+        if ispax eq 0 AND dolog then file_delete,initdat.logfile,/allow
+        ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,$
+                     oned,onefit,quiet,logfile=logloop
      endfor
-
-  endfor
-
+  endif else begin
+     if nspax lt ncores then begin
+        message,'nspax < ncores; setting ncores = nspax',/cont
+        ncores=nspax
+     endif
+     if tag_exist(initdat,'logfile') then $
+        logfiles=replicate(initdat.logfile+'_',ncores)+$
+                 string(indgen(ncores)+1,format='(I0)') $
+     else logfiles=''
+     logloop = strarr(nspax)
+     min_per_core=floor(double(nspax)/double(ncores))
+     num_per_core=intarr(ncores)+min_per_core
+     remainder=round((double(nspax)/double(ncores)-double(min_per_core))*$
+               double(ncores))
+     for i=0,ncores-1 do begin
+        if i+1 le remainder then num_per_core[i]++
+        logloop[i+indgen(num_per_core[i])*ncores] = $
+           replicate(logfiles[i],num_per_core[i])
+     endfor
+     drt_bridgeloop,nspax,ncores,initdat.batchfile,initdat.batchdir,$
+                    invar=['colarr','rowarr','cube','initdat',$
+                           'linelist','oned','onefit','quiet','logloop'],$
+                    loopvar='ispax',logfiles=logfiles
+  endelse
+  
   print,'Total time for calculation: ',systime(1)-starttime,' s.',$
         format='(/,A0,I0,A0,/)'
 

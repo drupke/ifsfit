@@ -24,14 +24,17 @@ IDL libraries:
   http://idlastro.gsfc.nasa.gov
 - MPFIT, for non-linear least-squares fitting
   http://www.physics.wisc.edu/~craigm/idl/idl.html
-- Coyote, for graphics
-  http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
-  [or from the subversion repository: https://code.google.com/p/idl-coyote/]
+- Coyote, for graphics AND undefine.pro
+   http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
+  [or from the GitHub repository:
+   https://github.com/davidwfanning/idl-coyote/tree/master/coyote]
 - PPXF
   http://www-astro.physics.ox.ac.uk/~mxc/software/#ppxf
 - IDLUTILS, primarily for structure manipulation tasks (e.g.,
   STRUCT_ADDTAGS).
   http://www.sdss3.org/dr8/software/idlutils.php
+- DRTOOLS, for multicore processing
+  
 
 Note that the IDL Astronomy User's Library ships with some Coyote
 routines, and IDLUTILS ships with the IDL Astronomy User's Library and

@@ -102,6 +102,7 @@
 ;      2016aug31, DSNR, added option to mask continuum range(s) by hand with
 ;                       INITDAT tag MASKCTRAN
 ;      2016sep13, DSNR, added internal logic to check if emission-line fit present
+;      2016sep16, DSNR, allowed MASKWIDTHS_DEF to come in through INITDAT
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -127,7 +128,6 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
                       siglim_gas=siglim_gas,tweakcntfit=tweakcntfit
 
   c = 299792.458d        ; speed of light, km/s
-  maskwidths_def = 1000d ; default half-width in km/s for emission line masking
   siginit_gas_def = 100d ; default sigma for initial guess 
                          ; for emission line widths
   nlines = n_elements(initdat.lines)
@@ -143,12 +143,14 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
   if tag_exist(initdat,'loglam') then loglam=1b else loglam=0b
   if tag_exist(initdat,'vacuum') then vacuum=1b else vacuum=0b
   if tag_exist(initdat,'dored') then redinit=1d else redinit=[]
+  if tag_exist(initdat,'maskwidths_def') then $
+     maskwidths_def = initdat.maskwidths_def $
+  else maskwidths_def = 1000d ; default half-width in km/s for emission line masking
 
-  nocomp_emlist = ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist)
-
-  if tag_exist(initdat,'noemlinfit') OR ct_comp_emlist eq 0 then $
-     noemlinfit = 1b $
-  else noemlinfit = 0b
+  noemlinfit = 0b
+  if tag_exist(initdat,'noemlinfit') then ct_comp_emlist = 0 $
+  else nocomp_emlist = ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist)
+  if ct_comp_emlist eq 0 then noemlinfit=1b
 
   if istemp then begin
 ;    Get stellar templates

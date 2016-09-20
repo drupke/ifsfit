@@ -94,6 +94,12 @@ Optional structure tags from initialization procedure:
     Arguments for first line plot
   argspltlin2: in, optional, type=structure
     Arguments for second line plot
+  batchdir: in, optional, type=str
+    Path to location for storing temporary batch files for multicore
+    processing.
+  batchfile: in, optional, type=str
+    Name of routine to loop over for multicore processing;
+    should probably be the path to and name of IFSF_FITLOOP.
   datext: in, optional, type=integer, default=1
     Extension # for data plane in data cube.
   dividecont: in, optional, type=byte
@@ -126,6 +132,8 @@ Optional structure tags from initialization procedure:
     the wavelength range [5850,5900] is multiplied by the stellar
     redshift in that spaxel and the errors in that range are set to
     the max. possible to minimize their weight in the fit.
+  logfile: in, optional, type=string
+    Log file; default is to output messages to STDOUT.
   loglam: in, optional, type=byte
     Set if data has constant log(lambda) dispersion.
   maskctran: in, optional, type=dblarr(2,nmaskreg)
