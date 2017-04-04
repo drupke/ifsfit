@@ -70,7 +70,8 @@
 ;
 ;-
 function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
-                       datext=datext,varext=varext,dqext=dqext
+                       datext=datext,varext=varext,dqext=dqext,$
+                       vormap=vormap
 
   if ~ keyword_set(quiet) then print,'IFSF_READCUBE: Loading data.'
 
@@ -80,7 +81,8 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      print,'IFSF_READCUBE: Set DATEXT to a negative # if it needs to be 0.'
   endif
   if datext lt 0 then datext=0
-  if ~ keyword_set(varext) then varext=2
+  if varext lt 0 then varext=0 $
+  else if ~ keyword_set(varext) then varext=2
   if ~ keyword_set(dqext) then dqext=3
 
 ; Read fits file.
@@ -91,10 +93,18 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      header_phu = ''
   endelse
   dat = readfits(infile,header_dat,ext=datext,silent=quiet)
-  var = readfits(infile,header_var,ext=varext,silent=quiet)
-  if dqext ge 0 then $
-     dq = readfits(infile,header_dq,ext=dqext,silent=quiet) $
-  else dq = dat*0d
+  if varext gt 0 then begin
+     var = readfits(infile,header_var,ext=varext,silent=quiet)
+  endif else begin
+     var = dat*0d
+     header_var = ''
+  endelse
+  if dqext ge 0 then begin
+     dq = readfits(infile,header_dq,ext=dqext,silent=quiet)
+  endif else begin
+     dq = dat*0d
+     header_dq = ''
+  endelse
 
 ; Get #s of rows, columns, and wavelength pixels. Logic for 2-d case assumes 
 ; that # wavelength pts > # cols.
@@ -127,17 +137,45 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
   endif
 
 ; Create wavelength array.
-  pix = dindgen(nz)
+  pix = dindgen(nz)+1d
   crval = double(sxpar(header_dat,crvalstr,silent=quiet,count=countval))
   crpix = double(sxpar(header_dat,crpixstr,silent=quiet,count=countpix))
   cdelt = double(sxpar(header_dat,cdeltstr,silent=quiet,count=countdel))
   if countdel eq 0 then $
      cdelt = double(sxpar(header_dat,cdeltstropt,silent=quiet,count=countdel))
-  if countval eq 0 OR countpix eq 0 OR countdel eq 0 then begin
+; Assume absence of CRPIX quantity means it is 1
+  if countpix eq 0 then crpix = 1d
+  if countval eq 0 OR countdel eq 0 then begin
      print,'IFSF_READCUBE: WARNING -- missing a header parameter. Wavelength'
      print,'               solution will be incorrect.'
   endif
-  wave = crval + cdelt*(pix-crpix+1) 
+  wave = crval + cdelt*(pix-crpix)
+
+
+  if keyword_set(vormap) then begin
+
+    ncols = max(vormap)
+    nrows = 1
+    vordat = dblarr(ncols,nrows,nz)
+    vorvar = dblarr(ncols,nrows,nz)
+    vordq = dblarr(ncols,nrows,nz)
+    vorcoords = intarr(ncols,2)
+    nvor = intarr(ncols)
+    for i=1,ncols do begin
+      ivor = where(vormap eq i,ctivor)
+      xyvor = array_indices(vormap,ivor[0])
+      vordat[i-1,0,*] = dat[xyvor[0],xyvor[1],*]
+      vorvar[i-1,0,*] = var[xyvor[0],xyvor[1],*]
+      vordq[i-1,0,*] = dq[xyvor[0],xyvor[1],*]
+      vorcoords[i-1,*] = xyvor
+      nvor[i-1] = ctivor
+    endfor
+    dat = vordat
+    var = vorvar
+    dq = vordq
+    
+  endif
+
 
   cube = { $
          phu:  phu,$
@@ -153,6 +191,8 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
          cdelt: cdelt,$
          crpix: crpix $
          }
+  if keyword_set(vormap) then $
+     cube = create_struct(cube,'vorcoords',vorcoords,'nvor',nvor)
   
   if keyword_set(header) then $
      header = { $

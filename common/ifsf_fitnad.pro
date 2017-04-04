@@ -60,9 +60,10 @@
 ;      2014jul22, DSNR, added option to not re-run MC simulations but grab old
 ;                       outputs
 ;      2015jun03, DSNR, adjusted treatment of emission line sigma limits
+;      2016nov03, DSNR, added convolution with spectral resolution
 ;    
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -97,7 +98,6 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
    initdat = call_function(initproc,initnad=initnad)
    maxncomp = initnad.maxncomp
 
-
    ; Get linelist
    linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
 
@@ -108,21 +108,51 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
       nadem_siglim = initnad.nadem_siglim $
    else nadem_siglim = 0d
 
+;  NADFIT tags
+   tags2d = ['chisq','chisq_emonly','dof','niter']
+   tags3d = ['weqabs','weqabserr','weqem','weqemerr','totfluxem','totfluxemerr',$
+             'wavehei','sigmahei','fluxhei','cf','tau','waveabs','sigmaabs',$
+             'waveem','sigmaem','flux','frat']
+   tags4d = ['cferr','tauerr','waveabserr','sigmaabserr',$
+             'waveemerr','sigmaemerr','fluxerr','fraterr']
+
+;  Estimated spectral resolution for GMOS, B600 grating based on measurements.
+;  Website says R = 1688 at 4610 A for 0.5" slit, with IFU 0.31" eff. slit.
+;  This gives 1.69 A FWHM. I measure sometimes closer to 1.5-1.6.
+;  Sigma is then in the range 0.64 -- 0.72. Use the former for flexibility.
+   if ~ tag_exist(initnad,'specres') then specres = 0.64d $
+   else specres = initnad.specres
+   argsfitnad = {specres: specres}
+
    ifsf_printnadpar,nadparlun,outfile=initdat.outdir+initdat.label+'.nad.dat'
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   if ~ tag_exist(initnad,'noemlinfit') then $
+   if ~ tag_exist(initdat,'noemlinfit') then $
       restore,file=initdat.outdir+initdat.label+'.lin.xdr'
    restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
-   nadsize = size(nadcube.wave)
 
+   nadsize = size(nadcube.wave)
    ncols = nadsize[1]
    nrows = nadsize[2]
    if nrows eq 1 then oned=1b else oned=0b
    nz = nadsize[3]
+   
+   if tag_exist(initdat,'vormap') then begin
+     vormap=initdat.vormap
+     nvorcols = max(vormap)
+     vordone = bytarr(nvorcols)
+     vorrefnad = intarr(nvorcols,2)
+     vorreflines = intarr(nvorcols,2)
+     for i=1,nvorcols do begin
+        ivor = where(vormap eq i,ctivor)
+        xyvor = array_indices(vormap,ivor[0])
+        vorreflines[i-1,*] = xyvor
+     endfor
+
+   endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
@@ -145,15 +175,38 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 
          print,'  Row ',j+1,' of ',nrows,format='(A,I0,A,I0)'
 
+         didvor = 0b
+         if tag_exist(initdat,'vormap') then begin
+            if vordone[vormap[i,j]-1] then didvor = 1b
+            ireflinefit = vorreflines[vormap[i,j]-1,0]
+            jreflinefit = vorreflines[vormap[i,j]-1,1]
+         endif else begin
+            ireflinefit = i
+            jreflinefit = j
+         endelse
+         if didvor then goto,copyvor
+  
+;        Check data quality
+         igd = where(nadcube.weq[i,j,*] ne bad,ctgd)
+         if ctgd eq 0 then begin
+            message,'Skipping this spectrum b/c <SNR> < threshold.',/cont
+            goto,nofit
+         endif
+
          if ~ tag_exist(initnad,'noemlinfit') then begin
 ;           Restore continuum + emission-line fit
-            if oned then lab = string(i+1,format='(I04)') $
-            else lab = string(i+1,'_',j+1,format='(I04,A,I04)')
-            infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
-            outfile = initdat.outdir+initdat.label+'_'+lab
+            if oned then begin
+               inlab = string(i+1,format='(I04)')
+               outlab = inlab
+            endif else begin
+               inlab = string(ireflinefit+1,'_',jreflinefit+1,format='(I04,A,I04)')
+               outlab = string(i+1,'_',j+1,format='(I04,A,I04)')
+            endelse
+            infile = initdat.outdir+initdat.label+'_'+inlab+'.xdr'
+            outfile = initdat.outdir+initdat.label+'_'+outlab
             if ~ file_test(infile) then begin
-               print,'IFSF_FITNAD: No XDR file for ',i+1,', ',j+1,'.',$
-                     format='(A0,I4,A0,I4,A0)'
+               message,'No XDR file for '+string(ireflinefit+1,format='(I0)')+', '+$
+                       string(jreflinefit+1,format='(I0)')+'.',/cont
                goto,nofit
             endif
             restore,file=infile
@@ -179,8 +232,8 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                   lab = string(refi+1,'_',refj+1,format='(I04,A,I04)')
                   infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
                   if ~ file_test(infile) then begin
-                     print,'IFSF_FITNAD: No XDR file for ',i+1,', ',j+1,'.',$
-                           format='(A0,I4,A0,I4,A0)'
+                     message,'No XDR file for ',i+1,', ',j+1,'.',$
+                             format='(A0,I4,A0,I4,A0)',/cont
                      goto,nofit
                   endif
                   restore,file=infile
@@ -222,8 +275,8 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                   heifix=reform((initnad.hei_fix)[i,j,0:nhei-1,*],nhei,3) $
                else heifix=bytarr(nhei,3)
             endif else begin
-               print,'IFSF_FITNAD: HeI5876 initialization parameters'+$
-                     ' not properly specified.'
+               message,'HeI5876 initialization parameters'+$
+                       ' not properly specified.',/cont
                goto,nofit
             endelse
 ;        Case of no HeI fit
@@ -257,9 +310,9 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
          first_modflux=0d
          if nnadem gt 0 then begin
                
-            if nadem_siglim[0] eq 0 then print,'IFSF_FITNAD: ERROR: Emission '+$
+            if nadem_siglim[0] eq 0 then message,'Emission '+$
                'line sigma limits not set (NADEM_SIGLIM) in INITNAD '+$
-               'structure, but emission lines need to be fit.'
+               'structure, but emission lines need to be fit.',/cont
                
             winit = reform(((initnad.nadem_zinit)[i,j,0:nnadem-1]+1d)$
                            *linelist['NaD1'],nnadem)
@@ -304,10 +357,8 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                   tmpind = (nadcube.iweq)[i,j,1] $
                else if (nadcube.iweq)[i,j,2] ne -1 then $
                   tmpind = (nadcube.iweq)[i,j,2]-1 $
-               else begin
-                  print,'IFSF_FITNAD: No absorption or emission indices. Aborting.'                  
-                  goto,finish
-               endelse
+               else $
+                  message,'No absorption or emission indices. Aborting.'
                tmpdat[0:tmpind] = 1d
                                 
                param = Mpfitfun(initnad.fcnfitnad,$
@@ -319,13 +370,13 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                                 yfit=specfit,dof=dof_emonly,$
                                 nfev=nfev,niter=niter_emonly,status=status,$
                                 quiet=quiet,$
-                                npegged=npegged,ftol=1D-6,errmsg=errmsg)
-               if status eq 5 then print,'IFSF_FITNAD: Max. iterations reached.'
-               if status eq 0 OR status eq -16 then begin
-                  print,'IFSF_FITNAD: Error in MPFIT. Aborting.'
-                  goto,finish
-               endif
+                                npegged=npegged,ftol=1D-6,errmsg=errmsg,$
+                                functargs=argsfitnad)
+               if status eq 5 then message,'Max. iterations reached.',/cont
+               if status eq 0 OR status eq -16 then $
+                  message,'Error in MPFIT. Aborting.'
 
+               first_param = param
                first_nademfix = nademfix
                first_parinit = parinit
                first_modflux = tmpdat
@@ -341,13 +392,16 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 ;        Fill out parameter structure with initial guesses and constraints
 
          if (nnadem eq 0 AND nnadabs eq 0 AND nhei eq 0) then begin
-            print,'IFSF_FITNAD: No components specified. Skipping this spaxel.'
+            message,'No components specified. Skipping this spaxel.',/cont
             goto,nofit
          endif
 
          if nnadabs gt 0 AND tag_exist(initnad,'nadabs_fix') then $
             nadabsfix=reform((initnad.nadabs_fix)[i,j,0:nnadabs-1,*],nnadabs,4) $
          else nadabsfix=0b
+
+         refit=1b
+         while refit ne 0b do begin
 
          if tag_exist(initnad,'argsinitpar') then parinit = $
             call_function(initnad.fcninitpar,inithei,initnadabs,initnadem,$
@@ -366,37 +420,82 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                           parinfo=parinit,perror=perror,maxiter=100,$
                           bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                           nfev=nfev,niter=niter,status=status,quiet=quiet,$
-                          npegged=npegged,ftol=1D-6,errmsg=errmsg)
-         if status eq 5 then print,'IFSF_FITNAD: Max. iterations reached.'
-         if status eq 0 OR status eq -16 then begin
-            print,'IFSF_FITNAD: Error in MPFIT. Aborting.'
-            goto,finish
-         endif
+                          npegged=npegged,ftol=1D-6,errmsg=errmsg,$
+                          functargs=argsfitnad)
+         if status eq 5 then message,'Max. iterations reached',/cont
+         if status eq 0 OR status eq -16 then $
+            message,'Error in MPFIT. Aborting.'
+
+         refit=0b
+;;        Reject insignificant components automatically
+;         if nnadabs gt 0 then begin
+;            iarr = 3+nhei*3 + dindgen(nnadabs)*4
+;            cf=param[iarr]
+;            tau=param[iarr+1]
+;            rms = sqrt(median(((nadcube.dat)[i,j,*]-1d)^2d))
+;            sigthresh = 1d
+;            ibad = where(cf eq 0 OR tau eq 0 OR (1d -exp(-tau))*cf le rms*sigthresh,ctbad)
+;            igd = where(cf ne 0 AND tau ne 0 AND (1d -exp(-tau))*cf gt rms*sigthresh,ctgd)
+;            if ctbad gt 0 then begin
+;               nnadabs -= ctbad
+;               if nnadabs gt 0 then begin
+;                  if tag_exist(initnad,'nadabs_cfinit') then $
+;                     cfinit = reform((initnad.nadabs_cfinit)[i,j,igd],nnadabs) $
+;                  else cfinit = dblarr(nnadabs)+0.5d
+;                  if tag_exist(initnad,'nadabs_tauinit') then $
+;                  tauinit = reform((initnad.nadabs_tauinit)[i,j,igd],nnadabs) $
+;                  else tauinit = dblarr(nnadabs)+0.5d
+;                  winit = reform(((initnad.nadabs_zinit)[i,j,igd]$
+;                     +1d)*linelist['NaD1'],nnadabs)
+;                  siginit = reform((initnad.nadabs_siginit)$
+;                     [i,j,igd],nnadabs)
+;                  initnadabs = [[cfinit],[tauinit],[winit],[siginit]]
+;                  if nnadabs gt 0 AND tag_exist(initnad,'nadabs_fix') then $
+;                     nadabsfix=reform((initnad.nadabs_fix)[i,j,igd,*],nnadabs,4) $
+;                  else nadabsfix=0b
+;               endif else begin
+;                  if tag_exist(initnad,'nadem_fitinit') then begin
+;                     param = first_param
+;                     refit=0b
+;                  endif
+;               endelse
+;            endif else refit=0b
+;         endif else refit=0b
+                  
+         endwhile
+  
+;         endif else initnadabs=0
 
 ;        Plot fit
 ;        
 ;        If the data was not first processed with IFSF, then set the redshift
 ;        for plotting to be the systemic redshift. Otherwise, use the stellar 
 ;        redshift determined from the fit.
-         if ~ tag_exist(initnad,'noemlinfit') then zuse = struct.zstar $
-         else zuse = initdat.zsys_gas
+         if tag_exist(initnad,'zref') then zref = initnad.zref $
+         else if ~ tag_exist(initnad,'noemlinfit') then zref = struct.zstar $
+         else zref = initdat.zsys_gas
+         if ~ tag_exist(initnad,'noemlinfit') then zstar=struct.zstar else $
+         zstar = 0d
          if ~ noplot then begin
             if tag_exist(initnad,'argspltfitnad') then $
                ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
                               (nadcube.dat)[i,j,*],$
-                              param,outfile+'_nad_fit',struct.zstar,$
+                              param,outfile+'_nad_fit',zref,$
+                              specres=specres,zstar=zstar,$
                               _extra=initnad.argspltfitnad $
             else $
                ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
                               (nadcube.dat)[i,j,*],$
-                              param,outfile+'_nad_fit',struct.zstar
+                              param,outfile+'_nad_fit',zref,$
+                              specres=specres,zstar=zstar
          endif
 
 ;        Compute model equivalent widths
          weq=1
          nademflux=1
          modspec = ifsf_nadfcn((nadcube.wave)[i,j,*],param,weq=weq,$
-                               nademflux=nademflux,cont=(nadcube.cont)[i,j,*])
+                               nademflux=nademflux,cont=(nadcube.cont)[i,j,*],$
+                               specres=specres)
 
 ;        Compute errors in fit
          if ~ keyword_set(noerr) then begin
@@ -415,7 +514,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                                     niter=initnad.mcniter,$
                                     nsplit=nsplit,quiet=quiet,weqerr=weqerr,$
                                     nademfluxerr=nademfluxerr,noplot=noplot,$
-                                    plotonly=plotonly)
+                                    plotonly=plotonly,specres=specres)
          endif
          
          ifsf_printnadpar,nadparlun,i+1,j+1,param
@@ -504,15 +603,48 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                nadfit.fraterr[i,j,0:nnadem-1,*]=errors[iarr-3+3,*]               
             endif
          endif
+         
+copyvor: 
+
+         if tag_exist(initdat,'vormap') then begin
+            if vordone[vormap[i,j]-1] then begin
+               tagnames = tag_names(nadfit)
+               iref = vorrefnad[vormap[i,j],0]
+               jref = vorrefnad[vormap[i,j],1]
+               foreach tag,tags2d do begin
+                  itag = where(tag eq tagnames)
+                  nadfit[i,j].(itag) = nadfit[iref,jref].(itag)
+               endforeach
+               foreach tag,tags3d do begin
+                  itag = where(tag eq tagnames)
+                  nadfit[i,j,*].(itag) = nadfit[iref,jref,*].(itag)
+               endforeach
+               foreach tag,tags4d do begin
+                  itag = where(tag eq tagnames)
+                  nadfit[i,j,*,*].(itag) = nadfit[iref,jref,*,*].(itag)
+               endforeach
+               thislab = string(i+1,'_',j+1,format='(I04,A,I04)')
+               reflab = string(iref+1,'_',jref+1,format='(I04,A,I04)')
+               thisout = initdat.outdir+initdat.label+'_'+thislab
+               refout = initdat.outdir+initdat.label+'_'+reflab
+               file_copy,refout+'_nad_fit.jpg',thisout+'_nad_fit.jpg'
+               print,'Using reference coordinate: [col,row]=[',iref+1,',',jref+1,']',$
+                     format='(A0,I0,A0,I0,A0)'
+            endif
+         endif
 
 nofit:
+
+         if tag_exist(initdat,'vormap') then begin
+            if not vordone[vormap[i,j]-1] then begin
+               vordone[vormap[i,j]-1] = 1b
+               vorrefnad[vormap[i,j]-1,*] = [i,j]
+            endif
+         endif
 
       endfor
       
    endfor
-
-
-finish:
 
    if ~ keyword_set(noxdr) then begin
       if tag_exist(initnad,'outxdr') then outxdr=initnad.outxdr $

@@ -14,12 +14,17 @@
 ;    lambda: in, required, type=dblarr(N)
 ;    flux: in, required, type=dblarr(N)
 ;    weight: in, required, type=dblarr(N)
+;    template_lambdaz: in, required, type=any
+;      Ignored. When stellar templates are fit, contains redshifted
+;      template wavelength.
 ;    template_flux: in, required, type=any
 ;      Ignored. When stellar templates are fit, contatins templates.
 ;    index: in, required, type=intarr
 ;      Contains indices of continuum regions to fit
 ;    ct_coeff: out, required, type=integer, default=0
 ;      When stellar templates are fit, contains best-fit coefficients.
+;    zstar: in, required, type=any
+;      Ignored. When stellar templates are fit, ...
 ;
 ; :Keywords:
 ;    quiet: in, optional, type=byte
@@ -36,9 +41,11 @@
 ;    Change History::
 ;      2015jan21, DSNR, copied from IFSF_FITPOLY
 ;      2015may11, DSNR, fixed bug when only one region is used
+;      2016oct21, DSNR, added new (but ignored) parameters to match 
+;                       IFSF_FITSPEC calling rubric
 ;    
 ; :Copyright:
-;    Copyright (C) 2015 David S. N. Rupke
+;    Copyright (C) 2015--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -55,8 +62,9 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitmulticont,lambda,flux,weight,template_flux,index,$
-                           ct_coeff,quiet=quiet,fitreg=fitreg,fitfcn=fitfcn,$
+function ifsf_fitmulticont,lambda,flux,weight,template_lambdaz,$
+                           template_flux,index,ct_coeff,zstar,$
+                           quiet=quiet,fitreg=fitreg,fitfcn=fitfcn,$
                            fitargs=fitargs
 
    if not keyword_set(quiet) then quiet=0b

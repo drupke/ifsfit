@@ -27,9 +27,11 @@
 ;      2015sep04, DSNR, added some logic to keep BLR components; 
 ;                       not heavily tested
 ;      2015dec14, DSNR, added test for pegging on upper limit of sigma
+;      2016oct08, DSNR, changed flux peak sigma cutoff to total flux cutoff, now
+;                       that total flux errors are correctly computed
 ;
 ; :Copyright:
-;    Copyright (C) 2014-2015 David S. N. Rupke
+;    Copyright (C) 2014--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -76,9 +78,12 @@ function ifsf_checkcomp,linepars,linetie,ncomp,newncomp,siglim,$
                foreach ignoreline,ignore do $
                   if ignoreline eq line then doignore=1b
             if ~doignore then begin
-               igd = where((linepars.fluxpk)[line,0:ncomp[line]-1] ge $
-                           sigcut*(linepars.fluxpkerr)[line,0:ncomp[line]-1] AND $
-                           (linepars.fluxpkerr)[line,0:ncomp[line]-1] gt 0 AND $
+;               igd = where((linepars.fluxpk)[line,0:ncomp[line]-1] ge $
+;                           sigcut*(linepars.fluxpkerr)[line,0:ncomp[line]-1] AND $
+;                           (linepars.fluxpkerr)[line,0:ncomp[line]-1] gt 0 AND $
+               igd = where((linepars.flux)[line,0:ncomp[line]-1] ge $
+                           sigcut*(linepars.fluxerr)[line,0:ncomp[line]-1] AND $
+                           (linepars.fluxerr)[line,0:ncomp[line]-1] gt 0 AND $
                            (linepars.sigma)[line,0:ncomp[line]-1] gt siglim[0] AND $
                            (linepars.sigma)[line,0:ncomp[line]-1] lt siglim[1],$
                            ctgd)

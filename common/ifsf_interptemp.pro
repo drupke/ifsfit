@@ -56,7 +56,8 @@ function ifsf_interptemp, spec_lam, temp_lam, template, $
                           temp_lam_rest=temp_lam_rest
 
   ss = size(template)
-  new_temp = fltarr(n_elements(spec_lam), ss[2])
+  if ss[0] eq 2 then ntemp = ss[2] else ntemp = 1
+  new_temp = fltarr(n_elements(spec_lam), ntemp)
 
   if min(temp_lam) gt min(spec_lam) then $
      print, 'IFSF_INTERPTEMP: WARNING -- Extrapolating template from ',$
@@ -66,7 +67,7 @@ function ifsf_interptemp, spec_lam, temp_lam, template, $
             max(temp_lam),' to ',max(spec_lam),'.',format='(A,I0,A,I0,A)'
 
 ; Default interpolation for INTERPOL is linear
-  for i = 0, ss[2] - 1 do new_temp[*, i] = $
+  for i = 0, ntemp - 1 do new_temp[*, i] = $
      interpol(template[*, i],temp_lam,spec_lam)
 
   return, new_temp

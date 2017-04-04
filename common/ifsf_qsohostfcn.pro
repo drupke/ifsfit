@@ -3,31 +3,16 @@
 ;+
 ;
 ; Function to fit a continuum with a QSO template plus a smooth additive 
-; template. Presently, the additive template is the sum of polynomials up to 
-; order FITORD, which can also be multiplied by exponential functions. The 
-; multiplicative exponentials are as follows:
-; 
-; EXPTERMS = 0: none
-; EXPTERMS = 1: C_1 exp^(-(i-i_1)/N),
-;     where i is the wavelength index
-;           N is the number of wavelength points
-;           and C_1 and i_1 are fitted parameters
-; EXPTERMS = 2: first exp term + C_2 (1 - exp^(-(ilo-i_2)/N))
-; EXPTERMS = 3: first two exp terms + C_3 (1 - exp^(-(j-i_3)/N))
-;     where j is the reverse wavelength index (w.r.t. the last wavelength)
-; EXPTERMS = 4: first two exp terms + C_4 (1 - exp^(-(j-i_4)/N))
-; 
-; The QSO is also multiplied by a sum of polynomials up to order QSOORD, plus
-; whatever exponential terms are specified.
-;
-; Order of parameter array:
+; template. The additive template is the sum of Legendre polynomials up to 
+; order FITORD. The QSO is also multiplied by a sum of Legendre polynomials 
+; up to order QSOORD. We use Legendre polynomials rather than a "standard"
+; polynomial b/c it is more well-behaved with MPCURVEFIT as the order increases.
+; In principle the two should yield the same result, but in practice Legendre
+; polynomials are more faithful to the data for high orders (for unknown
+; numerical reasons, though probably having something to do with Legendre
+; polynomials being orthogonal over -1 < x < 1).
 ;
 ; Notes:
-; - Fitting does not seem sensitive to how we define xc.  x - max(x)
-;   gives identical results.
-; - Fitting seems most sensitive to whether or not we include the
-;   first exponential term for both the stellar and QSO continua.
-;   It's not clear that the second exp. term matters.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -47,8 +32,6 @@
 ; :Keywords:
 ;    blrterms: in, optional, type=integer, default=0
 ;      Number of Gaussian terms to include (3 x number of Gaussian components).
-;    expterms: in, optional, type=integer, default=0
-;      Number of exponential terms by which to normalize, up to 4
 ;    hostonly: in, optional, type=byte
 ;      Output host only.
 ;    fitord: in, optional, type=integer, default=3
@@ -77,6 +60,9 @@
 ;      2016sep02, DSNR, added HOSTONLY keyword; set so that BLR emission
 ;                       goes in QSO only spectrum
 ;      2016sep13, DSNR, fixed small bug in last if statement
+;      2016sep21, DSNR, added abs() in front of each ymod term to ensure
+;                       host spectrum cannot go negative!
+;      2016nov11, DSNR, re-wrote to use only Legendre polynomials
 ;    
 ; :Copyright:
 ;    Copyright (C) 2015--2016 David S. N. Rupke
@@ -95,58 +81,44 @@
 ;    along with this program.  If not, see
 ;    http://www.gnu.org/licenses/.
 ;
-;-;
-pro ifsf_qsohostfcn,x,p,ymod,fitord=fitord,hostonly=hostonly,$
-                    qsoflux=qsoflux,qsoord=qsoord,$
-                    qsoonly=qsoonly,expterms=expterms,$
-                    blrterms=blrterms
+;-
+pro ifsf_qsohostfcn,x,p,ymod,nxfull=nxfull,ixfull=ixfull,$
+                    hostonly=hostonly,qsoonly=qsoonly,blronly=blronly,$
+                    qsoflux=qsoflux,qsoscl=qsoscl,blrterms=blrterms
 
-  if ~ keyword_set(fitord) then fitord=3
-  if ~ keyword_set(qsoord) then qsoord=3
-  if ~ keyword_set(expterms) then expterms=0
   if ~ keyword_set(blrterms) then blrterms=0
 
   npar = n_elements(p)
+  
   nx = n_elements(x)
-  dx = max(x) - min(x)
-  xc = x - min(x)
-  xc_hi = max(x) - x
+  if ~ keyword_set(nxfull) then nxfull=nx
+  if ~ keyword_set(ixfull) then ixfull=indgen(nx)
+  
+  xfull_norm01 = dindgen(nxfull)/double(nxfull-1) ; array of numbers from 0 to 1
+  xfull_norm10 = reverse(xfull_norm01)
 
+  x_norm01 = xfull_norm01[ixfull]
+  x_norm10 = xfull_norm10[ixfull]
+  
   ymod = dblarr(nx)
-  qsoscl = dblarr(nx)
-  itot = fitord+qsoord+2*expterms
 
-; Additive polynomial
-  if ~ keyword_set(qsoonly) then begin
-     for i=0,fitord-1 do $
-        ymod += p[i]        * (xc-p[itot+i])^double(i)
-     if expterms ge 1 then $
-        ymod += p[fitord]   * exp(-(xc-p[itot+fitord])/dx)
-     if expterms ge 2 then $
-        ymod += p[fitord+1] * (1d - exp(-(xc-p[itot+fitord+1])/dx))
-     if expterms ge 3 then $
-        ymod += p[fitord+2] * exp(-(xc_hi-p[itot+fitord+2])/dx)
-     if expterms eq 4 then $
-        ymod += p[fitord+3] * (1d - exp(-(xc_hi-p[itot+fitord+3])/dx))
+; Additive polynomial.
+  if ~ keyword_set(qsoonly) AND ~ keyword_set(blronly) then begin
+     ymod += p[0]*exp(-p[1]*x_norm01)
+     ymod += p[2]*exp(-p[3]*x_norm10)
+     ymod += p[4]*(1d - exp(-p[5]*x_norm01))
+     ymod += p[6]*(1d - exp(-p[7]*x_norm10))
   endif
 
 ; QSO continuum
-  for i=0,qsoord-1 do $
-     qsoscl += p[fitord+expterms+i] * $
-                (xc-p[itot+fitord+expterms+i])^double(i)
-  if expterms ge 1 then $
-     qsoscl += p[fitord+expterms+qsoord] * $
-               exp(-(xc-p[itot+fitord+expterms+qsoord])/dx)
-  if expterms ge 2 then $
-     qsoscl += p[fitord+expterms+qsoord+1] * $
-               (1d - exp(-(xc-p[itot+fitord+expterms+qsoord+1])/dx)) 
-  if expterms ge 3 then $
-     qsoscl += p[fitord+expterms+qsoord+2] * $
-               exp(-(xc_hi-p[itot+fitord+expterms+qsoord+2])/dx)
-  if expterms eq 4 then $
-     qsoscl += p[fitord+expterms+qsoord+3] * $
-               (1d - exp(-(xc_hi-p[itot+fitord+expterms+qsoord+3])/dx))
-  if ~ keyword_set(hostonly) then ymod += qsoscl*qsoflux
+  if ~ keyword_set(hostonly) AND ~ keyword_set(blronly) then begin
+     qsoscl = dblarr(nx)
+     qsoscl += p[8]*exp(-p[9]*x_norm01)
+     qsoscl += p[10]*exp(-p[11]*x_norm10)
+     qsoscl += p[12]*(1d - exp(-p[13]*x_norm01))
+     qsoscl += p[14]*(1d - exp(-p[15]*x_norm10))
+     ymod += qsoscl*qsoflux
+  endif
 
 ; BLR model
   if ~ keyword_set(hostonly) AND keyword_set(blrterms) then begin

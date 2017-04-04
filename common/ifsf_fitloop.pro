@@ -46,6 +46,9 @@
 ; :History:
 ;    ChangeHistory::
 ;      2016sep18, DSNR, copied from IFSF into standalone procedure
+;      2016sep26, DSNR, small change in masking for new treatment of spec. res.
+;      2016oct20, DSNR, fixed treatment of SIGINIT_GAS
+;      2016nov17, DSNR, added flux calibration
 ;
 ; :Copyright:
 ;    Copyright (C) 2016 David S. N. Rupke
@@ -76,30 +79,54 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 
    masksig_secondfit_def = 2d
 
-   printf,loglun,'[col,row]=[',colarr[ispax]+1,',',rowarr[ispax]+1,'] out of [',$
-          cube.ncols,',',cube.nrows,']',format='(A0,I0,A0,I0,A0,I0,A0,I0,A0)'
    i = colarr[ispax]
    j = rowarr[ispax]
+   printf,loglun,'[col,row]=[',i+1,',',j+1,'] out of [',$
+          cube.ncols,',',cube.nrows,']',format='(A0,I0,A0,I0,A0,I0,A0,I0,A0)'
 
    if oned then begin
       flux = cube.dat[*,i]
-      ;       absolute value takes care of a few deviant points
+;     absolute value takes care of a few deviant points
       err = sqrt(abs(cube.var[*,i]))
-      bad = cube.dq[*,i]
+      dq = cube.dq[*,i]
    endif else begin
       flux = reform(cube.dat[i,j,*],cube.nz)
       err = reform(sqrt(abs(cube.var[i,j,*])),cube.nz)
-      bad = reform(cube.dq[i,j,*],cube.nz)
+      dq = reform(cube.dq[i,j,*],cube.nz)
    endelse
+;  Error maximum, for use later
+   errmax = max(err)
 
-   ;    Apply DQ plane
-   indx_bad = where(bad gt 0,ct)
-   if ct gt 0 then begin
-      flux[indx_bad] = 0d
-      err[indx_bad] = max(err)*100d
+   if tag_exist(initdat,'vormap') then begin
+     tmpi = cube.vorcoords[i,0]
+     tmpj = cube.vorcoords[i,1]
+     i = tmpi
+     j = tmpj     
+     printf,loglun,'Reference coordinate: [col,row]=[',i+1,',',j+1,']',$
+            format='(A0,I0,A0,I0,A0)'
+     
    endif
 
-   nodata = where(flux ne 0d,ct)
+
+;;  Apply flux calibration
+;   if tag_exist(initdat,'fluxunits') then begin
+;      flux*=initdat.fluxunits
+;      err*=initdat.fluxunits
+;   endif
+;
+;;  Normalize
+;   fluxmed = median(flux)
+;   flux/=fluxmed
+;   err/=fluxmed
+
+;  Apply DQ plane
+   indx_bad = where(dq gt 0,ct)
+   if ct gt 0 then begin
+      flux[indx_bad] = 0d
+      err[indx_bad] = errmax*100d
+   endif
+
+   nodata = where(flux ne 0d AND finite(flux),ct)
    if ct ne 0 then begin
 
       if ~ tag_exist(initdat,'noemlinfit') then begin
@@ -109,7 +136,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
          ncomp = hash(initdat.lines)
          foreach line,initdat.lines do $
             if oned then ncomp[line] = (initdat.ncomp)[line,i] $
-         else ncomp[line] = (initdat.ncomp)[line,i,j]
+            else beginncomp[line] = (initdat.ncomp)[line,i,j]
       endif
 
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -133,47 +160,71 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
                else siglim_gas = initdat.siglim_gas[i,j,*]
             endelse
          endif else siglim_gas = 0b
+         if tag_exist(initdat,'siginit_gas') then begin
+            size_siginit = size(initdat.siginit_gas[initdat.lines[0]])
+            if size_siginit[0] eq 1 then siginit_gas = initdat.siginit_gas $
+            else begin
+               siginit_gas = hash()
+               if oned then $
+                  foreach key,initdat.lines do $
+                     siginit_gas[key] = initdat.siginit_gas[key,i,*] $
+               else $
+                  foreach key,initdat.lines do $
+                     siginit_gas[key] = initdat.siginit_gas[key,i,j,*]
+            endelse
+         endif else siginit_gas = 0b
 
-         ;       Initialize stellar redshift for this spaxel
+;        Initialize stellar redshift for this spaxel
          if oned then zstar = initdat.zinit_stars[i] $
          else zstar = initdat.zinit_stars[i,j]
 
-         ;       Ignore NaI D line for purposes of continuum fit by maximizing
-         ;       error. This doesn't actually remove these data points from the fit,
-         ;       but it minimizes their weight.
-         if not tag_exist(initdat,'keepnad') then begin
-            if not tag_exist(initdat,'nad_contcutrange') then begin
-               nadran_rest = [5850d,5900d]
-               nadran = (1d + zstar) * nadran_rest
-            endif else nadran = initdat.nad_contcutrange
-            indx_nad = where(cube.wave ge nadran[0] AND $
-               cube.wave le nadran[1],ct)
-            if ct gt 0 then err[indx_nad]=max(err)
+;        Regions to ignore in fitting. Set to max(err).
+         if tag_exist(initdat,'cutrange') then begin
+            sizecutrange = size(initdat.cutrange)
+            if sizecutrange[0] eq 1 then begin
+               indx_cut = where(cube.wave ge initdat.cutrange[0] AND $
+                                cube.wave le initdat.cutrange[1],ct)
+               if ct gt 0 then begin
+                  dq[indx_cut]=1b
+                  err[indx_cut]=errmax*100d
+               endif
+            endif else if sizecutrange[0] eq 2 then begin
+               for k=0,sizecutrange[2]-1 do begin
+                  indx_cut = where(cube.wave ge initdat.cutrange[0,k] AND $
+                     cube.wave le initdat.cutrange[1,k],ct)
+                  if ct gt 0 then begin
+                     dq[indx_cut]=1b
+                     err[indx_cut]=errmax*100d
+                  endif
+               endfor
+            endif else message,'CUTRANGE not properly specified.'
          endif
 
-         ;       Option to tweak cont. fit
+;        Option to tweak cont. fit
          if tag_exist(initdat,'tweakcntfit') then $
             tweakcntfit = reform(initdat.tweakcntfit[i,j,*,*],3,$
             n_elements(initdat.tweakcntfit[i,j,0,*])) $
          else tweakcntfit = 0
 
-         ;       Initialize starting wavelengths
-         linelistz = hash(initdat.lines)
+;        Initialize starting wavelengths
+         linelistz = hash()
          if ~ tag_exist(initdat,'noemlinfit') AND ct_comp_emlist gt 0 then $
             foreach line,initdat.lines do $
-            ;              if oned then $
-            ;                 linelistz[line] = $
-            ;                 reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
-            ;                           initdat.maxncomp) $
-            ;              else $
-            linelistz[line] = $
-            reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
-            initdat.maxncomp)
+               if oned then $
+                  linelistz[line] = $
+                     reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,*]),$
+                            initdat.maxncomp) $
+               else $
+                  linelistz[line] = $
+                     reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
+                            initdat.maxncomp)
 
-         structinit = ifsf_fitspec(cube.wave,flux,err,zstar,linelist,$
-            linelistz,ncomp,initdat,quiet=quiet,$
-            siglim_gas=siglim_gas,$
-            tweakcntfit=tweakcntfit)
+         structinit = ifsf_fitspec(cube.wave,flux,err,dq,zstar,linelist,$
+                                   linelistz,ncomp,initdat,quiet=quiet,$
+                                   siglim_gas=siglim_gas,$
+                                   siginit_gas=siginit_gas,$
+                                   tweakcntfit=tweakcntfit,col=i+1,$
+                                   row=j+1)
 
          testsize = size(structinit)
          if testsize[0] eq 0 then begin
@@ -195,16 +246,17 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
             if ~ tag_exist(initdat,'noemlinfit') AND ct_comp_emlist gt 0 then begin
                ;             Set emission line mask parameters
                linepars = ifsf_sepfitpars(linelist,structinit.param,$
-                  structinit.perror,structinit.parinfo)
+                                          structinit.perror,$
+                                          structinit.parinfo)
                linelistz = linepars.wave
                if tag_exist(initdat,'masksig_secondfit') then $
                   masksig_secondfit = initdat.masksig_secondfit $
                else masksig_secondfit = masksig_secondfit_def
                maskwidths = hash(initdat.lines)
                foreach line,initdat.lines do $
-                  maskwidths[line] = masksig_secondfit*linepars.sigma[line]
+                  maskwidths[line] = masksig_secondfit*linepars.sigma_obs[line]
                maskwidths_tmp = maskwidths
-               peakinit_tmp = linepars.fluxpk
+               peakinit_tmp = linepars.fluxpk_obs
                siginit_gas_tmp = linepars.sigma
             endif else begin
                maskwidths_tmp=0
@@ -212,14 +264,15 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
                siginit_gas_tmp=0
             endelse
 
-            struct = ifsf_fitspec(cube.wave,flux,err,structinit.zstar,$
-               linelist,$
-               linelistz,ncomp,initdat,quiet=quiet,$
-               maskwidths=maskwidths_tmp,$
-               peakinit=peakinit_tmp,$
-               siginit_gas=siginit_gas_tmp,$
-               siglim_gas=siglim_gas,$
-               tweakcntfit=tweakcntfit)
+            struct = ifsf_fitspec(cube.wave,flux,err,dq,structinit.zstar,$
+                                  linelist,$
+                                  linelistz,ncomp,initdat,quiet=quiet,$
+                                  maskwidths=maskwidths_tmp,$
+                                  peakinit=peakinit_tmp,$
+                                  siginit_gas=siginit_gas_tmp,$
+                                  siglim_gas=siglim_gas,$
+                                  tweakcntfit=tweakcntfit,col=i+1,$
+                                  row=j+1)
             testsize = size(struct)
             if testsize[0] eq 0 then begin
                printf,loglun,'IFSF: Aborting.'

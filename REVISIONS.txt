@@ -23,3 +23,13 @@ Major code revision, incorporating the following changes:
   its logic.
 - Outputs: plots are more customizable, and output save file now
   produced.
+
+v0.4
+Release: 04 Apr 2017
+
+Significant revisions, incorporating the following changes:
+- Multi-core fitting.
+- PPXF speed-ups.
+- Renaming/restructuring of various initialization tags.
+- Optimization of routines for fitting an unresolved PSF component.
+- Many small changes!

@@ -96,8 +96,12 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
    
 ;  Optical lines
    lines['Halpha'] = 6562.80d
-   lines['Hbeta'] = 4861.32d
+   lines['Hbeta'] = 4861.35d
    lines['Hgamma'] = 4340.47d
+   lines['Hdelta'] = 4101.73d
+   lines['Hepsilon'] = 3970.075d
+   lines['H8'] = 3889.064d
+   lines['H9'] = 3835.397d
    lines['HeI5876'] = 5875.661d
    lines['HeI6678'] = 6678.15d
    lines['HeI7065'] = 7065.19d
@@ -105,6 +109,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
    lines['[NeIII]3869'] = 3868.76d
    lines['[NI]5198'] = 5197.90d
    lines['[NI]5200'] = 5200.26d
+   lines['[NI]5198+[NI]5200'] = (5197.90d + 5200.26d)/2d
    lines['[NII]5755'] = 5754.59
    lines['[NII]6548'] = 6548.05d
    lines['[NII]6583'] = 6583.45d
@@ -113,16 +118,26 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
    lines['[OI]6364'] = 6363.78d
    lines['[OII]3726'] = 3726.032d
    lines['[OII]3729'] = 3728.815d
+   lines['[OII]3726+[OII]3729'] = (3726.032d + 3728.815d)/2d
    lines['[OIII]4959'] = 4958.91d
    lines['[OIII]5007'] = 5006.84d
    lines['[SII]6716'] = 6716.44d
    lines['[SII]6731'] = 6730.82d
+   lines['[SII]6716+[SII]6731'] = (6716.44d + 6730.82d)/2d
    lines['[SIII]6312'] = 6312.06d
    lines['Mg1b5167'] = 5167.3213
    lines['Mg1b5173'] = 5172.6844
    lines['Mg1b5184'] = 5183.6043  
    lines['NaD2'] = 5889.95d
    lines['NaD1'] = 5895.92d
+   lines['OH6287a'] = 6287.407 ; 9-3 P1e(2.5), Osterbrock 1996
+   lines['OH6287b'] = 6287.462 ; 9-3 P1f(2.5), Osterbrock 1996
+   lines['OH6306a'] = 6306.869 ; 9-3 P1e(3.5)
+   lines['OH6306b'] = 6306.981 ; 9-3 P1f(3.5)
+   lines['OH6329a'] = 6329.747 ; 9-3 P1e(4.5)
+   lines['OH6329b'] = 6329.933 ; 9-3 P1f(4.5)
+   lines['OH6356a'] = 6356.167 ; 9-3 P1e(5.5)
+   lines['OH6356b'] = 6356.441 ; 9-3 P1f(5.5)
    lines['OH8344'] = 8344.602d
    lines['OH8399'] = 8399.160d
    lines['OH8430'] = 8430.170d
@@ -299,6 +314,10 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
       linelab['Halpha'] = 'H$\alpha$'
       linelab['Hbeta'] = 'H$\beta$'
       linelab['Hgamma'] = 'H$\gamma$'
+      linelab['Hdelta'] = 'H$\delta$'
+      linelab['Hepsilon'] = 'H$\epsilon$'
+      linelab['H8'] = 'H8'
+      linelab['H9'] = 'H9'
       linelab['HeI5876'] = 'HeI 5876'
       linelab['HeI6678'] = 'HeI 6678'
       linelab['HeI7065'] = 'HeI 7065'
@@ -306,6 +325,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
       linelab['[NeIII]3869'] = '[NeIII] 3869'
       linelab['[NI]5198'] = '[NI] 5198'
       linelab['[NI]5200'] = '[NI] 5200'
+      linelab['[NI]5198+[NI]5200'] = '[NI] 5198, 5200'
       linelab['[NII]5755'] = '[NII] 5755'
       linelab['[NII]6548'] = '[NII] 6548'
       linelab['[NII]6583'] = '[NII] 6583'
@@ -314,10 +334,12 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
       linelab['[OI]6364'] = '[OI] 6364'
       linelab['[OII]3726'] = '[OII] 3726'
       linelab['[OII]3729'] = '[OII] 3729'
+      linelab['[OII]3726+[OII]3729'] = '[OII] 3726, 3729'
       linelab['[OIII]4959'] = '[OIII] 4959'
       linelab['[OIII]5007'] = '[OIII] 5007'
       linelab['[SII]6716'] = '[SII] 6716'
       linelab['[SII]6731'] = '[SII] 6731'
+      linelab['[SII]6716+[SII]6731'] = '[SII] 6716, 6731'
       linelab['[SIII]6312'] = '[SIII] 6312'
       linelab['Mg1b5167'] = 'MgI 5167'
       linelab['Mg1b5173'] = 'MgI 5173'

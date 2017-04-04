@@ -55,8 +55,15 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_pltcont,instr,outfile,ps=ps
+pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
+                 ps=ps,title=title,fitran=fitran
+                 
 
+  if keyword_set(compspec) then begin
+     sizecomp = size(compspec)
+     if sizecomp[0] gt 1 then ncomp = sizecomp[2] else ncomp = 1
+     compcolors = ['Cyan','Orange','Green']
+  endif else ncomp = 0
   if keyword_set(ps) then dops=1 else dops=0
 
   if dops then begin
@@ -69,30 +76,23 @@ pro ifsf_pltcont,instr,outfile,ps=ps
   endif else begin
      set_plot,'Z'
      device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
-     !P.charsize=1
+     !P.charsize=1.5
      !P.charthick=1
-     erase
+     !P.thick=4
+     cgerase,'Black'
   endelse
+
+  defaultXtickint=!X.tickinterval
+  defaultXminor=!X.minor
+  !X.tickinterval=200
+  !X.minor=50
   
   wave = instr.wave
-  spectot = instr.spec
   specstars = instr.cont_dat
   speclines = instr.emlin_dat
   modstars = instr.cont_fit
-  modlines = instr.emlin_fit
-  modtot = modstars + modlines
-
-  if keyword_set(outstelfit) then outstelfit=modstars
-
-  norm = max(modstars)
-  spectot /= norm
-  specstars /= norm
-  speclines /= norm
-  modtot /= norm
-  modstars /= norm
-  modlines /= norm
   
-  xran = instr.fitran
+  if keyword_set(fitran) then xran = fitran else xran = instr.fitran
   dxran = xran[1] - xran[0]
   xran1 = [xran[0],xran[0]+dxran/3d]
   xran2 = [xran[0]+dxran/3d,xran[0]+2d*dxran/3d]
@@ -139,59 +139,73 @@ pro ifsf_pltcont,instr,outfile,ps=ps
 
   xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
 ;xtit = textoidl('Observed Wavelength (!6!sA!r!u!9 %!6!n )')
-  ytit = textoidl('Normalized F_\lambda')
+;  ytit = textoidl('F_\lambda')
+  ytit=''
   multiplot,[1,3],/doyaxis,/doxaxis,ygap=0.02,mxtitle=xtit,mytitle=ytit,$
             mxtitsize=2,mytitsize=2,mxtitoff=1
-  ydat = specstars
-  ymod = modstars
-  yran = [min([ydat[i1],ymod[i1]]),max([ydat[i1],ymod[i1]])]
-  ydi = ydat[i1]
-  ymodi = ymod[i1]
-  y = [ydi-ymodi]
-  ny = n_elements(y)
-  iysort = sort(y)
-  ysort = y[iysort]
-  ymodisort = ymodi[iysort]
-  if ysort[ny-ntop] lt ysort[ny-1]*maxthresh then $
-     yran[1] = max(ysort[0:ny-ntop]+ymodisort[0:ny-ntop])
-  if ysort[nbottom] gt ysort[0]*maxthresh then $
-     yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
-  if (yran[0] lt 0) then yran[0]=0
-  cgplot,wave,ydat,xran=xran1,yran=yran,/xsty,/ysty,$
-         color='White',axiscol='White'
-  cgoplot,wave,ymod,color='Red'
-  if nmasked gt 0 then $
-     for j=0,nmasked-1 do $
-        cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
-                color='Cyan'
-  multiplot,/doyaxis,/doxaxis
-  ydat = specstars
-  ymod = modstars
-  yran = [min([ydat[i2],ymod[i2]]),max([ydat[i2],ymod[i2]])]
-  ydi = ydat[i2]
-  ymodi = ymod[i2]
-  y = [ydi-ymodi]
-  ny = n_elements(y)
-  iysort = sort(y)
-  ysort = y[iysort]
-  ymodisort = ymodi[iysort]
-  if ysort[ny-ntop] lt ysort[ny-1]*maxthresh then $
-     yran[1] = max(ysort[0:ny-ntop]+ymodisort[0:ny-ntop])
-  if ysort[nbottom] gt ysort[0]*maxthresh then $
-     yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
-  if (yran[0] lt 0) then yran[0]=0
-  cgplot,wave,ydat,xran=xran2,yran=yran,/xsty,/ysty,$
-         color='White',axiscol='White'
-  cgoplot,wave,ymod,color='Red'
-  if nmasked gt 0 then $
-     for j=0,nmasked-1 do $
-        cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
-                color='Cyan'
-  if ct3 gt 0 then begin
-     multiplot,/doyaxis,/doxaxis
+  if ct1 gt 0 then begin
      ydat = specstars
      ymod = modstars
-     yran = [min([ydat[i3],ymod[i3]]),max([ydat[i3],ymod[i3]])]
+;  yran = [min([ydat[i1],ymod[i1]]),max([ydat[i1],ymod[i1]])]
+     yran = [0,max([ydat[i1],ymod[i1]])]
+     ydi = ydat[i1]
+     ymodi = ymod[i1]
+     y = [ydi-ymodi]
+     ny = n_elements(y)
+     iysort = sort(y)
+     ysort = y[iysort]
+     ymodisort = ymodi[iysort]
+     if ysort[ny-ntop] lt ysort[ny-1]*maxthresh then $
+        yran[1] = max(ysort[0:ny-ntop]+ymodisort[0:ny-ntop])
+;  if ysort[nbottom] gt ysort[0]*maxthresh then $
+;     yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
+;  if (yran[0] lt 0) then yran[0]=0
+     cgplot,wave,ydat,xran=xran1,yran=yran,/xsty,/ysty,$
+            color='White',axiscol='White',thick=1,backg='Black'
+     if ncomp gt 0 then $
+        for i=0,ncomp-1 do $
+           cgoplot,wave,compspec[*,i],color=compcolors[i],linesty=0,thick=2
+     cgoplot,wave,ymod,color='Red'
+     if nmasked gt 0 then $
+        for j=0,nmasked-1 do $
+           cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
+                   color='Cyan'
+  endif
+  multiplot,/doyaxis,/doxaxis
+  if ct2 gt 0 then begin
+     ydat = specstars
+     ymod = modstars
+;  yran = [min([ydat[i2],ymod[i2]]),max([ydat[i2],ymod[i2]])]
+     yran = [0,max([ydat[i2],ymod[i2]])]
+     ydi = ydat[i2]
+     ymodi = ymod[i2]
+     y = [ydi-ymodi]
+     ny = n_elements(y)
+     iysort = sort(y)
+     ysort = y[iysort]
+     ymodisort = ymodi[iysort]
+     if ysort[ny-ntop] lt ysort[ny-1]*maxthresh then $
+        yran[1] = max(ysort[0:ny-ntop]+ymodisort[0:ny-ntop])
+;  if ysort[nbottom] gt ysort[0]*maxthresh then $
+;     yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
+;  if (yran[0] lt 0) then yran[0]=0
+     cgplot,wave,ydat,xran=xran2,yran=yran,/xsty,/ysty,$
+            color='White',axiscol='White',thick=1
+     if ncomp gt 0 then $
+        for i=0,ncomp-1 do $
+           cgoplot,wave,compspec[*,i],color=compcolors[i],linesty=0,thick=2
+     cgoplot,wave,ymod,color='Red'
+     if nmasked gt 0 then $
+        for j=0,nmasked-1 do $
+           cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
+                   color='Cyan'
+  endif
+  multiplot,/doyaxis,/doxaxis
+  if ct3 gt 0 then begin
+     ydat = specstars
+     ymod = modstars
+;     yran = [min([ydat[i3],ymod[i3]]),max([ydat[i3],ymod[i3]])]
+     yran = [0,max([ydat[i3],ymod[i3]])]
      ydi = ydat[i3]
      ymodi = ymod[i3]
      y = [ydi-ymodi]
@@ -201,24 +215,36 @@ pro ifsf_pltcont,instr,outfile,ps=ps
      ymodisort = ymodi[iysort]
      if ysort[ny-ntop] lt ysort[ny-1]*maxthresh then $
         yran[1] = max(ysort[0:ny-ntop]+ymodisort[0:ny-ntop])
-     if ysort[nbottom] gt ysort[0]*maxthresh then $
-        yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
-     if (yran[0] lt 0) then yran[0]=0
+;     if ysort[nbottom] gt ysort[0]*maxthresh then $
+;        yran[0] = min(ysort[nbottom:ny-1]+ymodisort[nbottom:ny-1])
+;     if (yran[0] lt 0) then yran[0]=0
      cgplot,wave,ydat,xran=xran3,yran=yran,/xsty,/ysty,$
-          color='White',axiscol='White'
+          color='White',axiscol='White',thick=1
+     if ncomp gt 0 then $
+        for i=0,ncomp-1 do $
+           cgoplot,wave,compspec[*,i],color=compcolors[i],linesty=0,thick=2
      cgoplot,wave,ymod,color='Red'
      if nmasked gt 0 then $
         for j=0,nmasked-1 do $
            cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
                    color='Cyan'
-  endif else multiplot
+  endif
   multiplot,/reset
 
-  tit = 'STELLAR CONTINUUM FIT'
-  cgtext,0.5,0.96,tit,/norm,align=0.5,charsize=2,charthick=2
+  if keyword_set(title) then $
+     cgtext,0.75,0.96,title,/norm,align=0.5,charsize=2,charthick=2
+  if ncomp gt 0 AND keyword_set(comptitles) then begin
+     comptitles = [comptitles,'total']
+     compcolors = [compcolors[0:ncomp-1],'Red']
+     al_legend,comptitles,linesty=dblarr(ncomp+1),colors=compcolors,$
+               /horiz,pos=[0.05,0.99],/norm,linsiz=0.2
+  endif
 
   tmpfile = outfile
   if dops then device,/close_file $
   else img = cgsnapshot(filename=tmpfile,/jpeg,/nodialog,quality=100)
+
+  !X.tickinterval=defaultXtickint
+  !X.minor=defaultXminor
   
 end

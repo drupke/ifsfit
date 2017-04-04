@@ -3,7 +3,7 @@
 ;+
 ;
 ; This function initializes the fitting parameters for the sky lines in 
-; F05189-2524, 2011 GMOS data.
+; an example galaxy.
 ;
 ; :Categories:
 ;    IFSF
@@ -23,10 +23,10 @@
 ;
 ; :History:
 ;    ChangeHistory::
-;      2015jan05, DSNR, copied from ifsf_f13342
+;      2017apr04, DSNR, created
 ;
 ; :Copyright:
-;    Copyright (C) 2015 David S. N. Rupke
+;    Copyright (C) 2017 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -43,16 +43,16 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_f05189sky,skyexp=skyexp,initnad=initnad
+function ifsf_examplesky,skyexp=skyexp,initnad=initnad
 
   ncols=749
-  gal='f05189'
+  gal='example'
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Required pars
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  infile='/Users/drupke/ifs/gmos/red/'+gal+'/ctexrdat_'+skyexp+'.fits'
+  infile='/location/of/example/example.fits'
   lines = ['[OI]5577']
   maxncomp = 1
   linetie = hash(lines,'[OI]5577')
@@ -62,7 +62,7 @@ function ifsf_f05189sky,skyexp=skyexp,initnad=initnad
   foreach i,lines do begin
     ncomp[i] = dblarr(ncols)+maxncomp
     zinit_gas[i] = dblarr(ncols,maxncomp)
-    siginit_gas[i] = dblarr(maxncomp) + 39d
+    siginit_gas[i] = dblarr(maxncomp) + 40d
   endforeach
   zinit_stars=dblarr(ncols)
 
@@ -78,7 +78,6 @@ function ifsf_f05189sky,skyexp=skyexp,initnad=initnad
 
   ; Velocity dispersion limits
   siglim_gas = [35,50]
-;   siglim_gas = [38.9,39.1]
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ; Output structure
@@ -88,18 +87,19 @@ function ifsf_f05189sky,skyexp=skyexp,initnad=initnad
     ; Required pars
     fcninitpar: 'ifsf_gmos',$
     fitran: [5550,5600],$
+    zsys_gas: 0d,$
     infile: infile,$
     label: gal,$
     lines: lines,$
     linetie: linetie,$
     maxncomp: maxncomp,$
     ncomp: ncomp,$
-    outdir: '/Users/drupke/specfits/gmos/'+gal+'/o1_5577/exp'+skyexp+'/',$
+    outdir: '/Location/of/fit/outputs/'+gal+'/o1_5577/exp'+skyexp+'/',$
     zinit_stars: zinit_stars,$
     zinit_gas: zinit_gas,$
     ; Optional pars
-    argscontfit: {nobvls: 1, fitord: 1},$
-    argsinitpar: {siglim: siglim_gas},$
+    argscontfit: {fitord: 1},$
+    argsinitpar: {siglim: siglim_gas,specres: 0.001d},$
     argspltlin1: argspltlin1,$
     datext: 2,$
     dqext: 4,$

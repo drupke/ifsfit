@@ -34,10 +34,13 @@
 ;      2014apr10, DSNR, documented, added license and copyright; added treatment
 ;                       of a = 0 case; moved to IFSFIT
 ;      2014jul09, DSNR, now uses STRUCT_ADDTAGS instead of ADD_TAGS; the former
-;                       is from IDLUTILS, the latter from the SSW library
+;                       is from IDLUTILS, the latter from the SSW
+;                       library
+;      2017apr04, DSNR, now uses CREATE_STRUCT instead of
+;                       STRUCT_ADDTAGS; IDLUTILS no longer necessary
 ;
 ; :Copyright:
-;    Copyright (C) 2014 David S. N. Rupke
+;    Copyright (C) 2014--2017 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -70,7 +73,7 @@ function ifsf_gaussarea,a,aerr=aerr
   if keyword_set(aerr) then begin
      outerr = dblarr(ngauss)
      if ctgda gt 0 then outerr[igda] = out[igda]*0.5d/a[igda]*aerr[igda]
-     outstr = struct_addtags(outstr,{area_err: outerr})
+     outstr = create_struct(outstr,'area_err',outerr)
   endif
 
   return,outstr

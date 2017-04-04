@@ -33,6 +33,9 @@
 ;      continuum, as well.
 ;    cont: in, optional, type=dblarr(N)
 ;      Continuum used to originally normalize data for fits.
+;    specres: in, optional, type=double, def=0.64d
+;      Estimated spectral resolution in wavelength units (sigma).
+;      
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -49,9 +52,10 @@
 ;      2014jun10, DSNR, cleaned up treatment of optional individual component 
 ;                       outputs; added optional computation of Weq and emission
 ;                       line flux
+;      2016nov03, DSNR, added convolution with spectral resolution
 ;    
 ; :Copyright:
-;    Copyright (C) 2014 David S. N. Rupke
+;    Copyright (C) 2014--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -70,9 +74,11 @@
 ;-
 function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
                       modnadem=modnadem, weq=weq, nademflux=nademflux, $
-                      cont=cont
+                      cont=cont, specres=specres, wavnadabs=wavnadabs, $
+                      wavhei=wavhei
 
    c = 299792.458d
+   fwhmtosig = 2d*sqrt(2d*alog(2d))
 ;  NaD wavelength ratio (red to blue)
    lratio = 1.001014158d
 
@@ -82,17 +88,25 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    nnadem = param[2]
 
    nwave = n_elements(wave)
+   dwave = wave[1:nwave-1] - wave[0:nwave-2]
 
 ;  HeI emission
    modflux = dblarr(nwave)+1d
-   if nhei gt 0 then modhei=dblarr(nwave,nhei)+1d else modhei=0
-   for i=0,nhei-1 do begin
-      arg = ((wave-param[3+i*3])/$
-            (2d*param[3+i*3]*param[4+i*3]/c))^2d
-      mask = (arg lt 80)
-      modhei[*,i]+=param[5+i*3]*mask*exp(-arg*mask)
-      modflux+=param[5+i*3]*mask*exp(-arg*mask)
-   endfor
+   if nhei gt 0 then begin
+      wavhei=dblarr(nhei)
+      modhei=dblarr(nwave,nhei)+1d
+      for i=0,nhei-1 do begin
+         wavhei[i]=param[3+i*3]
+         arg = ((wave-param[3+i*3])/$
+               (2d*param[3+i*3]*param[4+i*3]/c))^2d
+         mask = (arg lt 80)
+         modhei[*,i]+=param[5+i*3]*mask*exp(-arg*mask)
+         modflux+=param[5+i*3]*mask*exp(-arg*mask)
+      endfor
+   endif else begin
+      wavhei=0
+      modhei=0
+   endelse
 ;  NaD emission
    ilo = 3+nhei*3+nnadabs*4
    if nnadem gt 0 then modnadem=dblarr(nwave,nnadem)+1d else modnadem=0
@@ -112,17 +126,21 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    ilo = 3+nhei*3
    if nnadabs gt 0 then begin
       modnadabs = dblarr(nwave,nnadabs)+1d
+      wavnadabs = dblarr(nnadabs)
       modtmp = dblarr(nwave)+1d
       for i=0,nnadabs-1 do begin
+         wavnadabs[i] = param[ilo+i*4+2]
          modnadabs[*,i]*=ifsf_cmpnad(wave,param[ilo+i*4:ilo+(i+1)*4-1])
          modtmp*=ifsf_cmpnad(wave,param[ilo+i*4:ilo+(i+1)*4-1])
       endfor
       modflux *= modtmp
-   endif else modnadabs=0
+   endif else begin
+      wavnadabs=0
+      modnadabs=0
+   endelse
 
 ;  Optionally, compute equivalent widths
    if keyword_set(weq) then begin
-      dwave = wave[1:nwave-1] - wave[0:nwave-2]
       if nnadem gt 0 then begin
          emweq = dblarr(nnadem+1)
          for i=0,nnadem-1 do $
@@ -149,7 +167,14 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
          nademflux[0] = total(nademflux[1:nnadem])
       endif else nademflux=0d
    endif else nademflux=0d
-   
-   return,modflux
+
+;  Convolve model with line spread function, represented by a Gaussian
+   fwhm_pix = specres*fwhmtosig/mean(dwave)
+   npix = fix(fwhm_pix*5d)
+   if not npix then npix++
+   kernel = psf_gaussian(npix=npix,ndim=1,/double,fwhm=fwhm_pix)
+   modflux_con = convol(modflux,kernel,/normalize,/edge_mirror)
+
+   return,modflux_con
 
 end

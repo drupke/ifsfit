@@ -103,6 +103,15 @@
 ;                       INITDAT tag MASKCTRAN
 ;      2016sep13, DSNR, added internal logic to check if emission-line fit present
 ;      2016sep16, DSNR, allowed MASKWIDTHS_DEF to come in through INITDAT
+;      2016sep22, DSNR, tweaked continuum function call to allow new continuum
+;                       fitting capabilities; moved logging of things earlier
+;                       instead of ensconcing in PPXF loop, for use of PPXF 
+;                       elsewhere; new output tag CONT_FIT_PRETWEAK
+;      2016oct03, DSNR, multiply PERROR by reduced chi-squared, per prescription
+;                       in MPFIT documentation
+;      2016oct11, DSNR, added calculation of fit residual
+;      2016nov17, DSNR, changed FTOL in MPFITFUN call from 1d-6 to 
+;                       default (1d-10)
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -122,15 +131,24 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
+function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
                       ncomp,initdat,maskwidths=maskwidths,$
                       peakinit=peakinit,quiet=quiet,siginit_gas=siginit_gas,$
-                      siglim_gas=siglim_gas,tweakcntfit=tweakcntfit
+                      siglim_gas=siglim_gas,tweakcntfit=tweakcntfit,$
+                      col=col,row=row
+
+  flux_out = flux
+  err_out = err
 
   c = 299792.458d        ; speed of light, km/s
   siginit_gas_def = 100d ; default sigma for initial guess 
                          ; for emission line widths
-  nlines = n_elements(initdat.lines)
+  if tag_exist(initdat,'lines') then begin
+     nlines = n_elements(initdat.lines)
+     linelabel = initdat.lines
+  endif else begin
+     linelabel = 0b
+  endelse
 
   if keyword_set(quiet) then quiet=1b else quiet=0b
   if keyword_set(siglim_gas) then siglim_gas=siglim_gas else siglim_gas=0b
@@ -156,73 +174,90 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ;    Get stellar templates
      restore,initdat.startempfile
 ;    Redshift stellar templates
-     templatelambdaz = $
-        reform(template.lambda,n_elements(template.lambda)) * (1d + zstar)
+     templatelambdaz = reform(template.lambda,n_elements(template.lambda))
+     if ~ tag_exist(initdat,'keepstarz') then $
+        templatelambdaz *= 1d + zstar
      if vacuum then airtovac,templatelambdaz
-  endif
+  endif else begin
+     templatelambdaz = lambda
+  endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Pick out regions to fit
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  gd_indx = indgen(n_elements(flux))
+  flux_raw = flux
+  err_raw = err
 
-; Find where spectrum extends blueward or redward of template
-  if istemp then begin
-     bt_indx = where(lambda lt min(templatelambdaz) OR $
-                     lambda gt max(templatelambdaz),ctbt)
-     if ctbt gt 0 then gd_indx = cmset_op(gd_indx,'AND',/NOT2,bt_indx)
-  endif
-; Find where spectrum is outside fit range
-  if tag_exist(initdat,'fitran') then begin
-     fitran = initdat.fitran
-     or_indx = where(lambda lt initdat.fitran[0] OR $
-                     lambda gt initdat.fitran[1],ctor)
-     if ctor gt 0 then $
-        gd_indx = cmset_op(gd_indx,'AND',/NOT2,or_indx)
-  endif else begin
-     fitran = 0
-  endelse
+  if tag_exist(initdat,'fitran') then fitran_tmp = initdat.fitran $
+  else fitran_tmp = [lambda[0],lambda[n_elements(lambda)-1]]
+; indices locating good data and data within fit range
+  gd_indx_full = where(flux ne 0 AND err gt 0 AND ~ finite(err,/infinity) AND $
+                       dq eq 0 AND $
+                       lambda ge min(templatelambdaz) AND $
+                       lambda le max(templatelambdaz) AND $
+                       lambda ge fitran_tmp[0] AND $
+                       lambda le fitran_tmp[1],ctgd_full)
 
-; Limit data to "good" regions
-  npix     = n_elements(gd_indx)
-  gdflux   = flux[gd_indx]
-  gdlambda = lambda[gd_indx]
-  gderr    = err[gd_indx]
+  fitran = [min(lambda[gd_indx_full]),max(lambda[gd_indx_full])]
 
-  if fitran[0] eq 0 then fitran = [gdlambda[0],gdlambda[npix-1]]
+; Find where flux is <= 0 or error is <= 0 or infinite. 
+; (Otherwise MPFIT chokes.)
+  neg_indx = where(flux lt 0,ctneg)
+  zerinf_indx = where(flux eq 0 OR err le 0 OR finite(err,/infinity),ctzerinf)
+  maxerr = max(err[gd_indx_full])
+;  if ctneg gt 0 then begin
+;     flux[neg_indx]=-1d*flux[neg_indx]
+;     err[neg_indx]=maxerr*100d
+;     if not quiet then print,'Setting ',ctneg,' points from neg. flux to pos. '+$
+;        'and max(err)x100.',format='(A,I0,A)'
+;  endif
+  if ctzerinf gt 0 then begin
+     flux[zerinf_indx]=median(flux[gd_indx_full])
+     err[zerinf_indx]=maxerr*100d
+     if not quiet then print,'Setting ',ctzerinf,' points from zero flux or '+$
+        'neg./zero/inf. error to med(flux) and max(err)x100.',format='(A,I0,A)'
+  endif
 
-; Find where flux is negative and inverse variance is undefined;
-; otherwise MPFIT chokes.
-  neg_indx = where(gdflux lt 0,ct)
-  if ct gt 0 then begin
-     gdflux[neg_indx]=-1d*gdflux[neg_indx]
-     gderr[neg_indx]=max(gderr)
-     if not quiet then $
-        print,"Setting ",ct," points from neg. flux to pos. and max(err).",$
-              format='(A,I0,A)'
-  endif
-  zer_indx = where(gdflux eq 0 OR gderr le 0,ct)
-  if ct gt 0 then begin
-     gdflux[zer_indx]=median(gdflux)
-     gderr[zer_indx]=max(gderr)
-     if not quiet then $
-        print,"Setting ",ct,$
-              " points from zero flux or error to med(flux) and max(err).",$
-              format='(A,I0,A)'
-  endif
-  inf_indx = where(finite(gderr,/infinity),ct)
-  if ct gt 0 then begin
-     gdflux[inf_indx]=median(gdflux)
-     gderr[inf_indx]=max(gderr)
-     if ~ quiet then $
-        print,"Setting ",ct,$
-              " points from inf. error to med(flux) and max(err).",$
-              format='(A,I0,A)'
-  endif
+; indices locating data within actual fit range
+  fitran_indx = where(lambda ge fitran[0] AND lambda le fitran[1],ctfitran)
+
+; indices locating good regions within lambda[fitran_indx]
+  gd_indx_full_rezero = gd_indx_full - fitran_indx[0]
+  max_gd_indx_full_rezero = max(fitran_indx) - fitran_indx[0]
+  i_gd_indx_full_rezero = where(gd_indx_full_rezero ge 0 AND $
+                                gd_indx_full_rezero le max_gd_indx_full_rezero,$
+                                ctgd)
+  gd_indx = gd_indx_full_rezero[i_gd_indx_full_rezero]
+
+; Limit data to fitrange
+  npix     = n_elements(fitran_indx)
+  gdflux   = flux[fitran_indx]
+  gdlambda = lambda[fitran_indx]
+  gderr    = err[fitran_indx]
 
 ; Weight
   gdweight = 1d/gderr^2
+
+; Log rebin galaxy spectrum for finding bad regions in log space
+  log_rebin,fitran,flux_raw[fitran_indx],gdflux_log
+  log_rebin,fitran,err_raw[fitran_indx]^2d,gderrsq_log
+  gderr_log = sqrt(gderrsq_log)
+;  neg_indx_log = where(gdflux_log lt 0,ctneg_log)
+  zerinf_indx_log = where(gdflux_log eq 0 OR gderr_log le 0 OR $
+                          finite(gderr_log,/infinity),ctzerinf_log)
+  gd_indx_log = indgen(ctfitran)
+;  if ctneg_log gt 0 then $
+;     gd_indx_log = cgsetdifference(gd_indx_log,neg_indx_log)
+  if ctzerinf_log gt 0 then $
+     gd_indx_log = cgsetdifference(gd_indx_log,zerinf_indx_log)
+  
+
+; Log rebin galaxy spectrum for use with PPXF, this time with 
+; errors corrected before rebinning
+  log_rebin,fitran,gdflux,gdflux_log,gdlambda_log,velscale=velscale
+  log_rebin,fitran,gderr^2d,gderrsq_log
+  gderr_log = sqrt(gderrsq_log)
 
 ; timer
   fit_time0 = systime(1)
@@ -233,7 +268,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   if tag_exist(initdat,'fcncontfit') then begin
-     
+
 ;    Mask emission lines
      if ~ noemlinfit then begin
         if not keyword_set(maskwidths) then $
@@ -246,20 +281,34 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
            endelse
         ct_indx  = ifsf_masklin(gdlambda, linelistz, maskwidths, $
                                 nomaskran=nomaskran)
-     endif else ct_indx = indgen(n_elements(gdlambda))
+;       Mask emission lines in log space
+        ct_indx_log = ifsf_masklin(exp(gdlambda_log), linelistz, $
+                                   maskwidths, nomaskran=nomaskran)
+     endif else begin
+        ct_indx = indgen(n_elements(gdlambda))
+        ct_indx_log = indgen(n_elements(gdlambda_log))
+     endelse
 
-;    Mask other regions
-     if tag_exist(initdat,'maskctran') then begin
-        mrsize = size(initdat.maskctran)
-        nreg = 1
-        if mrsize[0] gt 1 then nreg = mrsize[2]
-        for k=0,nreg-1 do begin
-            indx_mask = where(gdlambda ge initdat.maskctran[0,k] AND $
-                              gdlambda le initdat.maskctran[1,k],ct)
-            if ct gt 0 then ct_indx = cgsetdifference(ct_indx,indx_mask)
-        endfor
-     endif
-
+     ct_indx = cgsetintersection(ct_indx,gd_indx)
+     ct_indx_log = cgsetintersection(ct_indx_log,gd_indx_log)
+           
+;;    Mask other regions
+;;    Now doing this in IFSF_FITLOOP with CUTRANGE tag
+;     if tag_exist(initdat,'maskctran') then begin
+;        mrsize = size(initdat.maskctran)
+;        nreg = 1
+;        if mrsize[0] gt 1 then nreg = mrsize[2]
+;        for k=0,nreg-1 do begin
+;            indx_mask = where(gdlambda ge initdat.maskctran[0,k] AND $
+;                              gdlambda le initdat.maskctran[1,k],ct)
+;            indx_mask_log = where(exp(gdlambda) ge initdat.maskctran[0,k] AND $
+;                                  exp(gdlambda) le initdat.maskctran[1,k],ct)
+;            if ct gt 0 then begin
+;               ct_indx = cgsetdifference(ct_indx,indx_mask)
+;               ct_indx_log = cgsetdifference(ct_indx_log,indx_mask_log)
+;            endif
+;        endfor
+;     endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Option 1: Input function
@@ -267,42 +316,59 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 
      if initdat.fcncontfit ne 'ppxf' then begin
 
-        if tag_exist(initdat,'argscontfit') then continuum = $
-           call_function(initdat.fcncontfit,gdlambda,gdflux,$
-                         gdweight,new_temp,ct_indx,ct_coeff,$
-                         quiet=quiet,_extra=initdat.argscontfit) $
-        else continuum = $
-           call_function(initdat.fcncontfit,gdlambda,gdflux,$
-                         gdweight,new_temp,ct_indx,ct_coeff,quiet=quiet)
-        
+        if istemp then begin
+           templatelambdaz_tmp = templatelambdaz
+           templateflux_tmp = template.flux
+        endif else begin
+           templatelambdaz_tmp = 0b
+           templateflux_tmp = 0b
+        endelse
+
+        if tag_exist(initdat,'argscontfit') then begin
+           argscontfit_use = initdat.argscontfit
+           if initdat.fcncontfit eq 'ifsf_fitqsohost' then $
+              argscontfit_use = create_struct(argscontfit_use,'fitran',fitran)
+           if tag_exist(initdat.argscontfit,'uselog') then $
+              argscontfit_use = $
+                 create_struct(argscontfit_use,'index_log',ct_indx_log)
+           if tag_exist(initdat.argscontfit,'usecolrow') AND $
+              keyword_set(col) AND keyword_set(row) then $  
+              argscontfit_use = $
+                 create_struct(argscontfit_use,'colrow',[col,row])
+           continuum = $
+              call_function(initdat.fcncontfit,gdlambda,gdflux,$
+                            gdweight,templatelambdaz_tmp,templateflux_tmp,$
+                            ct_indx,ct_coeff,zstar,$
+                            quiet=quiet,_extra=argscontfit_use)
+           ppxf_sigma=0d
+           if initdat.fcncontfit eq 'ifsf_fitqsohost' AND $
+              tag_exist(initdat.argscontfit,'refit') then $ 
+              ppxf_sigma=ct_coeff.ppxf_sigma
+        endif else begin
+           continuum = $
+              call_function(initdat.fcncontfit,gdlambda,gdflux,$
+                            gdweight,templatelambdaz_tmp,templateflux_tmp,$
+                            ct_indx,ct_coeff,zstar,quiet=quiet)
+           ppxf_sigma=0d
+        endelse
+        add_poly_weights=0d
+           
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Option 2: PPXF
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
      
      endif else if (istemp AND $
                     tag_exist(initdat,'siginit_stars')) then begin
-
-;       Log rebin galaxy spectrum
-        log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],gdflux,$
-                  gdflux_log,gdlambda_log,velscale=velscale
-        log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],gderr^2d,$
-                  gderrsq_log
-        gderr_log = sqrt(gderrsq_log)
         
 ;       Interpolate template to same grid as data
-        temp = ifsf_interptemp(gdlambda,templatelambdaz,template.flux)
         temp_log = ifsf_interptemp(gdlambda_log,alog(templatelambdaz),$
                                    template.flux)
 
-;       Mask emission lines in log space
-        ct_indx_log = $
-           ifsf_masklin(exp(gdlambda_log), linelistz, maskwidths, $
-                        nomaskran=nomaskran)
-
 ;       Check polynomial degree
-        polyterms = 4
-        if tag_exist(initdat,'ppxf_maxdeg_addpoly') then $
-           polyterms = initdat.ppxf_maxdeg_addpoly
+        add_poly_degree = 4
+        if tag_exist(initdat,'argscontfit') then $
+           if tag_exist(initdat.argscontfit,'add_poly_degree') then $
+              add_poly_degree = initdat.argscontfit.add_poly_degree
 
 ;       This ensures PPXF doesn't look for lambda if no reddening is done
         if n_elements(redinit) eq 0 then redlambda = [] else redlambda=gdlambda
@@ -312,7 +378,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
         if tag_exist(initdat,'qsotempfile') then begin
            restore,initdat.qsotempfile
            log_rebin,[gdlambda[0],gdlambda[n_elements(gdlambda)-1]],$
-                     struct.cont_fit[gd_indx],$
+                     struct.cont_fit,$
                      gdqsotemp_log,gdlambda_log_tmp
            sky=gdqsotemp_log       
         endif else sky=0b
@@ -320,26 +386,27 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
         ppxf,temp_log,gdflux_log,gderr_log,velscale,$
              [0,initdat.siginit_stars],sol,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
-             degree=polyterms,polyweights=polyweights,quiet=quiet,$
+             degree=add_poly_degree,polyweights=add_poly_weights,quiet=quiet,$
              weights=ct_coeff,reddening=redinit,lambda=redlambda,sky=sky
 
 ;       Resample the best fit into linear space
         continuum = interpol(continuum_log,gdlambda_log,ALOG(gdlambda))
 
-; IFSF_CMPCONTPPXF is not yet functional ...    
-;        continuum = ifsf_cmpcontppxf(gdlambda,gdlambda_log,temp,ct_coeff,$
-;                                     polyterms,polyweights)
-
 ;       Adjust stellar redshift based on fit
         zstar += sol[0]/c
+        ppxf_sigma=sol[1]
 
-     endif
+     endif else begin
+        add_poly_weights=0d
+        ppxf_sigma=0d
+     endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Option to tweak cont. fit with local polynomial fits
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
      
      if keyword_set(tweakcntfit) then begin
+        continuum_pretweak=continuum
 ;       Arrays holding emission-line-masked data
         ct_lambda=gdlambda[ct_indx]
         ct_flux=gdflux[ct_indx]
@@ -360,7 +427,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
               continuum[tmp_ind] += poly(gdlambda[tmp_ind],tmp_pars)
            endif
         endfor
-     endif
+     endif else continuum_pretweak=continuum
      
      if tag_exist(initdat,'dividecont') then begin
         gdflux_nocnt = gdflux / continuum - 1
@@ -410,12 +477,22 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
         endforeach
      endelse
 ; Initial guesses for emission line widths
-  if not keyword_set(siginit_gas) then $
-     if not tag_exist(initdat,'siginit_gas') then begin
-        siginit_gas = hash(initdat.lines)
-        foreach line,initdat.lines do $
-           siginit_gas[line] = dblarr(initdat.maxncomp)+siginit_gas_def
-     endif else siginit_gas = initdat.siginit_gas
+  if not keyword_set(siginit_gas) then begin
+     siginit_gas = hash(initdat.lines)
+     foreach line,initdat.lines do $
+        siginit_gas[line] = dblarr(initdat.maxncomp)+siginit_gas_def
+  endif
+
+;; Normalize data so it's near 1. Use 95th percentile of flux. If it's far from
+;; 1, results are different, and probably less correct b/c of issues of numerical
+;; precision in calculating line properties.
+;  ifsort = sort(gdflux_nocnt)
+;  fsort = gdflux_nocnt[ifsort]
+;  i95 = fix(n_elements(gdflux_nocnt)*0.95d)
+;  fnorm = fsort[i95]
+;  gdflux_nocnt /= fnorm
+;  gderr_nocnt /= fnorm
+;  foreach line,initdat.lines do peakinit[line] /= fnorm
 
 ; Fill out parameter structure with initial guesses and constraints
   if tag_exist(initdat,'argsinitpar') then parinit = $
@@ -430,24 +507,63 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 
   testsize = size(parinit)
   if testsize[0] eq 0 then begin
-     print,'IFSF_FITSPEC: Bad initial parameter guesses. Aborting.'
-     outstr = 0
-     goto,finish
+     message,'Bad initial parameter guesses.'
+;     outstr = 0
+;     goto,finish
   endif
 
   specfit = DBLARR(npix)
   param = Mpfitfun(fcnlinefit,gdlambda,gdflux_nocnt,gderr_nocnt,$
-                   parinfo=parinit,perror=perror,maxiter=100,$
+                   parinfo=parinit,perror=perror,maxiter=1000,$
                    bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                    nfev=nfev,niter=niter,status=status,quiet=quiet,$
-                   npegged=npegged,ftol=1D-6,functargs=argslinefit,$
+                   npegged=npegged,functargs=argslinefit,$
                    errmsg=errmsg)
-  if status eq 0 OR status eq -16 then begin
-     print,'IFSF_FITSPEC: Error in MPFIT. Aborting.'
-     outstr = 0
-     goto,finish
-  endif
 
+;; Un-normalize fit.
+;  specfit *= fnorm
+;  gdflux_nocnt *= fnorm
+;  gderr_nocnt *= fnorm
+;  foreach line,linelist.keys() do begin
+;     iline = where(parinit.line eq line)
+;     ifluxpk = cgsetintersection(iline,where(parinit.parname eq 'flux_peak'),$
+;                                 count=ctfluxpk)
+;     param[ifluxpk] *= fnorm
+;     perror[ifluxpk] *= fnorm
+;  endforeach
+
+  if status eq 0 OR status eq -16 then begin
+     message,'MPFIT: '+errmsg
+;     outstr = 0
+;     goto,finish
+  endif
+  if status eq 5 then message,'MPFIT: Max. iterations reached.',/cont
+
+; Errors from covariance matrix ...
+  perror *=  sqrt(chisq/dof)
+; ... and from fit residual.
+  resid=gdflux-continuum-specfit
+  perror_resid = perror
+  sigrange = 20d
+  foreach line,linelist.keys() do begin
+     iline = where(parinit.line eq line)
+     ifluxpk = cgsetintersection(iline,where(parinit.parname eq 'flux_peak'),$
+                                 count=ctfluxpk)
+     isigma = cgsetintersection(iline,where(parinit.parname eq 'sigma'))
+     iwave = cgsetintersection(iline,where(parinit.parname eq 'wavelength'))
+     for i=0,ctfluxpk-1 do begin
+        waverange = sigrange*$
+                    sqrt((param[isigma[i]]/c*param[iwave[i]])^2d + param[2]^2d)
+        wlo = value_locate(gdlambda,param[iwave[i]]-waverange/2d)
+        whi = value_locate(gdlambda,param[iwave[i]]+waverange/2d)
+        if gdlambda[wlo] lt gdlambda[0] OR wlo eq -1 then wlo=0
+        if gdlambda[whi] gt gdlambda[n_elements(gdlambda)-1] OR whi eq -1 then $
+           whi=n_elements(gdlambda)-1
+        if param[ifluxpk[i]] gt 0 then $
+           perror_resid[ifluxpk[i]] = sqrt(mean(resid[wlo:whi]^2d))
+      endfor
+  endforeach
+   
   outlinelist = linelist ; this bit of logic prevents overwriting of linelist
   cont_dat = gdflux - specfit
 
@@ -462,6 +578,7 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
     parinit = 0
     param = 0
     perror = 0
+    perror_resid = 0
     covar = 0
   endelse
 
@@ -477,6 +594,10 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
 ; Output structure
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; restore initial values
+  flux = flux_out
+  err = err_out
+
   outstr = {$
            fitran: fitran, $
 ;          Continuum fit parameters
@@ -484,26 +605,32 @@ function ifsf_fitspec,lambda,flux,err,zstar,linelist,linelistz,$
            ct_coeff: ct_coeff, $
            ct_ebv: redinit, $
            zstar: zstar, $
+           ct_add_poly_weights: add_poly_weights,$
+           ct_ppxf_sigma: ppxf_sigma,$
 ;          Spectrum in various forms
            wave: gdlambda, $
            spec: gdflux, $      ; data
            spec_err: gderr, $
            cont_dat: cont_dat, $ ; cont. data (all data - em. line fit)
            cont_fit: continuum, $     ; cont. fit
+           cont_fit_pretweak: continuum_pretweak, $ ; cont. fit before tweaking
            emlin_dat: gdflux_nocnt, $ ; em. line data (all data - cont. fit)
            emlin_fit: specfit, $      ; em. line fit
-           ct_indx: ct_indx, $        ; where emission is not masked
+;          gd_indx is applied, and then ct_indx
            gd_indx: gd_indx, $        ; cuts on various criteria
+           fitran_indx: fitran_indx, $; cuts on various criteria
+           ct_indx: ct_indx, $        ; where emission is not masked
 ;          Line fit parameters
            noemlinfit: noemlinfit,$   ; was emission line fit done?
            redchisq: chisq/dof, $
            niter: niter, $
            fitstatus: status, $
            linelist: outlinelist, $
-           linelabel: initdat.lines, $
+           linelabel: linelabel, $
            parinfo: parinit, $
            param: param, $
            perror: perror, $
+           perror_resid: perror_resid, $ ; error from fit residual
            covar: covar, $
            siglim: siglim_gas $
            }

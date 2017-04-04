@@ -77,7 +77,6 @@ function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
                       fitranlo=fitranlo,fitranhi=fitranhi,subtract=subtract,$
                       snavg_thresh=snavg_thresh
 
-
    if ~ keyword_set(fitord) then fitord=2
    if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
    if ~ keyword_set(fitranhi) then fitranhi = (1d +z)*[5905d,5960d]
@@ -87,38 +86,44 @@ function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
    igd = where(wave ge fitranlo[0] AND wave le fitranhi[1],ctgd)
 
 ;  Check to make sure data is OK
-   snavg = mean(flux[ifit]/err[ifit])
-   if ~ keyword_set(snavg_thresh) then snavg_thresh = 1d
-   if snavg ge snavg_thresh then begin
-
-      parinfo = replicate({value:0d},fitord+1)
-      pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],parinfo=parinfo,/quiet)
-
-      if keyword_set(subtract) then begin
-         nflux = flux[igd] - poly(wave[igd],pars)
-         nerr = err[igd]
-      endif else begin
-         nflux = flux[igd] / poly(wave[igd],pars)
-         nerr = err[igd] / poly(wave[igd],pars)
-      endelse
+   if ctgd gt 0 then begin
       
-   endif else begin
-  
-      pars = dblarr(n_elements(fitord))
+      pars = dblarr(fitord+1)
       nflux = dblarr(ctgd)
       nerr = dblarr(ctgd)
-   
-   endelse
+      
+      snavg = mean(flux[ifit]/err[ifit])
+      if ~ keyword_set(snavg_thresh) then snavg_thresh = 1d
+      if snavg ge snavg_thresh then begin
 
-   nwave = wave[igd]
-   unflux = flux[igd]
-   unerr = err[igd]
-   out = {wave: nwave,$
-          flux: unflux,$
-          err: unerr,$
-          nflux: nflux,$
-          nerr: nerr,$
-          ind: igd}
+         parinfo = replicate({value:0d},fitord+1)
+         pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],$
+                         parinfo=parinfo,/quiet)
+
+         if keyword_set(subtract) then begin
+            nflux = flux[igd] - poly(wave[igd],pars)
+            nerr = err[igd]
+         endif else begin
+            nflux = flux[igd] / poly(wave[igd],pars)
+            nerr = err[igd] / poly(wave[igd],pars)
+         endelse
+
+      endif
+
+      nwave = wave[igd]
+      unflux = flux[igd]
+      unerr = err[igd]
+
+      out = {wave: nwave,$
+             flux: unflux,$
+             err: unerr,$
+             nflux: nflux,$
+             nerr: nerr,$
+             ind: igd}
+
+   endif else out = !NULL
+
+   
    
    return,out
 

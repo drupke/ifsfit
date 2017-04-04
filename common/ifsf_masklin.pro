@@ -57,7 +57,8 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_masklin, lambda, linelambda, halfwidth, nomaskran=nomaskran
+function ifsf_masklin, lambda, linelambda, halfwidth, specres,$
+                       nomaskran=nomaskran
 
   c = 299792.458d
 

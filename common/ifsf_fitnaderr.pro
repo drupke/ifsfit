@@ -81,6 +81,8 @@
 ;      First element of first dimension is absorption, second is emission.
 ;    nademfluxerr: out, optional, type=dblarr(2)
 ;      Low and high emission line flux errors.
+;    specres: in, required, type=double, def=0.64d
+;      Estimated spectral resolution in wavelength units (sigma).
 ;      
 ; :Author:
 ;    David S. N. Rupke::
@@ -95,9 +97,10 @@
 ;      2014jun19, DSNR, created
 ;      2014jul03, DSNR, added multi-core functionality
 ;      2014jul07, DSNR, documented
+;      2016nov03, DSNR, added convolution with spectral resolution
 ;    
 ; :Copyright:
-;    Copyright (C) 2014 David S. N. Rupke
+;    Copyright (C) 2014--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -122,7 +125,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
                         heifix=heifix,nadabsfix=nadabsfix,nademfix=nademfix,$
                         quiet=quiet,noplot=noplot,$
                         weqerr=weqerr,nademfluxerr=nademfluxerr,$
-                        plotonly=plotonly
+                        plotonly=plotonly,specres=specres
 
    bad = 1d99
    plotquantum = 2.5 ; in inches
@@ -137,6 +140,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
    if ncomp[1] gt 0 AND ~ keyword_set(nadabsfix) then nadabsfix=bytarr(ncomp[1],4)
    if ncomp[2] gt 0 AND ~ keyword_set(nademfix) then nademfix=bytarr(ncomp[2],4)
    nwave = n_elements(wave)
+   argsfitnad = {specres: specres}
 
 ;  Outputs
    errors = dblarr(ncomp[0]*3+ncomp[1]*4+ncomp[2]*4,2)
@@ -189,17 +193,16 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
                              parinfo=parinituse,perror=perror,maxiter=100,$
                              bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                              nfev=nfev,niter=niter_mpfit,status=status,/quiet,$
-                             npegged=npegged,ftol=1D-6,errmsg=errmsg)
-            if status eq 5 then print,'IFSF_FITNADERR: Max. iterations reached.'
-            if status eq 0 OR status eq -16 then begin
-               print,'IFSF_FITNADERR: Error in MPFIT. Aborting.'
-               goto,finish
-            endif
+                             npegged=npegged,ftol=1D-6,errmsg=errmsg,$
+                             functargs=argsfitnad)
+            if status eq 5 then message,'Max. iterations reached.',/cont
+            if status eq 0 OR status eq -16 then $
+               message,'Error in MPFIT.'
 
             weq_i=1
             nademflux_i=1
             dumy = ifsf_nadfcn(wave,param,weq=weq_i,nademflux=nademflux_i,$
-                               cont=cont)
+                               cont=cont,specres=specres)
 
             if ncompuse[0] gt 0 then begin
                ilo = 3
@@ -216,8 +219,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
             weq[k,*] = [weq_i.abs[0],weq_i.em[0]]
             nademflux[k] = nademflux_i[0]
 
-            if k mod 100 eq 0 then print,'IFSF_FITNADERR: Iteration ',$
-                                      string(k,format='(I0)')
+            if k mod 100 eq 0 then $
+               message,'Iteration '+string(k,format='(I0)'),/cont
          endfor
       
 ;     This block splits to nsplit children...speedup is a factor of 5.4 for 7 
@@ -228,15 +231,17 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          split_for,0,niter-1,commands=[$
             'resolve_routine, '+string(39B)+'mpfit'+string(39B)+', /EITHER, /NO_RECOMPILE',$
             'modflux_use = modfluxinit + rans[*,i]*err',$
+            'argsfitnad = {specres: specres}',$
             'param = Mpfitfun(fitfcn,wave,modflux_use,err,'+$
             '                 parinfo=parinituse,perror=perror,maxiter=100,'+$
             '                 bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,'+$
             '                 nfev=nfev,niter=niter_mpfit,status=status,/quiet,'+$
+            '                 functargs=argsfitnad,'+$
             '                 npegged=npegged,ftol=1D-6,errmsg=errmsg)',$
             'weq_i=1',$
             'nademflux_i=1',$
             'dumy = ifsf_nadfcn(wave,param,weq=weq_i,nademflux=nademflux_i,'+$
-            '                   cont=cont)',$
+            '                   cont=cont,specres=specres)',$
             'if ncompuse[0] gt 0 then begin',$
             '   ilo = 3',$
             '   if n_elements(heipar) eq 0 then'+$
@@ -262,7 +267,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
             '   nademflux=nademflux_i[0]'+$
             'else nademflux=[nademflux,nademflux_i[0]]'],$
             varnames=['modfluxinit','rans','err','fitfcn','wave','ncompuse',$
-                      'cont'],$
+                      'cont','specres'],$
             struct2pass1=parinituse,struct2pass2=argslinefit,$
             outvar=['heipar','abspar','empar','weq','nademflux'],$
             nsplit=nsplit,silent=quiet,quietchild=quiet
@@ -586,9 +591,6 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
    endif
    
    if ~ noplot then cgps_close,/pdf,/delete_ps
-
-
-finish:
 
    return,errors
 

@@ -35,10 +35,13 @@
 ;      2009, DSNR, copied from manygauss_slow.pro and rewritten
 ;      2013sep, DSNR, switch sigma from wavelength to velocity space
 ;      2013nov13, DSNR, documented, renamed, added license and copyright
-;      2014apr10, DSNR, fixed cases of floating underflow 
+;      2014apr10, DSNR, fixed cases of floating underflow
+;      2016sep26, DSNR, switched to deconvolving resolution in situ by adding
+;                       resolution in quadrature in wavelength space to each
+;                       velocity component
 ;    
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -68,7 +71,9 @@ function ifsf_manygauss, wave, param
   sind = find + 2
 
   dispersion = wave[1] - wave[0]
-  maxsig = max(param[sind]/c*param[wind])
+; resolution in wavelength space [sigma] assumed to be in third element of PARAM
+  sigs = sqrt((param[sind]/c * param[wind])^2d + param[2]^2d)
+  maxsig = max(sigs)
 
   nsubwave = round(10d * maxsig / dispersion)
   halfnsubwave = round(nsubwave / 2)
@@ -77,7 +82,6 @@ function ifsf_manygauss, wave, param
                       nline,nsubwave)
 
   fluxes = param[find]
-  sigs = param[sind]/c * param[wind]
   refwaves = param[wind]
   indrefwaves_real = (refwaves - wave[0]) / dispersion
   indrefwaves = fix(indrefwaves_real)

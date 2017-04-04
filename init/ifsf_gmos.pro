@@ -43,6 +43,8 @@
 ;      Lower and upper sigma limits in km/s.
 ;    sigfix: in, optional, type=hash(lines\,maxncomp)
 ;      Fix sigma at this value, for particular lines/components.
+;    specres: in, optional, type=double, def=0.64d
+;      Estimated spectral resolution in wavelength units (sigma).
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -70,9 +72,14 @@
 ;                       component by setting all lines to 0 except those
 ;                       specified; see BLRCOMP and BLRLINES
 ;      2016feb04, DSNR, added [OII] line ratio
+;      2016sep26, DSNR, added SPECRES as a keyword and a parameter
+;      2016oct05, DSNR, added SIGMAWAVE_TIE and FLUX_TIE to PARINFO
+;      2016oct08, DSNR, turned off Ha/Hb limits b/c of issues with estimating
+;                       Hbeta error in a noisy spectrum when pegged at lower
+;                       limit
 ;    
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -92,7 +99,7 @@
 function ifsf_gmos,linelist,linelistz,linetie,$
                    initflux,initsig,maxncomp,ncomp,$
                    lratfix=lratfix,siglim=siglim,sigfix=sigfix,$
-                   blrcomp=blrcomp,blrlines=blrlines
+                   blrcomp=blrcomp,blrlines=blrlines,specres=specres
 
   bad = 1d99
   c = 299792.458d
@@ -100,9 +107,13 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      blrlines = ['Halpha','Hbeta','Hgamma','Hdelta','Hepsilon',$
                  'H8','H9','H10','H11']
 
-; Sigma limits
-  gmosres = 3000d
-  if ~ keyword_set(siglim) then siglim=[299792d/gmosres/2.35d,2000d]
+; Estimated spectral resolution for B600 grating based on measurements.
+; Website says R = 1688 at 4610 A for 0.5" slit, with IFU 0.31" eff. slit.
+; This gives 1.69 A FWHM. I measure sometimes closer to 1.5-1.6.
+; Sigma is then in the range 0.64 -- 0.72. Use the latter for flexibility.
+  if ~ keyword_set(specres) then specres = 0.64d
+; A reasonable lower limit of 5d for physicality ... Assume line is resolved.
+  if ~ keyword_set(siglim) then siglim=[5d,2000d]
   if ~ keyword_set(blrcomp) then blrcomp = -1
 
 ; Number of emission lines to fit
@@ -110,13 +121,14 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   lines_arr = (linelist->keys())->toarray()
   
 ; Number of initial parameters before Gaussian parameters begin
-  lratlim = 5 ; maximum number of line ratios to constrain
-  ppoff0 = 2
+  lratlim = 4 ; maximum number of line ratios to constrain
+  ppoff0 = 3
   ppoff = ppoff0 + maxncomp*lratlim
   
   parinfo = REPLICATE({value:0d, fixed:0b, limited:[0B,0B], tied:'', $
                        limits:[0d,0d], step:0d, mpprint:0b, mpside:2, $
-                       parname:'', line:'', comp:0d}, $
+                       parname:'', line:'', comp:0d, sigmawave_tie:'', $
+                       flux_tie:''}, $
                       ppoff+maxncomp*(nline*3))
 
 ; Number of initial parameters before Gaussian parameters begin
@@ -128,6 +140,11 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   parinfo[1].value = maxncomp
   parinfo[1].fixed = 1B
   parinfo[1].parname = 'Maximum no. of velocity components'
+
+; Maximum number of velocity components
+  parinfo[2].value = specres
+  parinfo[2].fixed = 1B
+  parinfo[2].parname = 'Spectral resolution in wavelength space [sigma]'
 
   if ~ keyword_set(lratfix) then lratfix = hash()
 
@@ -279,58 +296,59 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      endfor
   endif
 
-; Ha/Hb ratio
-  ilratlim = 3
-  lratlab = 'Ha/Hb'
-  if ncomp->haskey('Halpha') AND ncomp->haskey('Hbeta') $
-    then tmp_ncomp = ncomp['Halpha'] $
-  else tmp_ncomp = 0
-  if tmp_ncomp gt 0 then begin
-     ip1 = ppoff0 + ilratlim*maxncomp
-     ip2 = ip1 + tmp_ncomp - 1
-     fa = initflux['Halpha',0:tmp_ncomp-1]
-     fb = initflux['Hbeta',0:tmp_ncomp-1]
-     frat = dblarr(tmp_ncomp)+3d ; default if initial hb flux = 0
-     inz = where(fb gt 0,ctnz)
-     if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
-     parinfo[ip1:ip2].value = frat
-     parinfo[ip1:ip2].limited = rebin([1B,1B],2,tmp_ncomp)
-;    Upper limit of 50 corresponds to E(B-V) = 2.89 using CCM
-     parinfo[ip1:ip2].limits  = rebin([2.86d,50d],2,tmp_ncomp)
-     parinfo[ip1:ip2].parname = 'Halpha/Hbeta line ratio'
-     parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
-;    Check to see if line ratio is fixed
-     ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
-     for i=0,tmp_ncomp-1 do begin
-;       If line ratio is fixed, then fix it
-        lratfixed = 0b
-        if ctlratfix gt 0 then begin
-           if lratfix[lratlab,i] ne bad then begin
-              parinfo[ip1+i].value = lratfix[lratlab,i]
-              parinfo[ip1+i].fixed = 1b
-              parinfo[ip1+i].limited = [0b,0b]
-              lratfixed = 1b
-           endif
-        endif
-        if ~ lratfixed then begin
-;          case of pegging at or exceeding upper limit
-           if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
-              parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
-                                     (parinfo[ip1+i].limits[1] - $
-                                      parinfo[ip1+i].limits[0])*0.1
-;          case of pegging at or dipping below lower limit
-           if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
-              parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
-                                     (parinfo[ip1+i].limits[1] - $
-                                      parinfo[ip1+i].limits[0])*0.1
-        endif
-     endfor
-  endif
+;; Ha/Hb ratio
+;  ilratlim = 3
+;  lratlab = 'Ha/Hb'
+;  if ncomp->haskey('Halpha') AND ncomp->haskey('Hbeta') $
+;    then tmp_ncomp = ncomp['Halpha'] $
+;  else tmp_ncomp = 0
+;  if tmp_ncomp gt 0 then begin
+;     ip1 = ppoff0 + ilratlim*maxncomp
+;     ip2 = ip1 + tmp_ncomp - 1
+;     fa = initflux['Halpha',0:tmp_ncomp-1]
+;     fb = initflux['Hbeta',0:tmp_ncomp-1]
+;     frat = dblarr(tmp_ncomp)+3d ; default if initial hb flux = 0
+;     inz = where(fb gt 0,ctnz)
+;     if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
+;     parinfo[ip1:ip2].value = frat
+;     parinfo[ip1:ip2].limited = rebin([1B,0B],2,tmp_ncomp)
+;;    Upper limit of 50 corresponds to E(B-V) = 2.89 using CCM
+;     parinfo[ip1:ip2].limits  = rebin([2.86d,0d],2,tmp_ncomp)
+;     parinfo[ip1:ip2].parname = 'Halpha/Hbeta line ratio'
+;     parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
+;;    Check to see if line ratio is fixed
+;     ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
+;     for i=0,tmp_ncomp-1 do begin
+;;       If line ratio is fixed, then fix it
+;        lratfixed = 0b
+;        if ctlratfix gt 0 then begin
+;           if lratfix[lratlab,i] ne bad then begin
+;              parinfo[ip1+i].value = lratfix[lratlab,i]
+;              parinfo[ip1+i].fixed = 1b
+;              parinfo[ip1+i].limited = [0b,0b]
+;              lratfixed = 1b
+;           endif
+;        endif
+;        if ~ lratfixed then begin
+;;;          case of pegging at or exceeding upper limit
+;;           if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
+;;              parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
+;;                                     (parinfo[ip1+i].limits[1] - $
+;;                                      parinfo[ip1+i].limits[0])*0.1
+;;          case of pegging at or dipping below lower limit
+;           if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
+;              parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
+;                                     parinfo[ip1+i].limits[0]*0.1d
+;;                                     (parinfo[ip1+i].limits[1] - $
+;;                                      parinfo[ip1+i].limits[0])*0.1
+;        endif
+;     endfor
+;  endif
 
 ; [OII] ratio
 ; Limits from Pradhan et al. 2006, MNRAS, 366, L6
 ; 28aug2016, DSNR, changed limits to be more physically reasonable for AGN physics
-  ilratlim = 4
+  ilratlim = 3
   lratlab = '[OII]3729/3726'
   if ncomp->haskey('[OII]3726') then tmp_ncomp = ncomp['[OII]3726'] $
   else tmp_ncomp=0
@@ -348,10 +366,10 @@ function ifsf_gmos,linelist,linelistz,linetie,$
     parinfo[ip1:ip2].limits  = rebin([0.75d,1.4d],2,tmp_ncomp)
     parinfo[ip1:ip2].parname = '[OII]3729/3726 line ratio'
     parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
-    ;    Check to see if line ratio is fixed
+;    Check to see if line ratio is fixed
     ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
     for i=0,tmp_ncomp-1 do begin
-      ;       If line ratio is fixed, then fix it
+;       If line ratio is fixed, then fix it
       lratfixed = 0b
       if ctlratfix gt 0 then begin
         if lratfix[lratlab,i] ne bad then begin
@@ -442,6 +460,8 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                            format='(D0.2,A0,D0.2,A0,I0,A0)') 
                  parinfo[isoff].tied = $
                     string('P[',soff+indtie*3,']',format='(A0,I0,A0)')   
+                 parinfo[iwoff].sigmawave_tie = linetie[line]
+                 parinfo[isoff].sigmawave_tie = linetie[line]
               endelse
 ;             fixed/free
               if keyword_set(sigfix) then $
@@ -472,6 +492,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                                                  format='(I0)')+']/P['+$
                                           string(ppoff0+maxncomp*ilratlim+i,$
                                                  format='(I0)')+']'
+             parinfo[foff+lineb*3].flux_tie = '[SII]6716'                    
            endif
         endif
      endif                                              
@@ -485,6 +506,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                                            format='(I0)')+']/P['+$
                                     string(ppoff0+maxncomp*ilratlim+i,$
                                            format='(I0)')+']'
+       parinfo[foff+linea*3].flux_tie = '[NI]5200'
      endif
                                          
      ilratlim = 2
@@ -496,27 +518,29 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                                            format='(I0)')+']*P['+$
                                     string(ppoff0+maxncomp*ilratlim+i,$
                                            format='(I0)')+']'
+       parinfo[foff+lineb*3].flux_tie = 'Halpha'
      endif
      
-;    the if statement here prevents MPFIT_TIE from issuing an IEEE exception,
-;    since if we're not fitting Halpha then the ratio is set to 0 at the
-;    beginning of this routine
-     if ncomp->haskey('Halpha') then begin
-       if ncomp['Halpha'] gt 0 then begin
-         ilratlim = 3
-         linea = where(lines_arr eq 'Halpha',cta)
-         lineb = where(lines_arr eq 'Hbeta',ctb)
-         if cta gt 0 AND ctb gt 0 then begin
-           parinfo[foff+lineb*3].tied = 'P['+$
-                                        string(foff+linea*3,$
-                                               format='(I0)')+']/P['+$
-                                        string(ppoff0+maxncomp*ilratlim+i,$
-                                               format='(I0)')+']'
-         endif
-       endif
-     endif
+;;    the if statement here prevents MPFIT_TIE from issuing an IEEE exception,
+;;    since if we're not fitting Halpha then the ratio is set to 0 at the
+;;    beginning of this routine
+;     if ncomp->haskey('Halpha') then begin
+;       if ncomp['Halpha'] gt 0 then begin
+;         ilratlim = 3
+;         linea = where(lines_arr eq 'Halpha',cta)
+;         lineb = where(lines_arr eq 'Hbeta',ctb)
+;         if cta gt 0 AND ctb gt 0 then begin
+;           parinfo[foff+lineb*3].tied = 'P['+$
+;                                        string(foff+linea*3,$
+;                                               format='(I0)')+']/P['+$
+;                                        string(ppoff0+maxncomp*ilratlim+i,$
+;                                               format='(I0)')+']'
+;           parinfo[foff+lineb*3].flux_tie = 'Halpha'
+;         endif
+;       endif
+;     endif
 
-     ilratlim = 4
+     ilratlim = 3
      linea = where(lines_arr eq '[OII]3726',cta)
      lineb = where(lines_arr eq '[OII]3729',ctb)
      if cta gt 0 AND ctb gt 0 then begin
@@ -525,6 +549,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
          format='(I0)')+']*P['+$
          string(ppoff0+maxncomp*ilratlim+i,$
          format='(I0)')+']'
+       parinfo[foff+linea*3].flux_tie = '[OII]3729'
      endif
 
      linea = where(lines_arr eq '[OIII]4959',cta)
@@ -533,6 +558,9 @@ function ifsf_gmos,linelist,linelistz,linetie,$
        parinfo[foff+linea*3].tied = 'P['+$
                                     string(foff+lineb*3,$
                                            format='(I0)')+']/3.0d'
+       parinfo[foff+linea*3].flux_tie = '[OIII]5007'
+;      Make sure initial value is correct
+       parinfo[foff+linea*3].value = parinfo[foff+lineb*3].value/3.0d
      endif
                                          
      linea = where(lines_arr eq '[OI]6300',cta)
@@ -541,6 +569,9 @@ function ifsf_gmos,linelist,linelistz,linetie,$
        parinfo[foff+lineb*3].tied = 'P['+$
                                     string(foff+linea*3,$
                                            format='(I0)')+']/3.0d'
+       parinfo[foff+lineb*3].flux_tie = '[OI]6300'
+;      Make sure initial value is correct
+       parinfo[foff+lineb*3].value = parinfo[foff+linea*3].value/3.0d
      endif
      
      linea = where(lines_arr eq '[NII]6548',cta)
@@ -549,6 +580,9 @@ function ifsf_gmos,linelist,linelistz,linetie,$
        parinfo[foff+linea*3].tied = 'P['+ $
                                     string(foff+lineb*3,$
                                            format='(I0)')+']/3.0d'
+       parinfo[foff+linea*3].flux_tie = '[NII]6583'
+;      Make sure initial value is correct
+       parinfo[foff+linea*3].value = parinfo[foff+lineb*3].value/3.0d
     endif
     
   endfor
@@ -559,17 +593,15 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                  (parinfo.limited[1] AND $
                   parinfo.value gt parinfo.limits[1]),ct)
   if ct gt 0 then begin
-     print,'IFSF_GMOS: Initial values are outside limits.'
-     print,'Offending parameters:'
      print,'Quantity','Line','Comp','Value','Lower limit','Upper limit',$
-           format='(2A10,A5,3A15)'
+           format='(2A20,A5,3A15)'
      for i=0,ct-1 do begin
         j = badpar[i]
         print,parinfo[j].parname,parinfo[j].line,parinfo[j].comp,$
               parinfo[j].value,parinfo[j].limits[0],$
-              parinfo[j].limits[1],format='(2A10,I5,3E15.6)'
+              parinfo[j].limits[1],format='(2A20,I5,3E15.6)'
      endfor
-     return,0
+     message,'Initial values are outside limits.'
   endif else begin
      return,parinfo
   endelse

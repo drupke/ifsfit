@@ -9,12 +9,43 @@
 ; XDR file from IFSF. The tags for the initialization structure can be found in 
 ; INITTAGS.txt.
 ;
+; Output plots:
 ;
+; Output data files:
+;
+; Continuum data file: initdat.outdir+initdat.label+'.cont.xdr'
+; Contains structure:
+;   CONTCUBE
+; 
+; NaD data file: file=initdat.outdir+initdat.label+'.cont.xdr'
+; Contains structure:
+;   NADCUBE
+; 
+; Emission line data file: initdat.outdir+initdat.label+'.lin.xdr'
+; Contains hashes:
+;   EMLWAV[compkeys,lines,dx,dy]
+;   EMLWAVERR[compkeys,lines,dx,dy]
+;   EMLSIG[compkeys,lines,dx,dy]
+;   EMLSIGERR[compkeys,lines,dx,dy]
+;   EMLFLX[fluxkeys,lines,dx,dy]
+;   EMLFLXERR[fluxkeys,lines,dx,dy]
+;   EMLCVDF[cvdfkeys]
+; where
+;   lines = emission line names [Halpha, Hbeta, ...]
+;   compkeys = 'c1','c2',...,'cN' [N = max. no. of components]
+;   fluxkeys = 'ftot' [total flux in line]
+;            = 'fc1', 'fc2', ... [total flux in each component]
+;            = 'fc1pk', 'fc2pk', ... [peak flux in each component]
+;   cvdfkeys = 'vel' [M-element array of velocities]
+;            = 'flux' (hash [lines,dx,dy,M] -- flux density profile)
+;            = 'fluxerr' (hash [lines,dx,dy,M] -- flux density error profile)
+;            = 'cumfluxnorm' (hash [lines,dx,dy,M] -- actual CVDF)
+;            
 ; :Categories:
 ;    IFSFIT
 ;
 ; :Returns:
-;    Various plots and data files.
+;    None.
 ;
 ; :Params:
 ;    initproc: in, required, type=string
@@ -75,6 +106,9 @@
 ;                       continuum tweaks are split between the two models;
 ;                       still need to implement for QSO+stellar case
 ;      2016sep13, DSNR, added internal logic to check if emission-line fit present
+;      2016sep22, DSNR, adjusted quasar/host decomposition to account for new
+;                       quasar fitting options
+;      2016oct10, DSNR, added option to combine doublet fluxes
 ;
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -95,7 +129,7 @@
 ;
 ;-
 pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
-          verbose=verbose,_extra=ex
+          verbose=verbose,_extra=_extra
 
   bad = 1d99
   fwhmtosig = 2d*sqrt(2d*alog(2d))
@@ -104,22 +138,41 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
 ; Get fit initialization
   if keyword_set(_extra) then $
-     initdat = call_function(initproc,_extra=ex) $
+     initdat = call_function(initproc,_extra=_extra) $
   else $
      initdat = call_function(initproc)   
   if tag_exist(initdat,'donad') then begin
     initnad={dumy: 1}
     if keyword_set(_extra) then $
-      initdat = call_function(initproc,initnad=initnad,_extra=ex) $
+      initdat = call_function(initproc,initnad=initnad,_extra=_extra) $
     else $
       initdat = call_function(initproc,initnad=initnad)
   endif
 
   if ~ tag_exist(initdat,'noemlinfit') then begin
-;   Get linelist
-    linelist = ifsf_linelist(initdat.lines)
-    nlines = linelist.count()
+;    Get linelist
+     linelist = ifsf_linelist(initdat.lines)
+     nlines = linelist.count()
+;    Linelist with doublets to combine
+     emldoublets = [['[SII]6716','[SII]6731'],$
+                    ['[OII]3726','[OII]3729'],$
+                    ['[NI]5198','[NI]5200']]
+     sdoub = size(emldoublets)
+     if sdoub[0] eq 1 then ndoublets = 1 else ndoublets = sdoub[2]
+     lines_with_doublets = initdat.lines
+     for i=0,ndoublets-1 do begin
+        if linelist.haskey(emldoublets[0,i]) AND $
+           linelist.haskey(emldoublets[1,i]) then begin
+           dkey = emldoublets[0,i]+'+'+emldoublets[1,i]
+           lines_with_doublets = [lines_with_doublets,dkey]
+        endif
+     endfor
+     linelist_with_doublets = ifsf_linelist(lines_with_doublets)
   endif
+
+  if tag_exist(initdat,'fcnpltcont') then $
+     fcnpltcont=initdat.fcnpltcont $
+  else fcnpltcont='ifsf_pltcont'
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
@@ -129,20 +182,29 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
   if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
   if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
 
-  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
+  header=1b
+  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,header=header,$
                        datext=datext,varext=varext,dqext=dqext)
+
+  if tag_exist(initdat,'vormap') then begin
+     vormap=initdat.vormap
+     nvorcols = max(vormap)
+     vorcoords = intarr(nvorcols,2)
+     for i=1,nvorcols do begin
+        ivor = where(vormap eq i,ctivor)
+        xyvor = array_indices(vormap,ivor[0])
+        vorcoords[i-1,*] = xyvor
+     endfor
+  endif
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Initialize output files
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if ~ tag_exist(initdat,'noemlinfit') then begin
-     if not tag_exist(initdat,'outlines') then $
-        outlines = (linelist->keys())->toarray() $
-     else outlines = initdat.outlines
-     ifsf_printlinpar,outlines,linlun,$
+  if ~ tag_exist(initdat,'noemlinfit') then $
+     ifsf_printlinpar,initdat.lines,linlun,$
                       outfile=initdat.outdir+initdat.label+'.lin.dat'
-  endif
   ifsf_printfitpar,fitlun,$
                    outfile=initdat.outdir+initdat.label+'.fit.dat'
                    
@@ -151,13 +213,49 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    if ~ tag_exist(initdat,'noemlinfit') then begin
-      linmaps = hash()
-      tlinmaps = hash()
-      foreach line,outlines do begin
-         linmaps[line] = dblarr(cube.ncols,cube.nrows,initdat.maxncomp,5) + bad
-         tlinmaps[line] = dblarr(cube.ncols,cube.nrows,1,2) + bad
+      emlwav = hash()
+      emlwaverr = hash()
+      emlsig = hash()
+      emlsigerr = hash()
+      emlflx = hash()
+      emlflxerr = hash()
+      emlflx['ftot'] = hash()
+      emlflxerr['ftot'] = hash()
+      for k=0,initdat.maxncomp-1 do begin
+         cstr='c'+string(k+1,format='(I0)')
+         emlwav[cstr]=hash()
+         emlwaverr[cstr]=hash()
+         emlsig[cstr]=hash()
+         emlsigerr[cstr]=hash()
+         emlflx['f'+cstr]=hash()
+         emlflxerr['f'+cstr]=hash()
+         emlflx['f'+cstr+'pk']=hash()
+         emlflxerr['f'+cstr+'pk']=hash()
+      endfor
+      foreach line,lines_with_doublets do begin
+         emlflx['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
+         emlflxerr['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
+         for k=0,initdat.maxncomp-1 do begin
+            cstr='c'+string(k+1,format='(I0)')
+            emlwav[cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
+            emlwaverr[cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
+            emlsig[cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
+            emlsigerr[cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
+            emlflx['f'+cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
+            emlflxerr['f'+cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
+            emlflx['f'+cstr+'pk',line]=dblarr(cube.ncols,cube.nrows)+bad
+            emlflxerr['f'+cstr+'pk',line]=dblarr(cube.ncols,cube.nrows)+bad
+         endfor
       endforeach
    endif
+
+   if tag_exist(initdat,'flipsort') then begin
+     flipsort = bytarr(cube.ncols,cube.nrows)
+     sizefs = size(initdat.flipsort)
+     for i=0,sizefs[2]-1 do $
+       flipsort[initdat.flipsort[0,i]-1,initdat.flipsort[1,i]-1] = 1b
+   endif
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
@@ -184,41 +282,60 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         if oned then begin
            flux = cube.dat[*,i]
            err = sqrt(abs(cube.var[*,i]))
-           lab = string(i+1,format='(I04)')
+           dq = cube.dq[*,i]
+           labin = string(i+1,format='(I04)')
+           labout = labin
         endif else begin
            if keyword_set(verbose) then $
               print,'  Row ',j+1,' of ',cube.nrows,format='(A,I0,A,I0)'
-           flux = reform(cube.dat[i,j,*],cube.nz)
-           err = reform(sqrt(abs(cube.var[i,j,*])),cube.nz)
-           lab = string(i+1,'_',j+1,format='(I04,A,I04)')
+           if tag_exist(initdat,'vormap') then begin
+              iuse = vorcoords[initdat.vormap[i,j]-1,0]
+              juse = vorcoords[initdat.vormap[i,j]-1,1]
+              print,'Reference coordinate: [col,row]=[',iuse+1,',',juse+1,']',$
+                    format='(A0,I0,A0,I0,A0)'
+           endif else begin
+              iuse = i
+              juse = j
+           endelse
+           flux = reform(cube.dat[iuse,juse,*],cube.nz)
+           err = reform(sqrt(abs(cube.var[iuse,juse,*])),cube.nz)
+           dq = reform(cube.dq[iuse,juse,*],cube.nz)
+           labin = string(iuse+1,'_',juse+1,format='(I04,A,I04)')
+           labout = string(i+1,'_',j+1,format='(I04,A,I04)')
         endelse
+
+;;       Apply flux calibration
+;        if tag_exist(initdat,'fluxunits') then begin
+;           flux*=initdat.fluxunits
+;           err*=initdat.fluxunits
+;        endif
+;        ;  Normalize
+;        fluxmed = median(flux)
+;        flux/=fluxmed
+;        err/=fluxmed
 
 ;       Restore fit, after a couple of sanity checks
 ;       TODO: Mark zero-ed spectra as bad earlier!
-        infile = initdat.outdir+initdat.label+'_'+lab+'.xdr'
-        outfile = initdat.outdir+initdat.label+'_'+lab
-        if ~ file_test(infile) then begin
-           print,'IFSFA: No XDR file for ',i+1,', ',j+1,'.',$
-           format='(A0,I4,A0,I4,A0)'
-           goto,nofit
-        endif
+        infile = initdat.outdir+initdat.label+'_'+labin+'.xdr'
+        outfile = initdat.outdir+initdat.label+'_'+labout
         nodata = where(flux ne 0d,ct)
-        if ct le 0 then begin
-           print,'IFSFA: Data is everywhere 0 for ',i+1,', ',j+1,'.',$
-           format='(A0,I4,A0,I4,A0)'
-           goto,nofit
-        endif
+        if ~ file_test(infile) OR ct le 0 then begin
+           message,'No data for '+string(i+1,format='(I0)')+$
+                   ', '+string(j+1,format='(I0)')+'.',/cont
+        endif else begin
+         
         restore,file=infile
 
 ;       Restore original error.
 ;       TODO: Is this necessary?
-        struct.spec_err = err[struct.gd_indx]
+        struct.spec_err = err[struct.fitran_indx]
 
         if ~ struct.noemlinfit then begin
 ;          Get line fit parameters
            tflux=1b
            linepars = ifsf_sepfitpars(linelist,struct.param,struct.perror,$
-                                      struct.parinfo,tflux=tflux)
+                                      struct.parinfo,tflux=tflux,$
+                                      doublets=emldoublets)
         endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -227,15 +344,6 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
         if not keyword_set(noplots) then begin
 
-;          Plot continuum
-           if tag_exist(initdat,'fcnpltcont') then $
-              fcnpltcont=initdat.fcnpltcont $
-           else fcnpltcont='ifsf_pltcont'
-;          Make sure fit doesn't indicate no continuum; avoids
-;          plot range error in continuum fitting routine, as well as a blank
-;          plot!
-           if total(struct.cont_fit) ne 0d then $
-              call_procedure,fcnpltcont,struct,outfile+'_cnt'
 ;          Plot emission lines
            if ~ struct.noemlinfit then begin
               if not linepars.nolines then begin
@@ -257,139 +365,274 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
         if ~ struct.noemlinfit then begin
 ;          Save fit parameters to an array
-           foreach line,outlines do begin
-              linmaps[line,i,j,*,*] = [[linepars.flux[line,*]],$
-                                       [linepars.fluxerr[line,*]],$
-                                       [linepars.wave[line,*]],$
-                                       [linepars.sigma[line,*]],$
-                                       [linepars.fluxpk[line,*]]]
-              tlinmaps[line,i,j,0,*] = [[tflux.tflux[line]],$
-                                        [tflux.tfluxerr[line]]]
+;           messagesent = 0b
+;           foreach line,lines_with_doublets do begin
+;;             Sort.
+;              indices = lindgen(initdat.maxncomp)
+;              sigtmp = linepars.sigma[line,*]
+;              fluxtmp = linepars.flux[line,*]
+;              igd = where(sigtmp ne 0d AND sigtmp ne bad AND $
+;                          fluxtmp ne 0d AND fluxtmp ne bad,ctgd)
+;              if tag_exist(initdat,'flipsort') then begin
+;                 if flipsort[i,j] AND ctgd lt 2 then begin
+;                    if not messagesent then $
+;                       message,'Flipsort set for spaxel ['+$
+;                               string(i+1,format='(I0)')+','+$
+;                               string(j+1,format='(I0)')+'] but '+$
+;                               'only 1 component. Setting to 2 components and '+$
+;                               'flipping anyway.',/cont $
+;                    else messagesent = 1b
+;                    igd = [0,1]
+;                    ctgd = 2
+;                 endif
+;              endif
+;              if ctgd gt 0 then begin
+;                 emlflx['ftot',line,i,j]=tflux.tflux[line]
+;                 emlflxerr['ftot',line,i,j]=tflux.tfluxerr[line]
+;                 if not tag_exist(initdat,'sorttype') then $
+;                    isort = sort(sigtmp[igd]) $
+;                 else if initdat.sorttype eq 'flux' then $
+;                    isort = sort(linepars.flux[line,igd]) $
+;                 else if initdat.sorttype eq 'fluxpk' then $
+;                    isort = sort(linepars.fluxpk[line,igd]) $
+;                 else if initdat.sorttype eq 'wave' then $
+;                    isort = sort(linepars.wave[line,igd]) $
+;                 else if initdat.sorttype eq 'reversewave' then $
+;                    isort = reverse(sort(linepars.wave[line,igd]))
+;                 if tag_exist(initdat,'flipsort') then $
+;                    if flipsort[i,j] then isort = reverse(isort)
+;                 sindices = indices[igd]
+;                 sindices = sindices[isort]
+;                 kcomp = 1
+;                 foreach sindex,sindices do begin
+;                    cstr='c'+string(kcomp,format='(I0)')
+;                    emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
+;                    emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
+;                    emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
+;                    emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
+;                    emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
+;                    emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
+;                    emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
+;                    emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
+;                    kcomp++
+;                 endforeach
+;              endif
+;           endforeach
+;          First get correct number of components in this spaxel
+           thisncomp = 0
+           thisncompline = ''
+           foreach line,lines_with_doublets do begin
+             sigtmp = linepars.sigma[line,*]
+             fluxtmp = linepars.flux[line,*]
+             igd = where(sigtmp ne 0d AND sigtmp ne bad AND $
+                         fluxtmp ne 0d AND fluxtmp ne bad,ctgd)
+             if ctgd gt thisncomp then begin
+                thisncomp = ctgd
+                thisncompline = line
+             endif
+;            Assign total fluxes
+             if ctgd gt 0 then begin
+                emlflx['ftot',line,i,j]=tflux.tflux[line]
+                emlflxerr['ftot',line,i,j]=tflux.tfluxerr[line]
+             endif
            endforeach
-
-;          Print line fluxes and Halpha Weq to a text file
+           if thisncomp eq 1 then begin
+              isort = 0
+              if tag_exist(initdat,'flipsort') then begin
+                 if flipsort[i,j] then begin
+                    message,'Flipsort set for spaxel ['+$
+                            string(i+1,format='(I0)')+','+$
+                            string(j+1,format='(I0)')+'] but '+$
+                            'only 1 component. Setting to 2 components and '+$
+                            'flipping anyway.',/cont
+                    isort = [1,0]
+                 endif
+              endif
+           endif else if thisncomp eq 2 then begin
+;             Sort components
+              igd = [0,1]
+              indices = lindgen(initdat.maxncomp)
+              sigtmp = linepars.sigma[thisncompline,*]
+              fluxtmp = linepars.flux[thisncompline,*]
+              if not tag_exist(initdat,'sorttype') then $
+                 isort = sort(sigtmp[igd]) $
+              else if initdat.sorttype eq 'wave' then $
+                 isort = sort(linepars.wave[line,igd]) $
+              else if initdat.sorttype eq 'reversewave' then $
+                 isort = reverse(sort(linepars.wave[line,igd]))
+              if tag_exist(initdat,'flipsort') then $
+                 if flipsort[i,j] then isort = reverse(isort)
+           endif
+           foreach line,lines_with_doublets do begin
+              kcomp = 1
+              foreach sindex,isort do begin
+                 cstr='c'+string(kcomp,format='(I0)')
+                 emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
+                 emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
+                 emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
+                 emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
+                 emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
+                 emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
+                 emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
+                 emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
+                 kcomp++
+              endforeach
+           endforeach
+;          Print line fluxes to a text file
            if not linepars.nolines then $ 
-              ifsf_printlinpar,outlines,linlun,i+1,j+1,initdat.maxncomp,linepars
+              ifsf_printlinpar,lines_with_doublets,linlun,i+1,j+1,$
+                               initdat.maxncomp,linepars
 
         endif
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Process continuum data
+; Process and plot continuum data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-;       Create / populate output data cube                            
+;       Create / populate output data cubes                            
         if firstcontproc then begin
            if tag_exist(initdat,'decompose_ppxf_fit') then begin
               contcube = $
-                 {cont_fit_stel_tot: dblarr(cube.ncols,cube.nrows)+bad,$
-                  cont_fit_poly_tot: dblarr(cube.ncols,cube.nrows)+bad,$
-                  cont_fit_poly_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
-                  cont_fit_stel_nad: dblarr(cube.ncols,cube.nrows)+bad,$
-                  cont_fit_poly_nad: dblarr(cube.ncols,cube.nrows)+bad,$
-                  cont_fit_poly_nad_pct: dblarr(cube.ncols,cube.nrows)+bad,$
-                  cont_fit_ebv: dblarr(cube.ncols,cube.nrows)+bad,$
-                  cont_fit_ages: dblarr(cube.ncols,cube.nrows,3)+bad,$
-                  cont_fit_norms: dblarr(cube.ncols,cube.nrows,3)+bad}
+                 {wave: struct.wave,$
+                  stel_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  poly_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  stel_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
+                  poly_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
+                  poly_mod_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_sigma: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z: dblarr(cube.ncols,cube.nrows)+bad $
+                 }
            endif else if tag_exist(initdat,'decompose_qso_fit') then begin
               contcube = $
-                 {qso: dblarr(cube.ncols,cube.nrows,$
-                              n_elements(struct.gd_indx)),$
-                  host: dblarr(cube.ncols,cube.nrows,$
-                               n_elements(struct.gd_indx))}
+                 {wave: struct.wave,$
+                  qso_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  qso_poly_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  host_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  poly_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  npts: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_sigma: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z: dblarr(cube.ncols,cube.nrows)+bad $
+                 }
+              hostcube = $
+                 {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  err: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  dq:  dblarr(cube.ncols,cube.nrows,cube.nz) $
+                 }
            endif
            firstcontproc=0
         endif
         if tag_exist(initdat,'decompose_ppxf_fit') then begin
-;          Get stellar templates
-           restore,initdat.startempfile
-;          Redshift stellar templates
-           templatelambdaz = $
-              reform(template.lambda,n_elements(template.lambda)) * $
-              (1d + struct.zstar)
-           if tag_exist(initdat,'vacuum') then airtovac,templatelambdaz
-;          Interpolate template to same grid as data
-           temp = ifsf_interptemp(struct.wave,templatelambdaz,template.flux)
+           add_poly_degree = 4d ; this must be the same as in IFSF_FITSPEC
+           if tag_exist(initdat,'argscontfit') then $
+              if tag_exist(initdat.argscontfit,'add_poly_degree') then $
+                 add_poly_degree = initdat.argscontfit.add_poly_degree
+;          Compute polynomial
+           log_rebin,[struct.wave[0],$
+                      struct.wave[n_elements(struct.wave)-1]],$
+                      struct.spec,$
+                      dumy_log,wave_log
+           xnorm = cap_range(-1d,1d,n_elements(wave_log))
+           cont_fit_poly_log = 0d ; Additive polynomial
+           for k=0,add_poly_degree do $
+              cont_fit_poly_log += legendre(xnorm,k)*struct.ct_add_poly_weights[k]
+           cont_fit_poly=interpol(cont_fit_poly_log,wave_log,ALOG(struct.wave))           
 ;          Compute stellar continuum
-           cont_fit_stel = temp # struct.ct_coeff                                
-           if tag_exist(initdat,'dored') then begin
-              contcube.cont_fit_ebv[i,j] = struct.ct_ebv
-              cont_fit_redfact = ppxf_reddening_curve(struct.wave,struct.ct_ebv)
-              cont_fit_stel *= cont_fit_redfact
-           endif
-           cont_fit_poly = struct.cont_fit - cont_fit_stel
+           cont_fit_stel = struct.cont_fit - cont_fit_poly
 ;          Total flux from different components
-           if tag_exist(initdat,'dored') then $
-              cont_fit_tot = total(struct.cont_fit * cont_fit_redfact) $
-           else cont_fit_tot = total(struct.cont_fit)
-           contcube.cont_fit_stel_tot[i,j] = total(cont_fit_stel)
-           contcube.cont_fit_poly_tot[i,j] = total(cont_fit_poly)
-           contcube.cont_fit_poly_tot_pct[i,j] = $
-              contcube.cont_fit_poly_tot[i,j] / cont_fit_tot
-;          Total flux near NaD in different components
-           ilow = value_locate(struct.wave,5850d*(1d + struct.zstar))
-           ihigh = value_locate(struct.wave,5950d*(1d + struct.zstar))
-           if ilow ne -1 AND ihigh ne -1 then begin
-              if tag_exist(initdat,'dored') then $
-                 cont_fit_nad = total(struct.cont_fit[ilow:ihigh]*$
-                                      cont_fit_redfact[ilow:ihigh]) $
-              else cont_fit_nad = total(struct.cont_fit[ilow:ihigh])
-              contcube.cont_fit_stel_nad[i,j] = total(cont_fit_stel[ilow:ihigh])
-              contcube.cont_fit_poly_nad[i,j] = total(cont_fit_poly[ilow:ihigh])
-              contcube.cont_fit_poly_nad_pct[i,j] = $
-                 contcube.cont_fit_poly_nad[i,j] / cont_fit_nad
-           endif
-;          Find best fit stellar ages and coefficients. Include only three 
-;          templates with largest coefficients, ordered in decreasing importance.
-           icoeffgd = where(struct.ct_coeff ne 0,countgd)
-           if countgd gt 0 then begin
-              coeffgd = struct.ct_coeff[icoeffgd]
-              totcoeffgd = total(coeffgd)
-              coeffgd /= totcoeffgd
-              agesgd = template.ages[icoeffgd]
-              sortcoeffgd = reverse(sort(coeffgd))
-              if countgd gt 3 then countgd=3
-              contcube.cont_fit_norms[i,j,0:countgd-1] = $
-                 coeffgd[sortcoeffgd[0:countgd-1]]
-              contcube.cont_fit_ages[i,j,0:countgd-1] = $
-                 agesgd[sortcoeffgd[0:countgd-1]]
-           endif
+           cont_fit_tot = total(struct.cont_fit)
+           contcube.stel_mod[i,j,struct.fitran_indx] = cont_fit_stel
+           contcube.poly_mod[i,j,struct.fitran_indx] = cont_fit_poly
+           contcube.stel_mod_tot[i,j] = total(cont_fit_stel)
+           contcube.poly_mod_tot[i,j] = total(cont_fit_poly)
+           contcube.poly_mod_tot_pct[i,j] = $
+              contcube.poly_mod_tot[i,j] / cont_fit_tot
+           contcube.stel_sigma[i,j] = struct.ct_ppxf_sigma
+           contcube.stel_z[i,j] = struct.zstar
+;;          Total flux near NaD in different components
+;           ilow = value_locate(struct.wave,5850d*(1d + struct.zstar))
+;           ihigh = value_locate(struct.wave,5950d*(1d + struct.zstar))
+;           if ilow ne -1 AND ihigh ne -1 then begin
+;              if tag_exist(initdat,'dored') then $
+;                 cont_fit_nad = total(struct.cont_fit[ilow:ihigh]*$
+;                                      cont_fit_redfact[ilow:ihigh]) $
+;              else cont_fit_nad = total(struct.cont_fit[ilow:ihigh])
+;              contcube.cont_fit_stel_nad[i,j] = total(cont_fit_stel[ilow:ihigh])
+;              contcube.cont_fit_poly_nad[i,j] = total(cont_fit_poly[ilow:ihigh])
+;              contcube.cont_fit_poly_nad_pct[i,j] = $
+;                 contcube.cont_fit_poly_nad[i,j] / cont_fit_nad
+;           endif
         endif
         if tag_exist(initdat,'decompose_qso_fit') then begin
            if initdat.fcncontfit eq 'ifsf_fitqsohost' then begin
-              if tag_exist(initdat.argscontfit,'fitord') then $
-                 fitord=initdat.argscontfit.fitord else fitord=0b
-              if tag_exist(initdat.argscontfit,'qsoord') then $
-                 qsoord=initdat.argscontfit.qsoord else qsoord=0b
-              if tag_exist(initdat.argscontfit,'expterms') then $
-                 expterms=initdat.argscontfit.expterms else expterms=0b
+;              if tag_exist(initdat.argscontfit,'fitord') then $
+;                 fitord=initdat.argscontfit.fitord else fitord=0b
+;              if tag_exist(initdat.argscontfit,'qsoord') then $
+;                 qsoord=initdat.argscontfit.qsoord else qsoord=0b
+              if tag_exist(initdat.argscontfit,'blrpar') then $
+                 blrterms=n_elements(initdat.argscontfit.blrpar) else blrterms=0b
+;              default here must be same as in IFSF_FITQSOHOST
+              if tag_exist(initdat.argscontfit,'add_poly_degree') then $
+                 add_poly_degree=initdat.argscontfit.add_poly_degree $
+              else add_poly_degree=30
 ;             These lines mirror ones in IFSF_FITQSOHOST
               struct_tmp = struct
 ;             Get and renormalize template
               restore,file=initdat.argscontfit.qsoxdr
-              qsowave = struct.wave
-              qsoflux = struct.cont_fit
+              qsowave = qsotemplate.wave
+              qsoflux_full = qsotemplate.flux
+              iqsoflux = where(qsowave ge struct_tmp.fitran[0]*0.99999d AND $
+                               qsowave le struct_tmp.fitran[1]*1.00001d)
+              qsoflux = qsoflux_full[iqsoflux]              
               qsoflux /= median(qsoflux)
               struct = struct_tmp
-;             Produce fit with template only and with template + host
-              ifsf_qsohostfcn,struct.wave,struct.ct_coeff,qsomod,fitord=fitord,$
-                              qsoord=qsoord,expterms=expterms,/qsoonly,$
-                              qsoflux=qsoflux
-              ifsf_qsohostfcn,struct.wave,struct.ct_coeff,hostmod,fitord=fitord,$
-                              qsoord=qsoord,expterms=expterms,/hostonly,$
-                              qsoflux=qsoflux
+;             If polynomial residual is re-fit with PPXF, separate out best-fit
+;             parameter structure created in IFSF_FITQSOHOST and compute polynomial
+;             and stellar components
+              if tag_exist(initdat.argscontfit,'refit') then begin
+                 par_qsohost = struct.ct_coeff.qso_host
+                 par_stel = struct.ct_coeff.stel
+                 par_poly = struct.ct_coeff.poly
+                 log_rebin,[struct.wave[0],$
+                            struct.wave[n_elements(struct.wave)-1]],$
+                            struct.spec,$
+                            dumy_log,wave_log
+                 xnorm = cap_range(-1d,1d,n_elements(wave_log))
+                 polymod_log = 0d ; Additive polynomial
+                 for k=0,add_poly_degree do $
+                    polymod_log += legendre(xnorm,k)*par_poly[k]
+                 polymod_refit=interpol(polymod_log,wave_log,ALOG(struct.wave))
+                 contcube.stel_sigma[i,j] = struct.ct_coeff.ppxf_sigma
+                 contcube.stel_z[i,j] = struct.zstar
+              endif else begin
+                 par_qsohost = struct.ct_coeff
+                 polymod_refit = 0d
+              endelse
+;             Produce fit with template only and with template + host. Also
+;             output QSO multiplicative polynomial
+              qsomod_polynorm=0b
+              ifsf_qsohostfcn,struct.wave,par_qsohost,qsomod,qsoflux=qsoflux,$
+                              /qsoonly,blrterms=blrterms,qsoscl=qsomod_polynorm
+              hostmod = struct.cont_fit_pretweak - qsomod
 ;             If continuum is tweaked in any region, divide the resulting
 ;             residual proportionally (at each wavelength) between the QSO
 ;             and host components.
+              qsomod_notweak = qsomod
               if tag_exist(initdat,'tweakcntfit') then begin
-                 modresid = struct.cont_fit - (qsomod+hostmod)
-                 qsofrac = qsomod/(qsomod+hostmod)
+                 modresid = struct.cont_fit - struct.cont_fit_pretweak
+                 inz = where(qsomod ne 0 AND hostmod ne 0)
+                 qsofrac = dblarr(n_elements(qsomod))
+                 qsofrac[inz] = qsomod[inz]/(qsomod[inz]+hostmod[inz])
                  qsomod += modresid*qsofrac
                  hostmod += modresid*(1d - qsofrac)
               endif
-              contcube.qso[i,j,*] = qsomod
-;              hostmod = totmod - qsomod
-;              contcube.host[i,j,*] = hostmod
-              contcube.host[i,j,*] = hostmod
+;             Components of QSO fit for plotting
+;              qsomod_normonly = qsoflux*par_qsohost[fitord+1]
+;             TODO: fix this
+              qsomod_normonly = qsoflux
+              if tag_exist(initdat.argscontfit,'blrpar') then $
+                 ifsf_qsohostfcn,struct.wave,par_qsohost,qsomod_blronly,$
+                                 qsoflux=qsoflux,/blronly,blrterms=blrterms
+;              qsomod_polynorm *= median(qsomod)
            endif else if initdat.fcncontfit eq 'ppxf' AND $
                          tag_exist(initdat,'qsotempfile') then begin
               struct_star = struct
@@ -398,25 +641,138 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               struct = struct_star
               qsomod = struct_qso.cont_fit * $
                        struct.ct_coeff[n_elements(struct.ct_coeff)-1]
-              contcube.qso[i,j,*] = qsomod
               hostmod = struct.cont_fit - qsomod
-              contcube.host[i,j,*] = hostmod
+           endif
+        endif
+
+;       Print PPXF results to STDOUT
+        if tag_exist(initdat,'decompose_ppxf_fit') OR $
+           tag_exist(initdat,'decompose_qso_fit') then begin            
+           if tag_exist(initdat,'argscontfit') then begin
+              if tag_exist(initdat.argscontfit,'print_output') then begin
+                 print,'PPXF results:'
+                 if tag_exist(initdat,'decompose_ppxf_fit') then begin
+                    ct_coeff_tmp = struct.ct_coeff
+                    poly_tmp_pct = contcube.poly_mod_tot_pct[i,j]
+                 endif else begin
+                    ct_coeff_tmp = struct.ct_coeff.stel
+                    poly_tmp_pct = total(polymod_refit) / total(hostmod)
+                 endelse
+                 inz = where(ct_coeff_tmp ne 0d,ctnz)
+                 if ctnz gt 0 then begin
+                    coeffgd = ct_coeff_tmp[inz]
+;                   normalize coefficients to % of total stellar coeffs.
+                    totcoeffgd = total(coeffgd)
+                    coeffgd /= totcoeffgd
+;                   re-normalize to % of total flux
+                    coeffgd *= (1d - poly_tmp_pct)
+                    restore,initdat.startempfile
+                    agesgd = template.ages[inz]
+;                   sum coefficients over age ranges
+                    iyoung = where(agesgd le 1d7,ctyoung)
+                    iinter1 = where(agesgd gt 1d7 AND agesgd le 1d8,ctinter1)
+                    iinter2 = where(agesgd gt 1d8 AND agesgd le 1d9,ctinter2)
+                    iold = where(agesgd gt 1d9,ctold)
+                    if ctyoung gt 0 then $
+                       coeffyoung = total(coeffgd[iyoung])*100d $
+                    else coeffyoung=0d
+                    if ctinter1 gt 0 then $
+                       coeffinter1 = total(coeffgd[iinter1])*100d $
+                    else coeffinter1=0d
+                    if ctinter2 gt 0 then $
+                       coeffinter2 = total(coeffgd[iinter2])*100d $
+                    else coeffinter2=0d
+                    if ctold gt 0 then $
+                       coeffold = total(coeffgd[iold])*100d $
+                    else coeffold=0d
+                    print,'   ',string(round(coeffyoung),format='(I0)')+$
+                       '% contribution from ages <= 10 Myr.'
+                    print,'   ',string(round(coeffinter1),format='(I0)')+$
+                       '% contribution from 10 Myr < age <= 100 Myr.'
+                    print,'   ',string(round(coeffinter2),format='(I0)')+$
+                       '% contribution from 100 Myr < age <= 1 Gyr.'
+                    print,'   ',string(round(coeffold),format='(I0)')+$
+                       '% contribution from ages > 1 Gyr.'
+                 endif
+                 print,'   ','Stellar template convolved with sigma = '+$
+                       string(struct.ct_ppxf_sigma,format='(I0)')+' km/s'
+              endif
            endif
         endif
         
-;       Plot host-only continuum fit
+;       Plot QSO- and host-only continuum fit
         if tag_exist(initdat,'decompose_qso_fit') then begin
            struct_host = struct
            struct_host.spec -= qsomod
            struct_host.cont_dat -= qsomod
            struct_host.cont_fit -= qsomod
-;          Make sure fit to host doesn't indicate no continuum; avoids
-;          plot range error in continuum fitting routine, as well as a blank
-;          plot!
-           if total(struct_host.cont_fit) ne 0d then $
-              call_procedure,fcnpltcont,struct_host,outfile+'_cnt_host'
+           struct_qso = struct
+           struct_qso.spec -= hostmod
+           struct_qso.cont_dat -= hostmod
+           struct_qso.cont_fit -= hostmod
+           contcube.qso_mod[i,j,struct.fitran_indx] = qsomod
+           contcube.qso_poly_mod[i,j,struct.fitran_indx] = qsomod_polynorm
+           contcube.host_mod[i,j,struct.fitran_indx] = hostmod
+           contcube.poly_mod[i,j,struct.fitran_indx] = polymod_refit
+           contcube.npts[i,j] = n_elements(struct.fitran_indx)
+           if tag_exist(initdat,'remove_scattered') then $
+              contcube.host_mod[i,j,struct.fitran_indx] -= polymod_refit
+;          Data minus (emission line model + QSO model)
+;           contcube.host_dat[i,j,*] = struct.cont_dat - qsomod
+;          Data minus (emission line model + QSO model, tweakcnt mods not 
+;          included in QSO model)
+           hostcube.dat[i,j,struct.fitran_indx] = struct.cont_dat - qsomod_notweak
+           hostcube.err[i,j,struct.fitran_indx] = err[struct.fitran_indx]
+           hostcube.dq[i,j,struct.fitran_indx] = dq[struct.fitran_indx]
+           if ~keyword_set(noplots) AND $
+              total(struct_host.cont_fit) ne 0d then begin
+              if tag_exist(initdat.argscontfit,'refit') then begin
+                 compspec = [[polymod_refit],[hostmod-polymod_refit]]
+                 comptit = ['ord. '+string(add_poly_degree,format='(I0)')+$
+                            ' Leg. poly.','stel. temp.']
+              endif else begin
+                 compspec = hostmod
+                 comptit = ['exponential terms']
+              endelse
+              call_procedure,fcnpltcont,struct_host,outfile+'_cnt_host',$
+                             compspec=compspec,comptit=comptit,title='Host',$
+                             fitran=initdat.fitran
+              if tag_exist(initdat.argscontfit,'blrpar') then begin
+                 qsomod_blrnorm = $
+                    median(qsomod)/max(qsomod_blronly)
+                 compspec = [[qsomod_normonly],[qsomod_blronly*qsomod_blrnorm]]
+                 comptit = ['raw template','scattered$\times$'+$
+                            string(qsomod_blrnorm,format='(D0.2)')]
+              endif else begin
+                 compspec = [[qsomod_normonly]]
+                 comptit = ['raw template']
+              endelse
+              call_procedure,fcnpltcont,struct_qso,outfile+'_cnt_qso',$
+                             compspec=compspec,comptit=comptit,title='QSO',$
+                             fitran=initdat.fitran
+           endif
         endif
 
+;       Plot continuum
+;       Make sure fit doesn't indicate no continuum; avoids
+;       plot range error in continuum fitting routine, as well as a blank
+;       plot!
+        if ~keyword_set(noplots) AND total(struct.cont_fit) ne 0d then $
+           if tag_exist(initdat,'decompose_qso_fit') then $
+              call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                             compspec=[[qsomod],[hostmod]],$
+                             title='Total',comptit=['QSO','host'],$
+                             fitran=initdat.fitran $
+           else if tag_exist(initdat,'decompose_ppxf_fit') then $
+              call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                             compspec=[[cont_fit_stel],[cont_fit_poly]],$
+                             title='Total',$
+                             comptit=['stel. temp.','ord. '+$
+                                      string(add_poly_degree,format='(I0)')+$
+                                      ' Leg. poly'],$
+                             fitran=initdat.fitran $
+           else call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                               fitran=initdat.fitran
         
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Process NaD (normalize, compute quantities and save, plot)
@@ -425,9 +781,16 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         if tag_exist(initdat,'donad') then begin
 
            if tag_exist(initdat,'decompose_qso_fit') then begin
-              nadnormcont = (struct.cont_dat - qsomod)/hostmod
-              nadnormconterr = struct.spec_err/hostmod
-              nadnormstel = hostmod
+              if tag_exist(initdat,'remove_scattered') then begin
+                 hostmod_tmp = hostmod - polymod_refit
+                 qsomod_tmp = qsomod + polymod_refit
+              endif else begin
+                 hostmod_tmp = hostmod
+                 qsomod_tmp = qsomod
+              endelse
+              nadnormcont = (struct.cont_dat - qsomod_tmp)/hostmod_tmp
+              nadnormconterr = struct.spec_err/hostmod_tmp
+              nadnormstel = hostmod_tmp
            endif else begin
               nadnormcont = struct.cont_dat/struct.cont_fit
               nadnormconterr = struct.spec_err/struct.cont_fit
@@ -450,6 +813,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                          struct.spec_err,$
                                          struct.zstar,fitpars_normnadstel,$
                                          _extra=initnad.argsnormnad)
+              if ~ tag_exist(initnad.argsnormnad,'fitranlo') then $
+                 fitranlo = (1d +struct.zstar)*[5810d,5865d] $
+              else fitranlo = initnad.argsnormnad.fitranlo
+              if ~ tag_exist(initnad.argsnormnad,'fitranhi') then $
+                 fitranhi = (1d +struct.zstar)*[5905d,5960d] $
+              else fitranhi = initnad.argsnormnad.fitranhi
            endif else begin
               normnad = ifsf_normnad(struct.wave,$
                                      nadnormcont,$
@@ -463,84 +832,103 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                          nadnormstel,$
                                          struct.spec_err,$
                                          struct.zstar,fitpars_normnadstel)
+              fitranlo = (1d +struct.zstar)*[5810d,5865d]
+              fitranhi = (1d +struct.zstar)*[5905d,5960d]
+
            endelse
+;          Check data quality
+           if normnad ne !NULL then igd = where(normnad.nflux gt 0d,ctgd) $
+           else ctgd = 0
 ;          Compute empirical equivalent widths and emission-line fluxes
-           emflux=dblarr(2)
-           emul=dblarr(4)+bad
-           if tag_exist(initnad,'argsnadweq') then begin
-              weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
+           if ctgd gt 0 then begin
+;          Create output data cube
+              if firstnadnorm then begin
+                 ilo = value_locate(cube.wave,fitranlo[0])+1
+                 ihi = value_locate(cube.wave,fitranhi[1])
+                 dat_normnadwave = cube.wave[ilo:ihi]
+                 nz = ihi-ilo+1
+                 nadcube = $
+                    {wave: dblarr(cube.ncols,cube.nrows,nz),$
+                     cont: dblarr(cube.ncols,cube.nrows,nz),$
+                     dat: dblarr(cube.ncols,cube.nrows,nz),$
+                     err: dblarr(cube.ncols,cube.nrows,nz)+bad,$
+                     weq: dblarr(cube.ncols,cube.nrows,4)+bad,$
+                     stelweq: dblarr(cube.ncols,cube.nrows,2)+bad,$
+                     iweq: dblarr(cube.ncols,cube.nrows,4)+bad,$
+                     emflux: dblarr(cube.ncols,cube.nrows,2)+bad,$
+                     emul: dblarr(cube.ncols,cube.nrows,4)+bad,$
+                     vel: dblarr(cube.ncols,cube.nrows,6)+bad}
+                 firstnadnorm = 0
+              endif
+;             Defaults
+              emflux=dblarr(2)
+              emul=dblarr(4)+bad
+              vel = dblarr(6)+bad
+              if tag_exist(initnad,'argsnadweq') then begin
+                 weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
                                       snflux=normnadem.nflux,unerr=normnadem.nerr,$
                                       emflux=emflux,emul=emul,$
                                       _extra=initnad.argsnadweq)
 
-;             These need to be compatible with the IFSF_CMPNADWEQ defaults
-              if tag_exist(initnad.argsnadweq,'emwid') then $
-                 emwid=initnad.argsnadweq.emwid else emwid=20d
-              if tag_exist(initnad.argsnadweq,'iabsoff') then $
-                 iabsoff=initnad.argsnadweq.iabsoff else iabsoff=4l
-           endif else begin
-              weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
-                                   snflux=normnadem.nflux,unerr=normnadem.nerr,$
-                                   emflux=emflux,emul=emul)
-;             These need to be compatible with the IFSF_CMPNADWEQ defaults
-              emwid=20d
-              iabsoff=4l
-           endelse
-;          Compute stellar continuum NaD equivalent widths from fit
-           stelweq = ifsf_cmpnadweq(normnadstel.wave,normnadstel.nflux,$
-                                    normnadstel.nerr,$
-                                    wavelim=[5883d*(1d +initdat.zsys_gas),$
-                                             6003d*(1d +initdat.zsys_gas),$
-                                             0d,0d])
+;                These need to be compatible with the IFSF_CMPNADWEQ defaults
+                 if tag_exist(initnad.argsnadweq,'emwid') then $
+                    emwid=initnad.argsnadweq.emwid else emwid=20d
+                 if tag_exist(initnad.argsnadweq,'iabsoff') then $
+                    iabsoff=initnad.argsnadweq.iabsoff else iabsoff=4l
+              endif else begin
+                 weq = ifsf_cmpnadweq(normnad.wave,normnad.nflux,normnad.nerr,$
+                                      snflux=normnadem.nflux,unerr=normnadem.nerr,$
+                                      emflux=emflux,emul=emul)
+;                These need to be compatible with the IFSF_CMPNADWEQ defaults
+                 emwid=20d
+                 iabsoff=4l
+              endelse
+;             Compute stellar continuum NaD equivalent widths from fit
+              stelweq = ifsf_cmpnadweq(normnadstel.wave,normnadstel.nflux,$
+                                       normnadstel.nerr,$
+                                       wavelim=[5883d*(1d +initdat.zsys_gas),$
+                                                6003d*(1d +initdat.zsys_gas),$
+                                                0d,0d])
 
-;          Compute empirical velocities
-           size_weq = size(weq)
-           if size_weq[0] eq 2 then begin
-              if tag_exist(initnad,'argsnadvel') then $
-                 vel = ifsf_cmpnadvel(normnad.wave,normnad.nflux,normnad.nerr,$
-                                      weq[*,1],initdat.zsys_gas,$
-                                      _extra=initnad.argsnadvel) $
-              else vel = ifsf_cmpnadvel(normnad.wave,normnad.nflux,normnad.nerr,$
-                                        weq[*,1],initdat.zsys_gas)
-           endif else vel = dblarr(6)+bad   
-;          Create / populate output data cube                            
-           if firstnadnorm then begin
-              nadcube = $
-                 {wave: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
-                  cont: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
-                  dat: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
-                  err: dblarr(cube.ncols,cube.nrows,n_elements(normnad.wave)),$
-                  weq: dblarr(cube.ncols,cube.nrows,4)+bad,$
-                  stelweq: dblarr(cube.ncols,cube.nrows,2)+bad,$
-                  iweq: dblarr(cube.ncols,cube.nrows,4)+bad,$
-                  emflux: dblarr(cube.ncols,cube.nrows,2)+bad,$
-                  emul: dblarr(cube.ncols,cube.nrows,4)+bad,$
-                  vel: dblarr(cube.ncols,cube.nrows,6)+bad}
-              firstnadnorm = 0
+;             Compute empirical velocities
+              size_weq = size(weq)
+              if size_weq[0] eq 2 then begin
+                 if tag_exist(initnad,'argsnadvel') then $
+                    vel = ifsf_cmpnadvel(normnad.wave,normnad.nflux,normnad.nerr,$
+                                         weq[*,1],initdat.zsys_gas,$
+                                         _extra=initnad.argsnadvel) $
+                 else vel = ifsf_cmpnadvel(normnad.wave,normnad.nflux,normnad.nerr,$
+                                           weq[*,1],initdat.zsys_gas)
+              endif
+              
+              ilo = where(normnad.wave[0] eq dat_normnadwave)
+              ihi = where(normnad.wave[n_elements(normnad.wave)-1] $
+                    eq dat_normnadwave)
+              nadcube.wave[i,j,*] = dat_normnadwave
+              nadcube.cont[i,j,ilo:ihi] = struct.cont_fit[normnad.ind]
+              nadcube.dat[i,j,ilo:ihi] = normnad.nflux
+              nadcube.err[i,j,ilo:ihi] = normnad.nerr
+              nadcube.weq[i,j,*] = weq[*,0]
+              nadcube.iweq[i,j,*] = weq[*,1]
+              nadcube.stelweq[i,j,*] = stelweq[0:1]
+              nadcube.emflux[i,j,*] = emflux
+              nadcube.emul[i,j,*] = emul
+              nadcube.vel[i,j,*] = vel
+;             Plot data
+              if not keyword_set(noplots) then $
+                 if tag_exist(initnad,'argspltnormnad') then $
+                    ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
+                                   outfile+'_nad_norm',autoindices=weq[*,1],$
+                                   emwid=emwid,iabsoff=iabsoff,$
+                                   _extra=initnad.argspltnormnad else $
+                    ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
+                                   outfile+'_nad_norm',autoindices=weq[*,1],$
+                                   emwid=emwid,iabsoff=iabsoff
            endif
-           nadcube.wave[i,j,*] = normnad.wave
-           nadcube.cont[i,j,*] = struct.cont_fit[normnad.ind]
-           nadcube.dat[i,j,*] = normnad.nflux
-           nadcube.err[i,j,*] = normnad.nerr
-           nadcube.weq[i,j,*] = weq[*,0]
-           nadcube.iweq[i,j,*] = weq[*,1]
-           nadcube.stelweq[i,j,*] = stelweq[0:1]
-           nadcube.emflux[i,j,*] = emflux
-           nadcube.emul[i,j,*] = emul
-           nadcube.vel[i,j,*] = vel
-;          Plot data
-           if not keyword_set(noplots) then $
-              if tag_exist(initnad,'argspltnormnad') then $
-                 ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
-                    outfile+'_nad_norm',autoindices=weq[*,1],$
-                    emwid=emwid,iabsoff=iabsoff,$
-                    _extra=initnad.argspltnormnad else $
-                 ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
-                    outfile+'_nad_norm',autoindices=weq[*,1],$
-                    emwid=emwid,iabsoff=iabsoff
+
         endif
 
-nofit:
+        endelse
 
      endfor
 
@@ -550,13 +938,92 @@ nofit:
 
   if ~ tag_exist(initdat,'noemlinfit') then begin
      free_lun,linlun
-     save,linmaps,file=initdat.outdir+initdat.label+'.lin.xdr'
-     save,tlinmaps,file=initdat.outdir+initdat.label+'.tlin.xdr'
+     emlkeys=!NULL
+;    Apply a sigma cut on a line-by-line basis
+;    Apply only to total flux summed over all components.
+;    Previous sigma cuts may have detected a line but not significantly in 
+;    every species.
+;    Presently this means that sums of doublet fluxes may have different cuts
+;    than the components of the doublet
+     if tag_exist(initdat,'emlsigcut') then begin
+        foreach line,lines_with_doublets do begin
+           ibd = where(emlflx['ftot',line] gt 0d AND $
+                       emlflx['ftot',line] lt $
+                       emlflxerr['ftot',line]*initdat.emlsigcut,ctbd)
+           if ctbd gt 0 then begin
+              emlflx['ftot',line,ibd] = bad
+              emlflxerr['ftot',line,ibd] = bad
+              for k=0,initdat.maxncomp-1 do begin
+                 cstr='c'+string(k+1,format='(I0)')
+                 emlflx['f'+cstr,line,ibd] = bad
+                 emlflxerr['f'+cstr,line,ibd] = bad
+                 emlflx['f'+cstr+'pk',line,ibd] = bad
+                 emlflxerr['f'+cstr+'pk',line,ibd] = bad
+                 emlwav[cstr,line,ibd] = bad
+                 emlwaverr[cstr,line,ibd] = bad
+                 emlsig[cstr,line,ibd] = bad
+                 emlsigerr[cstr,line,ibd] = bad
+              endfor
+           endif
+        endforeach
+     endif
+;    Compute CVDFs
+     emlcvdf = ifsf_cmpcvdf(emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
+                            initdat.maxncomp,linelist_with_doublets,$
+                            initdat.zsys_gas)
+     save,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,emlcvdf,$
+          file=initdat.outdir+initdat.label+'.lin.xdr'
   endif
 
   if tag_exist(initdat,'decompose_ppxf_fit') OR $
      tag_exist(initdat,'decompose_qso_fit') then $
      save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
+
+   if tag_exist(initdat,'decompose_qso_fit') AND $
+      tag_exist(initdat,'host') then begin
+;     Change initial wavelength -- use last restored fit structure. For some 
+;     reason SXADDPAR doesn't work when applied directly to structures, so
+;     create new variables.
+      newheader_dat = header.dat
+      newheader_var = header.var
+      newheader_dq = header.dq
+;     These lines are for producing a host spectrum in one dimension.
+      if tag_exist(initdat.host,'singlespec') then begin
+         sxaddpar,newheader_dat,'CRVAL1',cube.wave[0]
+         sxaddpar,newheader_var,'CRVAL1',cube.wave[0]
+         sxaddpar,newheader_dq,'CRVAL1',cube.wave[0]
+         sxaddpar,newheader_dat,'CRPIX1',1
+         sxaddpar,newheader_var,'CRPIX1',1
+         sxaddpar,newheader_dq,'CRPIX1',1
+         cdelt1 = sxpar(header.dat,'CDELT1')
+         sxaddpar,newheader_dat,'CDELT1',cdelt1
+         sxaddpar,newheader_var,'CDELT1',cdelt1
+         sxaddpar,newheader_dq,'CDELT1',cdelt1
+         writefits,initdat.host.dat_fits,cube.phu,header.phu
+         writefits,initdat.host.dat_fits,$
+                   reform(hostcube.dat,n_elements(hostcube.dat)),$
+                   newheader_dat,/append
+         writefits,initdat.host.dat_fits,$
+                   reform(hostcube.err,n_elements(hostcube.dat))^2d,$
+                   newheader_var,/append
+         writefits,initdat.host.dat_fits,$
+                   reform(hostcube.dq,n_elements(hostcube.dat)),$
+                   newheader_dq,/append
+      endif else begin
+;     These lines are for producing a host spectrum in the third dimension.
+         sxaddpar,newheader_dat,'CRVAL3',cube.wave[0]
+         sxaddpar,newheader_var,'CRVAL3',cube.wave[0]
+         sxaddpar,newheader_dq,'CRVAL3',cube.wave[0]
+         sxaddpar,newheader_dat,'CRPIX3',1
+         sxaddpar,newheader_var,'CRPIX3',1
+         sxaddpar,newheader_dq,'CRPIX3',1
+         writefits,initdat.host.dat_fits,cube.phu,header.phu
+         writefits,initdat.host.dat_fits,hostcube.dat,newheader_dat,/append
+         writefits,initdat.host.dat_fits,hostcube.err^2d,newheader_var,/append
+         writefits,initdat.host.dat_fits,hostcube.dq,newheader_dq,/append
+      endelse
+   endif
+
   if tag_exist(initdat,'donad') then $
      save,nadcube,file=initdat.outdir+initdat.label+'.nadspec.xdr'
 

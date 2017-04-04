@@ -71,21 +71,22 @@
 pro ifsf_pltlin,instr,pltpar,outfile
 
    set_plot,'Z'
-   device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
-   !P.charsize=1
+   device,decomposed=0,set_resolution=[1500,900],set_pixel_depth=24
+   !P.charsize=1.5
    !P.charthick=1
+   !P.thick=4
    erase
 
    defaultXtickint=!X.tickinterval
    defaultXminor=!X.minor
-   !X.tickinterval=25
+   !X.tickinterval=50
    !X.minor=10
    if tag_exist(pltpar,'micron') then begin
-      !X.tickinterval /= 0.25d4
+      !X.tickinterval /= 0.5d4
       !X.minor /= 0.5d4
    endif
    pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
-                  oxmar=[10,0],oymar=[10,0],xgap=6,ygap=6)
+                  oxmar=[22,0],oymar=[10,0],xgap=20,ygap=6)
 
   ncomp = instr.param[1]
   colors = ['Magenta','Green','Orange','Teal']
@@ -98,13 +99,13 @@ pro ifsf_pltlin,instr,pltpar,outfile
   modlines = instr.emlin_fit
   modtot = modstars + modlines
 
-  norm = max(modstars)
-  spectot /= norm
-  specstars /= norm
-  speclines /= norm
-  modtot /= norm
-  modstars /= norm
-  modlines /= norm
+;  norm = max(modstars)
+;  spectot /= norm
+;  specstars /= norm
+;  speclines /= norm
+;  modtot /= norm
+;  modstars /= norm
+;  modlines /= norm
 
   zbase = instr.zstar
 
@@ -164,16 +165,17 @@ pro ifsf_pltlin,instr,pltpar,outfile
         if icol eq fix(icol) then ytit = 'Fit' else ytit = ''
         cgplot,wave,ydat,xran=xran,yran=yran,pos=pos_fit,$
                xtickn=replicate(' ',60),ytit=ytit,/noerase,$
-               axiscol='White',col='White',/norm,/xsty,/ysty
-        cgoplot,wave,ymod,color='Red'
+               axiscol='White',col='White',/norm,/xsty,/ysty,thick=1
+        cgoplot,wave,ymod,color='Red',thick=4
         for j=1,ncomp do begin
            flux = ifsf_cmplin(instr,linlab[i],j,/velsig)
-           cgoplot,wave,yran[0]+flux/norm,color=colors[j-1],linesty=2
+           cgoplot,wave,yran[0]+flux,color=colors[j-1],linesty=2,thick=2
            if linoth[0,i] ne '' then begin
               for k=0,n_elements(linoth[*,i])-1 do begin
                  if linoth[k,i] ne '' then begin
                     flux = ifsf_cmplin(instr,linoth[k,i],j,/velsig)
-                    cgoplot,wave,yran[0]+flux/norm,color=colors[j-1],linesty=2
+                    cgoplot,wave,yran[0]+flux,color=colors[j-1],linesty=2,$
+                            thick=2
                  endif
               endfor
            endif
@@ -192,8 +194,8 @@ pro ifsf_pltlin,instr,pltpar,outfile
         yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
         if icol eq fix(icol) then ytit = 'Residual' else ytit = ''
         cgplot,wave,ydat,xran=xran,yran=yran,/noerase,ytit=ytit,$
-               axiscol='White',col='White',/norm,pos=pos_res,/xsty,/ysty
-        cgoplot,wave,ymod,color='Red'
+               axiscol='White',col='White',/norm,pos=pos_res,/xsty,/ysty,thick=1
+        cgoplot,wave,ymod,color='Red',thick=4
      endif
 
   endfor

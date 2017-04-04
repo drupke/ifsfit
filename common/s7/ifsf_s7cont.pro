@@ -66,37 +66,11 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitpoly,lambda,flux,weight,template_lambdaz,template_flux,index,$
-                      ct_coeff,zstar,fitord=fitord,quiet=quiet,refit=refit
-
-  ilambda=lambda[index]
-  iflux=flux[index]
-  iweight=weight[index]
-  ierr = 1d/sqrt(iweight)
-
-  if ~ keyword_set(fitord) then fitord=3
-  parinfo = replicate({value:0d},fitord+1)
-  fluxfit = mpfitfun('poly',ilambda,iflux,ierr,parinfo=parinfo,/quiet)
-;  fluxfit = poly_fit(ilambda,iflux,fitord,measure=ierr,status=status,/double)
-  continuum = poly(lambda,fluxfit)
-  ct_coeff = 0
-
-  icontinuum = continuum[index]
-  
-  if keyword_set(refit) then begin
-     for i = 0,n_elements(refit.ord)-1 do begin
-        tmp_ind = where(lambda ge refit.ran[0,i] AND $
-                        lambda le refit.ran[1,i])
-        tmp_iind = where(ilambda ge refit.ran[0,i] AND $
-                         ilambda le refit.ran[1,i])
-        parinfo = replicate({value:0d},refit.ord[i]+1)
-        tmp_pars = mpfitfun('poly',ilambda[tmp_iind],$
-                            iflux[tmp_iind]-icontinuum[tmp_iind],$
-                            ierr[tmp_iind],parinfo=parinfo,/quiet)
-        continuum[tmp_ind] += poly(lambda[tmp_ind],tmp_pars)
-     endfor
-  endif
-
+function ifsf_s7cont,lambda,flux,weight,template_lambdaz,template_flux,index,$
+                     ct_coeff,zstar,quiet=quiet,colrow=colrow
+                     
+  continuum = template_flux[colrow[0]-1,colrow[1]-1,*]
+  ct_coeff=0d
   return,continuum
 
 end

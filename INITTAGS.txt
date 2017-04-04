@@ -109,6 +109,8 @@ Optional structure tags from initialization procedure:
     Extension # for dq plane in data cube.
   donad: in, optional, type=byte
     Run NaD analysis (normalization and finding weq) in IFSFA.
+  emlsigcut: in, optional, type=double
+    Threshold sigma for filtering individual emission lines in IFSFA.
   fcncheckcomp: in, optional, type=string
     Name of function for automatically testing significance of
     components.
@@ -158,8 +160,6 @@ Optional structure tags from initialization procedure:
     Fit continuum only.
   nomaskran: in, optional, type=dblarr(2)
     Wavelength region *not* to mask.
-  outlines: in, optional, type=strarr
-    Labels of emission lines for which to print line fluxes to output.
   peakinit: in, optional, type=hash(lines,maxncomp)
     Initial peak flux guesses.
   peakinit: in, optional, type=hash(lines,maxncomp)
@@ -211,10 +211,6 @@ Misc. optional tags:
   argslinratmaps: in, optional, type=structure
     If set, line ratios are plotted. The following tags govern the
     image ...
-  applyebv: in, optional, type=dblarr(maxncomp)
-    If set, extinction correction is applied in IFSF_CMPLINSPECMAPS on a
-    component-by-component basis to the Balmer lines. Set each element to
-    1 (or 0) to apply (or not apply) the correction.
   badnademp: in, optional, type=dblarr(ncols,nrows)
     Flags to ignore empirical NaD results. 0 = keep, 1 = ignore
   center_axes: in, optional, type=dblarr(2)
@@ -247,6 +243,10 @@ Misc. optional tags:
 
 Optional tags for continuum images:
 
+  ebv: in, optional, type=structure
+     Parameters controlling how E(B-V) is calculated.
+     calc: in, optional, type=strarr
+       List of keys in EMLFLX hash governing 
   col: in, optional, type=structure
      If set, IFS continuum color image is created. The following
      tags govern the image.
@@ -311,7 +311,7 @@ Optional tags for continuum images:
      file: in, required, type=string
      scllim: in, required, type=dblarr(2)
        Lower and upper flux limits for byte scaling.
-     sclargs: in, required, type=structure
+     sclargs_big,_sm,_fov: in, required, type=structure
        Optional arguments for byte scaling routine (CGIMGSCL). If no
        arguments, then input a dummy tag.
      photflam: in, required, type=double
@@ -326,7 +326,7 @@ Optional tags for continuum images:
      image.
      scllim: in, required, type=dblarr(2)
        Lower and upper flux limits for byte scaling.
-     sclargs: in, required, type=structure
+     sclargs_big,_sm,_fov: in, required, type=structure
        Optional arguments for byte scaling routine (CGIMGSCL). If no
        arguments, then input a dummy tag.
      stretch: in, required, type=int

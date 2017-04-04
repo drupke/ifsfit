@@ -73,7 +73,8 @@
 ;-
 pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
                    fitranlo=fitranlo,fitranhi=fitranhi,$
-                   autoindices=autoindices,emwid=emwid,iabsoff=iabsoff
+                   autoindices=autoindices,emwid=emwid,iabsoff=iabsoff,$
+                   yran=yran
 
    if ~ keyword_set(iabsoff) then iabsoff = 4l
    if ~ keyword_set(emwid) then emwid = 20d 
@@ -93,8 +94,8 @@ pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
    iplt = where(wave ge pltran[0] AND wave le pltran[1],ctplt)
 
    set_plot,'Z'
-   erase
    cgdisplay,1280,960
+   cgerase,'Black'
    !P.charsize=1
    !P.charthick=1
    !P.thick=2
@@ -104,6 +105,7 @@ pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
    lincol='Cyan'
    
    yran = [min(flux[iplt]),max(flux[iplt])]
+   if yran[0] lt 0 then yran[0] = 0
    cgplot,wave[iplt],flux[iplt],xran=pltran,yran=yran,/xsty,/ysty,$
           color='White',axisc='White',layout=[1,2,1],backg='Black',$
           ytit='Actual Flux',xtit='Observed Wavelength ($\Angstrom$)'

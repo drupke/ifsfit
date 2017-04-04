@@ -100,7 +100,7 @@
 ;
 ;-
 pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,ncores=ncores,$
-         verbose=verbose,_extra=ex
+         verbose=verbose,_extra=_extra
   
   starttime = systime(1)
   time = 0
@@ -110,14 +110,17 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,ncores=ncores,$
   if keyword_set(oned) then oned=1b else oned=0b
   if keyword_set(onefit) then onefit=1b else onefit=0b
   if keyword_set(verbose) then quiet=0b else quiet=1b
-  
 ; Get fit initialization
-  if keyword_set(_extra) then initdat = call_function(initproc,_extra=ex) $
+  if keyword_set(_extra) then initdat = call_function(initproc,_extra=_extra) $
   else initdat = call_function(initproc)
   
 ; Get linelist
-  linelist = ifsf_linelist(initdat.lines)
-  nlines = linelist.count()
+  if tag_exist(initdat,'lines') then begin
+     linelist = ifsf_linelist(initdat.lines)
+     nlines = linelist.count()
+  endif else begin
+     linelist = hash()
+  endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
@@ -127,34 +130,48 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,ncores=ncores,$
   if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
   if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
   
+  if tag_exist(initdat,'vormap') then vormap=initdat.vormap else vormap=0b
   cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
-                       datext=datext,varext=varext,dqext=dqext)
-
+                       datext=datext,varext=varext,dqext=dqext,$
+                       vormap=vormap)
+                       
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; case of specifying a column and row in voronoi format
+  if keyword_set(cols) AND keyword_set(rows) $
+     AND tag_exist(initdat,'vormap') then begin
+     
+     if n_elements(cols) eq 1 AND n_elements(rows) eq 1 then begin
+        cols = vormap[cols[0]-1,rows[0]-1]
+        rows = 1        
+     endif else begin
+        message,'Can only specify 1 spaxel at a time, or all spaxels, in Voronoi mode.'
+     endelse
+  endif
+
   if ~ keyword_set(cols) then begin
-     cols=[1,cube.ncols]
-     ncols = cube.ncols
+    cols=[1,cube.ncols]
+    ncols = cube.ncols
   endif else if n_elements(cols) eq 1 then begin
-     cols = [cols,cols]
-     ncols = 1
+    cols = [cols,cols]
+    ncols = 1
   endif else begin
-     ncols = cols[1]-cols[0]+1
+    ncols = cols[1]-cols[0]+1
   endelse
   cols = fix(cols)
   if ~ keyword_set(rows) then begin
-     rows=[1,cube.nrows]
-     nrows = cube.nrows
+    rows=[1,cube.nrows]
+    nrows = cube.nrows
   endif else if n_elements(rows) eq 1 then begin
-     rows = [rows,rows]
-     nrows = 1
+    rows = [rows,rows]
+    nrows = 1
   endif else begin
-     nrows = rows[1]-rows[0]+1
+    nrows = rows[1]-rows[0]+1
   endelse
   rows = fix(rows)
-  
+
   colarr = rebin(dindgen(ncols)+cols[0]-1d,ncols,nrows)
   rowarr = rebin(transpose(dindgen(nrows)+rows[0]-1d),ncols,nrows)
   nspax = ncols*nrows
@@ -178,7 +195,7 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,ncores=ncores,$
      if tag_exist(initdat,'logfile') then $
         logfiles=replicate(initdat.logfile+'_',ncores)+$
                  string(indgen(ncores)+1,format='(I0)') $
-     else logfiles=''
+     else message,'Logfile must be specified.'
      logloop = strarr(nspax)
      min_per_core=floor(double(nspax)/double(ncores))
      num_per_core=intarr(ncores)+min_per_core

@@ -48,9 +48,10 @@
 ;                       point underflow; culprit seems to be MACHAR() ...
 ;      2014nov05, DSNR, updated to play nice with older data
 ;      2015may11, DSNR, fixed bug when line is not fit but wants to be plotted
+;      2016sep26, DSNR, account for new treatment of spectral resolution
 ;    
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -74,6 +75,7 @@ function ifsf_cmplin,instr,line,comp,velsig=velsig
    iline = where(instr.linelabel eq line,ct)
    ppoff = instr.param[0]
    ncomp = instr.param[1]
+   specres = instr.param[2]
 
 ;  The first part of this if loop is for IFSF-processed data; the second part
 ;  is for UHSPECFIT-processed data.
@@ -87,7 +89,9 @@ function ifsf_cmplin,instr,line,comp,velsig=velsig
    endelse
    if indices[0] ne -1 then begin
       gausspar = instr.param[indices]
-      if keyword_set(velsig) then gausspar[2] *= gausspar[1]/c
+      if keyword_set(velsig) then $
+         gausspar[2] = sqrt((gausspar[2]*gausspar[1]/c)^2d + specres^2d) $
+      else gausspar[2] = sqrt(gausspar[2]^2d + specres^2d)
       if gausspar[2] eq 0d then flux = 0d else $
          flux = double(gaussian(instr.wave,gausspar))
 ;  case of line not being fit but wanting to be plotted

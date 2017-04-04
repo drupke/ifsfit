@@ -37,8 +37,7 @@
 ; HST image data are rotated opposite to the IFS PA, which then makes the 
 ; IFS in a row-column orientation w.r.t. the HST image.
 ; 
-; The procedure requires IDLUTILS because of the SSHIFTROTATE
-; routine.
+; The procedure requires IDLUTILS because of the SSHIFTROTATE routine.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -239,6 +238,8 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
 ;   
 ;   A positive shift in SSHIFTROTATE means that the underlying image data 
 ;   moves to lower coordinate values.
+;   
+;   SSHIFTROTATE uses sinc interpolation
       shift = dblarr(2)
       ifsdims_hstpix = ifsdims * ifsps/hstps
 ;     If there is an odd number of pixels, we want to move IC to a pixel center.

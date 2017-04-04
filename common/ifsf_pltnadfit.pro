@@ -23,6 +23,7 @@
 ;      Systemic redshift.
 ;
 ; :Keywords:
+;    specres: in, required, type=double
 ;    xran: in, optional, type=dblarr(2), default=all
 ;      Wavlength range of output plot.
 ;    yran: in, optional, type=dblarr(2), default=[0\,1.5]
@@ -44,7 +45,7 @@
 ;      2014may15, DSNR, re-written for new fitting routines
 ;
 ; :Copyright:
-;    Copyright (C) 2013-2014 David S. N. Rupke
+;    Copyright (C) 2013--2016 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -61,7 +62,10 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_pltnadfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran
+pro ifsf_pltnadfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran,$
+                   specres=specres,zstar=zstar
+                   
+  if ~keyword_set(specres) then message,'Spectral resolution not specified.'
 
 ; Default wavelengths
   c = 299792.458d
@@ -71,12 +75,17 @@ pro ifsf_pltnadfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran
   w_nad1 = linelist['NaD1']*(1d +zsys)
   w_nad2 = linelist['NaD2']*(1d +zsys)
   w_hei = linelist['HeI5876']*(1d +zsys)
-
+  if keyword_set(zstar) then begin
+     wst_nad1 = linelist['NaD1']*(1d +zstar)
+     wst_nad2 = linelist['NaD2']*(1d +zstar)
+  endif
+  
   modhei=1
   modnadabs=1
   modnadem=1
   modflux = ifsf_nadfcn(wave,param,modhei=modhei,modnadabs=modnadabs,$
-                        modnadem=modnadem)
+                        modnadem=modnadem,specres=specres,$
+                        wavnadabs=wavnadabs,wavhei=wavhei)
   size_hei = size(modhei)
   if size_hei[0] eq 1 then nhei = 1 $
   else if size_hei[0] eq 2 then nhei = fix(size_hei[2]) $
@@ -96,7 +105,7 @@ pro ifsf_pltnadfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran
   device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
   !P.charsize=1.5
   !P.charthick=1
-  erase
+  cgerase,'Black'
 
   if ~ keyword_set(xran) then xran = [min(wave),max(wave)]
   if ~ keyword_set(yran) then yran = [0d,1.5d]
@@ -107,10 +116,41 @@ pro ifsf_pltnadfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran
   cgoplot,[w_nad1,w_nad1],yran,color='Green',linesty=2
   cgoplot,[w_nad2,w_nad2],yran,color='Green',linesty=2
   cgoplot,[w_hei,w_hei],yran,color='Green',linesty=2
+  if keyword_set(zstar) then begin
+     cgoplot,[wst_nad1,wst_nad1],yran,color='Orange',linesty=2
+     cgoplot,[wst_nad2,wst_nad2],yran,color='Orange',linesty=2   
+  endif
   for i=0,nhei-1 do cgoplot,wave,modhei[*,i],color='Cyan',thick=2
   for i=0,nnadabs-1 do cgoplot,wave,modnadabs[*,i],color='Cyan',thick=2
   for i=0,nnadem-1 do cgoplot,wave,modnadem[*,i],color='Cyan',thick=2
   cgoplot,wave,modflux,color='Red',thick=4
+  xtit = xran[1] - (xran[1]-xran[0])*0.05
+  ytit = yran[1] - (yran[1]-yran[0])*0.05
+  cgtext,xtit,ytit,'z$\downref$ = '+string(zsys,format='(D0.5)'),$
+         color='Green',align=1
+  if keyword_set(zstar) then begin
+     ytit -= (yran[1]-yran[0])*0.05
+     cgtext,xtit,ytit,'z$\downstar$ = '+string(zstar,format='(D0.5)'),$
+            color='Orange',align=1
+  endif
+  for i=0,nnadabs-1 do begin
+     ytit -= (yran[1]-yran[0])*0.05
+     zdiff = wavnadabs[i]/w_nad1 - 1d
+     vel = c * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+     cgtext,xtit,ytit,$
+            string('NaD abs., comp. ',i+1,' v = ',vel,' km/s',$
+                   format='(A0,I0,A0,I0,A0)'),$
+            color='Cyan',align=1
+  endfor
+  for i=0,nhei-1 do begin
+     ytit -= (yran[1]-yran[0])*0.05
+     zdiff = wavhei[i]/w_hei - 1d
+     vel = c * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+     cgtext,xtit,ytit,$
+            string('HeI, comp. ',i+1,' = ',vel,' km/s',$
+                   format='(A0,I0,A0,I0,A0)'),$
+            color='Cyan',align=1
+  endfor
 
   img = cgsnapshot(filename=outfile,/jpeg,/nodialog,quality=100)
 

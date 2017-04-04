@@ -13,12 +13,9 @@
 ;      wave, type=dblarr(nwave), wavelengths of model
 ;      vel, type=dblarr(nwave), corresponding velocities w.r.t. systemic
 ;      flux, type=dblarr(ncols, nrows, nwave)
-;      fluxnorm, type=dblarr(ncols, nrows, nwave), flux divided by total flux
 ;      cumfluxnorm, type=dblarr(ncols, nrows, nwave), cumulative fluxes at each 
 ;        wavelength, summed from low to high wavelengths, normalized so that
 ;        area under curve is 1.
-;      cumfluxnorm, type=dblarr(ncols, nrows, nwave), cumulative fluxes at each
-;        wavelength, summed from low to high wavelengths
 ;
 ; :Params:
 ;    pkfluxes: in, required, type=dblarr(ncols,nrows,maxncomp)
@@ -54,7 +51,6 @@
 ; :History:
 ;    ChangeHistory::
 ;      2014jun03, DSNR, created
-;      2016jul12, DSNR, added un-normalized, cumulative fluxes
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014--2016 David S. N. Rupke
@@ -75,7 +71,7 @@
 ;
 ;-
 function ifsf_cmplinspecmaps,pkfluxes,pkwaves,sigmas,maxncomp,waveref,zref,$
-                             ignore=ignore,ebv=ebv
+                             ignore=ignore,ebv=ebv,goodspax=goodspax
 
    bad = 1d99
    c = 299792.458

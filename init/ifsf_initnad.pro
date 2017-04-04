@@ -140,7 +140,7 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_w].limits[1]  = inithei[*,0]+10d
       parinfo[ind_s].limited[0] = 1B
       parinfo[ind_s].limited[1] = 1B
-      if ~ keyword_set(siglimhei) then siglimhei=[50d,1000d]
+      if ~ keyword_set(siglimhei) then siglimhei=[5d,1000d]
       parinfo[ind_s].limits[0] = siglimhei[0]
       parinfo[ind_s].limits[1]  = siglimhei[1]
       if keyword_set(heifix) then $

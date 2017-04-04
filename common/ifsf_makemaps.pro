@@ -2,8 +2,9 @@
 ;
 ;+
 ;
-; This procedure makes maps of various quantities. Contains three helper routines: 
-; IFSF_PLOTRANGE, IFSF_PLOTCOMPASS, IFSF_PLOTAXESNUC.
+; This procedure makes maps of various quantities. Contains four
+; helper routines: IFSF_LINESYNTAX, IFSF_PLOTRANGE, IFSF_PLOTCOMPASS,
+; IFSF_PLOTAXESNUC.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -48,7 +49,7 @@
 ;                       based on Weq to mapping of fitted NaD properties, not
 ;                       just empirical properties as was previously coded
 ;      2015jun08, DSNR, added peak fitting to continuum data in *cont.eps and
-;                       *cont_radprof.eps plots
+;                       *cont_rad.eps plots
 ;      2015sep21, DSNR, big changes to dereddening procedures, and other changes
 ;                       to line plotting procedures
 ;      2016jan24, DSNR, added 'diskline' and 'ofparline' tags to INITMAPS
@@ -73,22 +74,70 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_plotaxesnuc,xran_kpc,yran_kpc,xnuc,ynuc,nolab=nolab,toplab=toplab
+function ifsf_linesyntax,line
+;  Change first, second occurrence of [ and ] to \[ and \]
+;  Otherwise call to DEVICE can choke if the string includes [ rather
+;  than \[
    COMPILE_OPT IDL2, HIDDEN
+   linelab=line
+   ilb = strpos(linelab,'[')
+   ilb2 = strpos(linelab,'[',/reverse_search) ; second occurrence
+   if ilb ne -1 then $
+      linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
+   if ilb ne -1 AND ilb ne ilb2 then $
+      linelab = strmid(linelab,0,ilb2+1)+'\'+strmid(linelab,ilb2+1)
+   irb = strpos(linelab,']')
+   irb2 = strpos(linelab,']',/reverse_search) ; second occurrence
+   if irb ne -1 then $
+      linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
+   if irb ne -1 AND irb ne irb2 then $
+      linelab = strmid(linelab,0,irb2+1)+'\'+strmid(linelab,irb2+1)
+   return,linelab
+end
+   
+function ifsf_pa,xaxis,yaxis
+
+;  Computes PA east of north, assuming +y axis is north
+
+;  assume input variables are 0-,1-,or 2-dimensional
+   sizetmp = size(xaxis)
+   if sizetmp[0] eq 0 then pa = dblarr(1) $
+   else if sizetmp[0] eq 1 then pa = dblarr(sizetmp[1]) $
+   else pa = dblarr(sizetmp[1],sizetmp[2])
+
+   iul = where(xaxis le 0 AND yaxis gt 0,ctul)
+   ill = where(xaxis lt 0 AND yaxis le 0,ctll)
+   ilr = where(xaxis ge 0 AND yaxis lt 0,ctlr)
+   iur = where(xaxis gt 0 AND yaxis ge 0,ctur)
+   if ctul gt 0 then pa[iul] = atan(abs(xaxis[iul])/yaxis[iul])/!DPi*180d
+   if ctll gt 0 then pa[ill] = 90d + atan(abs(yaxis[ill])/abs(xaxis[ill]))/!DPi*180d
+   if ctlr gt 0 then pa[ilr] = 180d + atan(xaxis[ilr]/abs(yaxis[ilr]))/!DPi*180d
+   if ctur gt 0 then pa[iur] = 270d + atan(yaxis[iur]/xaxis[iur])/!DPi*180d
+
+   if sizetmp[0] eq 0 then pa = pa[0]
+   return,pa
+end
+
+pro ifsf_plotaxesnuc,xran_kpc,yran_kpc,xnuc,ynuc,nolab=nolab,toplab=toplab,$
+                     noxlab=noxlab,charsize=charsize
+   COMPILE_OPT IDL2, HIDDEN
+   if not keyword_set(charsize) then charsize=!P.charsize
    if not keyword_set(nolab) then begin
-      if keyword_set(toplab) then $
-         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60) $
-      else $
-         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save
-      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save
+      if keyword_set(toplab) OR keyword_set(noxlab) then $
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60)
+      if not keyword_set(noxlab) AND not keyword_set(toplab) then $
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,charsize=charsize
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,charsize=charsize
    endif else begin
       cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60)
       cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,ytickn=replicate(' ',60)   
    endelse
-   if keyword_set(toplab) then $
-      cgaxis,xaxis=1,xran=xran_kpc,/xsty $
-   else $
-      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+   if not keyword_set(toplab) OR keyword_set(noxlab) then $
+     cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+   if keyword_set(toplab) AND $
+      not keyword_set(noxlab) AND $
+      not keyword_set(nolab) then $
+      cgaxis,xaxis=1,xran=xran_kpc,/xsty,charsize=charsize
    cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
    cgoplot,xnuc,ynuc,psym=1
 end
@@ -119,14 +168,14 @@ function ifsf_plotrange,auto=auto,$
    if ~ doauto then begin
       if keyword_set(rline) AND keyword_set(matline) AND $
          keyword_set(rquant) AND keyword_set(matquant) AND $
-         keyword_set(rncbdiv) AND keyword_set(rlo) AND keyword_set(rhi) then begin
+         keyword_set(rncbdiv) AND (keyword_set(rlo) OR keyword_set(rhi)) then begin
          if keyword_set(rcomp) AND keyword_set(matcomp) then $
-            ithislinecomp = where(rline eq matline AND $
-                                  rcomp eq matcomp AND $
-                                  rquant eq matquant,ctthisline) $
+            ithisline = where(rline eq matline AND $
+                              rcomp eq matcomp AND $
+                              rquant eq matquant,ctthisline) $
          else $
-            ithislinecomp = where(rline eq matline AND $
-                                  rquant eq matquant,ctthisline)
+            ithisline = where(rline eq matline AND $
+                              rquant eq matquant,ctthisline)
          if ctthisline eq 1 then begin
             zran = [rlo[ithisline],rhi[ithisline]]
             ncbdiv = rncbdiv[ithisline]
@@ -134,17 +183,17 @@ function ifsf_plotrange,auto=auto,$
          endif else doauto=1
       endif else doauto=1
    endif
-   if doauto AND $
-      keyword_set(mapgd) AND $
-      keyword_set(divinit) AND $
-      keyword_set(ncbdivmax) then begin
-      zran = [min(mapgd),max(mapgd)]
-      divarr = ifsf_cbdiv(zran,divinit,ncbdivmax)
-      ncbdiv = divarr[0]
-   endif else begin
-      print,'IFSF_PLOTRANGE: Proper keywords not specified.'
-      stop
-   endelse
+   if doauto then begin
+      if keyword_set(mapgd) AND $
+         keyword_set(divinit) AND $
+         keyword_set(ncbdivmax) then begin
+         zran = [min(mapgd),max(mapgd)]
+         divarr = ifsf_cbdiv(zran,divinit,ncbdivmax)
+         ncbdiv = divarr[0]
+      endif else begin
+         message,'Proper keywords not specified.'
+      endelse
+   endif
    return,[zran,zran[1]-zran[0],ncbdiv]
 end
 ;
@@ -172,13 +221,16 @@ pro ifsf_makemaps,initproc
    lsun = 3.826d33               ; solar luminosities, erg/s
    msun = 1.989e33               ; solar mass, g
    c_cms = 2.99792d10
-   y = 0.9d                      ; Na ionization fraction
-   a = -5.69d                    ; Na abundance
-   b = -0.95d                    ; Na depletion
+   ionfrac = 0.9d                      ; Na ionization fraction
+   oneminusionfrac_relerr = [0d,0d]
+   naabund = -5.69d                    ; Na abundance
+   nadep = 0.95d                    ; Na depletion
    volemis = 2.63d-25            ; volume emissivity of Ha = product of recomb. coeff. 
                                  ; and photon energy; units erg cm^3 s^-1
-   elecden = 10                  ; electron density, cm^-3
+   elecden = 10d                 ; electron density, cm^-3
+   elecden_err = [0d,0d]
 
+   lineofdashes = strjoin(replicate('-',62))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Load initialization parameters and line data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -194,34 +246,32 @@ pro ifsf_makemaps,initproc
 ;  Get galaxy-specific parameters from initialization file
    center_axes = -1
    center_nuclei = -1
-   hasrangepar=0
-   hasratpar_comp=0
-   hasratpar_cvdf=0
    if tag_exist(initmaps,'center_axes') then $
       center_axes = initmaps.center_axes
    if tag_exist(initmaps,'center_nuclei') then $
       center_nuclei = initmaps.center_nuclei
-   if tag_exist(initmaps,'comp_lr_args') then begin
-      comp_lr_args = initmaps.comp_lr_args
-      hasratpar_comp=1
-   endif
-   if tag_exist(initmaps,'cvdf_lr_args') AND $
-      tag_exist(initmaps,'cvdf_lr_ftags') AND $
-      tag_exist(initmaps,'cvdf_lr_ftitles') then begin
-      cvdf_lr_args = initmaps.cvdf_lr_args
-      cvdf_lr_ftags = initmaps.cvdf_lr_ftags
-      cvdf_lr_ftitles = initmaps.cvdf_lr_ftitles
-      hasratpar_cvdf=1
-   endif
-   if tag_exist(initmaps,'rangefile') then begin
-      rangefile = initmaps.rangefile
-      hasrangepar=1
-   endif
 
 ;  Get linelist
-   if ~ tag_exist(initmaps,'noemlinfit') then $
+   if ~ tag_exist(initdat,'noemlinfit') then begin
       linelabels=1b
       linelist = ifsf_linelist(initdat.lines,linelab=linelabels)
+;     Linelist with doublets to combine
+      emldoublets = [['[SII]6716','[SII]6731'],$
+                     ['[OII]3726','[OII]3729'],$
+                     ['[NI]5198','[NI]5200']]
+      sdoub = size(emldoublets)
+      if sdoub[0] eq 1 then ndoublets = 1 else ndoublets = sdoub[2]
+      lines_with_doublets = initdat.lines
+      for i=0,ndoublets-1 do begin
+         if linelist.haskey(emldoublets[0,i]) AND $
+            linelist.haskey(emldoublets[1,i]) then begin
+            dkey = emldoublets[0,i]+'+'+emldoublets[1,i]
+            lines_with_doublets = [lines_with_doublets,dkey]
+         endif
+      endfor
+      linelist_with_doublets = $
+         ifsf_linelist(lines_with_doublets,linelab=linelabels)
+   endif
    if tag_exist(initdat,'donad') then $
       nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
 
@@ -229,54 +279,28 @@ pro ifsf_makemaps,initproc
 ;
 ;  plot types, in order; used for correlating with input ranges (array 
 ;  rangequant)
-   plottypes = ['flux','velocity','sigma']
    hasrangefile=0
-   if hasrangepar then begin
-      if file_test(rangefile) then begin
-         readcol,rangefile,rangeline,rangecomp,rangequant,rangelo,rangehi,$
-         rangencbdiv,format='(A,I,A,D,D,I)',/silent
+   if tag_exist(initmaps,'rangefile') then begin
+      if file_test(initmaps.rangefile) then begin
+         readcol,initmaps.rangefile,rangeline,rangequant,rangelo,rangehi,$
+                 rangencbdiv,format='(A,A,D,D,I)',/silent
          hasrangefile=1
-      endif else print,'IFSF_MAKEMAPS: Range file not found.'
-   endif
-   if keyword_set(rangefile) then begin
-      if file_test(rangefile) then begin
-         readcol,rangefile,rangeline,rangecomp,rangequant,rangelo,rangehi,$
-            rangencbdiv,format='(A,I,A,D,D,I)',/silent
-         hasrangefile=1
-      endif else print,'IFSF_MAKEMAPS: Range file not found.'
+      endif else message,'Range file listed in INITMAPS but not found.'
    endif
 
 ;  Restore line maps
-   if ~ tag_exist(initmaps,'noemlinfit') then begin
-      if not tag_exist(initdat,'outlines') then outlines = linelist->keys() $
-      else outlines = initdat.outlines
+   if ~ tag_exist(initdat,'noemlinfit') then $
       restore,file=initdat.outdir+initdat.label+'.lin.xdr'
-      restore,file=initdat.outdir+initdat.label+'.tlin.xdr'
-
-      size_tmp = size(linmaps[outlines[0]])
-      dx = size_tmp[1]
-      dy = size_tmp[2]
-      if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
-      if center_nuclei[0] eq -1 then center_nuclei = center_axes
-   endif
    
 ;  Restore continuum parameters
    if tag_exist(initdat,'decompose_ppxf_fit') OR $
-      tag_exist(initdat,'decompose_qso_fit') then begin
+      tag_exist(initdat,'decompose_qso_fit') then $
       restore,file=initdat.outdir+initdat.label+'.cont.xdr'
-   endif
 
 ;  Get NaD parameters
    if tag_exist(initdat,'donad') then begin
       restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
       restore,file=initdat.outdir+initdat.label+'.nadfit.xdr'
-      if tag_exist(initmaps,'noemlinfit') then begin
-         size_tmp = size(nadcube.weq)
-         dx = size_tmp[1]
-         dy = size_tmp[2]
-         if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
-         if center_nuclei[0] eq -1 then center_nuclei = center_axes
-      endif
       if tag_exist(initmaps,'badnademp') then begin
          tagstobad=['WEQ','IWEQ','EMFLUX','EMUL','VEL']
          tagnames=tag_names(nadcube)
@@ -297,9 +321,7 @@ pro ifsf_makemaps,initproc
    
    if ~ tag_exist(initdat,'donad') AND $
       tag_exist(initmaps,'noemlinfit') then begin
-      print,'IFSF_MAKEMAPS: No emission line or absorption line data specified.'
-      print,'               Aborting.'
-      goto,badinput
+      message,'No emission line or absorption line data specified.'
    endif
    
 ;  Figure aspect ratio multiplier
@@ -330,6 +352,12 @@ pro ifsf_makemaps,initproc
       datacube.dat *= initmaps.fluxfactor
       datacube.var *= (initmaps.fluxfactor)^2d
    endif
+   size_tmp = size(datacube.dat)
+   dx = size_tmp[1]
+   dy = size_tmp[2]
+   if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
+   if center_nuclei[0] eq -1 then center_nuclei = center_axes
+
 
 ;  HST data
    dohst=0
@@ -652,19 +680,45 @@ pro ifsf_makemaps,initproc
    map_y = rebin(transpose(dindgen(dy)+1),dx,dy)
    map_r = sqrt((map_x - center_axes[0])^2d + (map_y - center_axes[1])^2d)
    map_rkpc_ifs = map_r * kpc_per_pix
+
+;  PA E of N, in degrees; spaxel with [0,0] has PA = bad
+   map_pa = dblarr(dx,dy)
+   map_xaxis = map_x - center_axes[0]
+   map_yaxis = map_y - center_axes[1]
+   map_pa = ifsf_pa(map_xaxis,map_yaxis)
+   map_pa += initdat.positionangle
+   iphase = where(map_pa ge 360d,ctphase)
+   if ctphase gt 0 then map_pa[iphase] -= 360d
+   inuc = where(map_r eq 0d,ctnuc)
+   if ctnuc gt 0 then map_pa[inuc] = bad
+
    if tag_exist(initdat,'decompose_qso_fit') then begin
-      qso_map = total(contcube.qso,3)
+      inan = where(finite(contcube.qso_mod,/nan),ctnan)
+      if ctnan gt 0 then contcube.qso_mod[inan] = 0d
+      qso_map = total(contcube.qso_mod,3) / contcube.npts
       maxqso_map = max(qso_map)
 ;      qso_err = stddev(contcube.qso,dim=3,/double)
 ;      qso_err = sqrt(total(datacube.var,3))
-      qso_err = sqrt(median(datacube.var,dim=3,/double)*$
-                     n_elements(contcube.qso[0,0,*]))
+      qso_err = sqrt(median(datacube.var,dim=3,/double))
       qso_map /= maxqso_map
       qso_err /= maxqso_map
+;      izero = where(qso_map eq 0d,ctzero)
+;      maxerr = max(qso_err)
+;      lowthresh=1d-4
+;      if ctzero gt 0 then begin
+;         qso_map[izero] = lowthresh
+;         qso_err[izero] = maxerr*100d
+;      endif
+;      ilow = where(qso_map lt lowthresh,ctlow)
+;      if ctlow gt 0 then begin
+;         qso_map[ilow] = lowthresh
+;         qso_err[ilow] = maxerr*100d
+;      endif
+      
 ;      qso_err /= max(median(datacube.dat,dim=3,/double))
       
 ;     2D Moffat fit to continuum flux vs. radius
-      est=[0d,1d,1d,1d,center_nuclei[0]-1d,center_nuclei[1]-1d,0d,2.5d]
+      est=[0d,1d,1d,1d,center_nuclei[0]-1d,center_nuclei[1]-1d,0d,3d]
       qso_fit = mpfit2dpeak(qso_map,qso_fitpar,/circular,/moffat,est=est,$
                             error=qso_err)
       map_rnuc = sqrt((map_x - qso_fitpar[4]+1)^2d + $
@@ -678,7 +732,7 @@ pro ifsf_makemaps,initproc
    endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Compute some more things
+; Compute radii and centers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;  coordinates in kpc
@@ -744,271 +798,224 @@ pro ifsf_makemaps,initproc
          endif else map_rkpc_rhst = map_rkpc_hst 
    endif
 
-;  Sort emission line components if requested
-   if tag_exist(initmaps,'fcnsortcomp') AND $
-      tag_exist(initmaps,'sortlines') AND $
-      tag_exist(initmaps,'sorttype') then begin
-      if tag_exist(initmaps,'argssortcomp') then $
-         linmaps = call_function(initmaps.fcnsortcomp,dx,dy,linmaps,$
-                                 initdat.linetie,initmaps.sortlines,$
-                                 initmaps.sorttype,$
-                                 _extra=initmaps.argssortcomp) $
-      else $
-         linmaps = call_function(initmaps.fcnsortcomp,dx,dy,linmaps,$
-                                 initdat.linetie,initmaps.sortlines,$
-                                 initmaps.sorttype)
-   endif
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Process emission lines
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;  Apply a sigma cut on a line-by-line basis. Previous sigma cuts may have been 
-;  less strict (see, e.g., IFSF_SORTCOMP).
-   if tag_exist(initmaps,'sigthresh') then begin
-      foreach line,outlines do begin
-         flux = linmaps[line,*,*,*,0]
-         fluxerr = linmaps[line,*,*,*,1]
-         wave = linmaps[line,*,*,*,2]
-         sig = linmaps[line,*,*,*,3]
-         fluxpk = linmaps[line,*,*,*,4]
-         tflux = tlinmaps[line,*,*,*,0]
-         tfluxerr = tlinmaps[line,*,*,*,1]
-         ibd = where(flux gt 0d AND $
-                     flux ne bad AND $
-                     flux lt fluxerr*initmaps.sigthresh,ctbd)
-         if ctbd gt 0 then begin
-            flux[ibd] = bad
-            fluxerr[ibd] = bad
-            wave[ibd] = bad
-            sig[ibd] = bad
-            fluxpk[ibd] = bad
-            linmaps[line,*,*,*,0] = flux
-            linmaps[line,*,*,*,1] = fluxerr
-            linmaps[line,*,*,*,2] = wave
-            linmaps[line,*,*,*,3] = sig
-            linmaps[line,*,*,*,4] = fluxpk
-         endif
-         tibd = where(tflux gt 0d AND $
-                      tflux ne bad AND $
-                      tflux lt tfluxerr*initmaps.sigthresh,tctbd)
-         if tctbd gt 0 then begin
-            tflux[ibd] = bad
-            tfluxerr[ibd] = bad
-            tlinmaps[line,*,*,*,0] = tflux
-            tlinmaps[line,*,*,*,1] = tfluxerr
-         endif
-      endforeach
-   endif
-   
-;  Emission line maps and parameters
-   
    if ~ tag_exist(initdat,'noemlinfit') then begin
 
-;     Deconvolve spectral resolution if requested
-      if tag_exist(initdat,'specres') then begin
-         size_tmp = size(linmaps[outlines[0]])
-         dx = size_tmp[1]
-         dy = size_tmp[2]
-         foreach line,outlines do begin
-            specres_vel = $
-               dblarr(dx,dy,initdat.maxncomp) + initdat.specres / fwhm2sig / $
-               (linelist[line]*(1d + initdat.zsys_gas)) * 299792d 
-            tmpsigmap = linmaps[line,*,*,*,3]
-            igd = where(tmpsigmap ne bad AND tmpsigmap ne 0,ctgd)
-            if ctgd gt 0 then begin
-               tmpsigmap[igd] = sqrt(tmpsigmap[igd]^2d - specres_vel[igd]^2d)
-               linmaps[line,*,*,*,3] = tmpsigmap
+;;     Sort emission line components if requested
+;      if tag_exist(initmaps,'fcnsortcomp') AND $
+;         tag_exist(initmaps,'sortlines') AND $
+;         tag_exist(initmaps,'sorttype') then begin
+;         if tag_exist(initmaps,'argssortcomp') then $
+;            linmaps = call_function(initmaps.fcnsortcomp,dx,dy,linmaps,$
+;                                    initdat.linetie,initmaps.sortlines,$
+;                                    initmaps.sorttype,$
+;                                    _extra=initmaps.argssortcomp) $
+;         else $
+;            linmaps = call_function(initmaps.fcnsortcomp,dx,dy,linmaps,$
+;                                    initdat.linetie,initmaps.sortlines,$
+;                                    initmaps.sorttype)
+;      endif
+
+;;     Set reference line for rotation curve, for defining outflows, by resorting
+;;     OUTLINES so that reference line comes first.
+;      if ~ tag_exist(initmaps,'diskline') then diskline='Halpha' $
+;      else diskline = initmaps.diskline
+;      idiskline = outlines.where(diskline,count=ctdiskline)
+;      if ctdiskline gt 0 then outlines.move,idiskline,0 $
+;      else message,$
+;         'Disk line not found; using first line in OUTLINES hash.',/cont
+                                  
+;      ofpars_line=0b
+;      sigthresh=0b
+;      ofthresh=0b ; threshold for defining outflow
+;      ofignore=0b
+;      diffthresh=0b
+;      if tag_exist(initmaps,'compof') then begin
+;         ofpars_line=1b
+;         if tag_exist(initmaps,'compof_sigthresh') then $
+;            sigthresh=initmaps.compof_sigthresh
+;         if tag_exist(initmaps,'compof_ofthresh') then $
+;            ofthresh=initmaps.compof_ofthresh
+;         if tag_exist(initmaps,'compof_diffthresh') then $
+;            diffthresh=initmaps.compof_diffthresh
+;         if tag_exist(initmaps,'compof_ignore') then $
+;            ofignore=initmaps.compof_ignore
+;      endif
+;      if line eq diskline then diskrot=0b $
+;      else diskrot=linspecpars[diskline].vpk
+;      if tag_exist(initmaps,'compof') then ofpars[line] = ofpars_line
+;      endforeach
+;      linspecpars_tags = tag_names(linspecpars[outlines[0]])
+;      if tag_exist(initmaps,'compof') then $
+;         ofpars_tags = tag_names(ofpars[outlines[0]])
+
+;     Compute CVDF velocities and fluxes
+      if tag_exist(initmaps,'cvdf') then begin
+         if tag_exist(initmaps.cvdf,'flux_maps') then $
+            fluxvels=initmaps.cvdf.flux_maps $
+         else fluxvels=0b
+         if tag_exist(initmaps.cvdf,'sigcut') then $
+            sigcut=initmaps.cvdf.sigcut $
+         else sigcut=0b
+      endif
+      emlcvdfvel = ifsf_cmpcvdfvals(emlcvdf,emlflx,emlflxerr,$
+                                    fluxvels=fluxvels,sigcut=sigcut)
+      emlcompvel = ifsf_cmpcompvals(emlwav,emlsig,emlflx,initdat.zsys_gas,$
+                                    emlwaverr=emlwaverr,emlsigerr=emlsigerr)
+      emlvel = emlcvdfvel + emlcompvel
+        
+;     Extinction maps
+;     flux summed over components
+      if tag_exist(initmaps,'ebv') then begin
+;        Calculate ...
+         if tag_exist(initmaps.ebv,'calc') then begin
+            ebv = hash()
+            ebverr = hash()
+            ebvmed = hash()
+            foreach key,initmaps.ebv.calc do begin
+               ebvtmp = $
+                  ifsf_lineratios(emlflx[key],emlflxerr[key],linelist,/ebvonly,$
+                                  errlo=errtmp)
+               ebv[key] = ebvtmp['ebv']
+               ebverr[key] = errtmp['ebv']
+               igdebv = where(ebv[key] ne bad,ctgdebv)
+               if ctgdebv gt 0 then ebvmed[key] = median(ebv[key,igdebv])
+            endforeach
+;           ... and apply.
+            if tag_exist(initmaps.ebv,'apply') then begin
+               ebvkey = 'ftot'
+               emlflxcor_pp = hash()
+               emlflxcor_med = hash()
+               emlflxerrcor_pp = hash()
+               emlflxerrcor_med = hash()
+               for icomp=1,initdat.maxncomp do begin
+                  stric = string(icomp,format='(I0)')
+                  emlflxcor_pp['fc'+stric] = hash()
+                  emlflxcor_med['fc'+stric] = hash()
+                  emlflxerrcor_pp['fc'+stric] = hash()
+                  emlflxerrcor_med['fc'+stric] = hash()
+                  foreach line,linelist.keys() do begin
+                     emlflxcor_pp['fc'+stric,line] = emlflx['fc'+stric,line]
+                     emlflxcor_med['fc'+stric,line] = emlflx['fc'+stric,line]
+                     emlflxerrcor_pp['fc'+stric,line] = emlflx['fc'+stric,line]
+                     emlflxerrcor_med['fc'+stric,line] = emlflx['fc'+stric,line]
+                     flx = emlflx['fc'+stric,line]
+                     flxerr = emlflxerr['fc'+stric,line]
+                     igdflx = where(flx gt 0 AND flx ne bad,ctgdflx)
+                     igdebv = where(ebv[ebvkey] ne bad,ctgdebv)
+                     if ctgdflx gt 0 AND ctgdebv gt 0 then begin
+                        ebvuse = ebv[ebvkey]
+                        ibadebv = cgsetdifference(igdflx,igdebv,count=ctbadebv)
+                        if ctbadebv gt 0 then $
+                           ebvuse[ibadebv] = ebvmed[ebvkey]
+                        emlflxcor_pp['fc'+stric,line,igdflx] = $
+                           ifsf_dustcor_ccm(linelist[line],flx[igdflx],$
+                                            ebvuse[igdflx])
+                        emlflxcor_med['fc'+stric,line,igdflx] = $
+                           ifsf_dustcor_ccm(linelist[line],flx[igdflx],$
+                                            ebvmed[ebvkey])
+; Should really propagate E(B-V) error as well ...
+                        emlflxerrcor_pp['fc'+stric,line,igdflx] = $
+                           ifsf_dustcor_ccm(linelist[line],flxerr[igdflx],$
+                                            ebvuse[igdflx])
+                        emlflxerrcor_med['fc'+stric,line,igdflx] = $
+                           ifsf_dustcor_ccm(linelist[line],flxerr[igdflx],$
+                                            ebvmed[ebvkey])
+                     endif
+                  endforeach
+               endfor
             endif
-         endforeach
+
+         endif
+      endif else begin
+         ebv = 0b
+         ebverr = 0b
+      endelse
+
+;     Line ratios
+      if tag_exist(initmaps,'lr') then begin
+         if tag_exist(initmaps.lr,'calc') then begin
+            lr = hash()
+            lrerrlo = hash()
+            lrerrhi = hash()
+            foreach key,initmaps.lr.calc do begin
+               lrtmp = $
+                  ifsf_lineratios(emlflx[key],emlflxerr[key],linelist,/lronly,$
+                                  errlo=errlotmp,errhi=errhitmp)
+               lr[key] = hash()
+               lrerrlo[key] = hash()
+               lrerrhi[key] = hash()
+               foreach lrloop,lrtmp.keys() do begin
+                  lr[key,lrloop] = lrtmp[lrloop]
+                  lrerrlo[key,lrloop] = errlotmp[lrloop]
+                  lrerrhi[key,lrloop] = errhitmp[lrloop]
+               endforeach
+            endforeach
+         endif
       endif
 
-      linspecmaps = hash()  ; line maps, possibly dereddened
-      linspecpars = hash() ; CVDFs, possibly dereddened
-      linspecpars_arr = hash() ; CVDFs in array form, possibly dereddened
-      ofpars = hash() ; outflow CVDF, possibly dereddened
-;     Set reference line for rotation curve, for defining outflows, by resorting
-;     OUTLINES so that reference line comes first.
-      if ~ tag_exist(initmaps,'diskline') then diskline='Halpha' $
-      else diskline = initmaps.diskline
-      idiskline = outlines.where(diskline,count=ctdiskline)
-      if ctdiskline gt 0 then outlines.move,idiskline,0 $
-      else print,'IFSF_MAKEMAPS: Disk line not found; using first element in ',$
-                 'OUTLINES list.'
-      foreach line,outlines do begin
-;        Line maps
-         linspecmaps[line] = $
-            ifsf_cmplinspecmaps(linmaps[line,*,*,*,4],$
-                                linmaps[line,*,*,*,2],$
-                                linmaps[line,*,*,*,3],$
-                                initdat.maxncomp,linelist[line],$
-                                initdat.zsys_gas)
-                        
-;        Cumulative velocity distribution functions, computed using extincted
-;        fluxes and, optionally, fluxes dereddened using component extinctions                                
-         linpararr=1b
-         ofpars_line=0b
-         sigthresh=0b
-         ofthresh=0b
-         ofignore=0b
-         diffthresh=0b
-         if tag_exist(initmaps,'compof') then begin
-            ofpars_line=1b
-            if tag_exist(initmaps,'compof_sigthresh') then $
-               sigthresh=initmaps.compof_sigthresh
-            if tag_exist(initmaps,'compof_ofthresh') then $
-               ofthresh=initmaps.compof_ofthresh
-            if tag_exist(initmaps,'compof_diffthresh') then $
-               diffthresh=initmaps.compof_diffthresh
-            if tag_exist(initmaps,'compof_ignore') then $
-               ofignore=initmaps.compof_ignore
-         endif
-         if line eq diskline then diskrot=0b $
-         else diskrot=linspecpars[diskline].vpk
-         linspecpars[line] = $
-            ifsf_cmplinspecpars(linspecmaps[line],linpararr=linpararr,$
-                                ofpars=ofpars_line,$
-                                sigthresh=sigthresh,ofthresh=ofthresh,$
-                                ofignore=ofignore,diffthresh=diffthresh,$
-                                diskrot=diskrot)
-         if tag_exist(initmaps,'compof') then ofpars[line] = ofpars_line
-         linspecpars_arr[line] = linpararr
-      endforeach         
-      linspecpars_tags = tag_names(linspecpars[outlines[0]])
-      if tag_exist(initmaps,'compof') then $
-         ofpars_tags = tag_names(ofpars[outlines[0]])
-   endif
-        
-;  Line ratios by component, with errors
-   if hasratpar_comp then linrats = ifsf_lineratios(linmaps,linelist)
-
-;  Line ratios summed over all components, with errors 
-   if hasratpar_comp then tlinrats = ifsf_lineratios(tlinmaps,linelist)
-
-;  Line ratios by CVDF, without errors
-   if hasratpar_cvdf then $
-      linrats_cvdf = ifsf_lineratios(linspecpars_arr,linelist,/noerr)
-
-; Apply median filter to E(B-V) maps?
-   if tag_exist(initmaps,'ebv_medfilt') then begin
-      for i=0,4 do begin
-         tmpmap = $
-            filter_image(linrats_cvdf['ebv',*,*,i],$
-                         median=initmaps.ebv_medfilt,$
-                         /all_pixels)
-         ibd = where(tmpmap eq bad,ctbd)
-         if ctbd gt 0 then tmpmap[ibd] = bad
-         linrats_cvdf['ebv',*,*,i] = tmpmap
-      endfor
    endif
 
-;  Unextincted emission line maps and parameters
-   if ~ tag_exist(initmaps,'noemlinfit') AND $
-      (tag_exist(initmaps,'applyebv') OR $
-       tag_exist(initmaps,'applyebv_tot') OR $
-       tag_exist(initmaps,'applyebv_single') OR $
-       tag_exist(initmaps,'applyebv_singleall')) then begin
-      linspecmaps_ext = linspecmaps ; extincted line maps
-      linspecmaps = hash()
-      linspecpars_ext = linspecpars ; extincted CVDFs
-      linspecpars = hash()
-      linspecpars_ext_arr = linspecpars_arr ; extincted CVDFs in array form
-      linspecpars_arr = hash()
-      ofpars_ext = ofpars ; extincted outflow CVDF
-      ofpars = hash()
-;     applyebv: Apply extinction calculated in each component to that component.
-;        Set tag to array with number of elements equal to maxncomp; each 
-;        element specifies whether or not extinction applied to that component.
-;     applyebv_tot: Apply extinction calculated using total line flux to the
-;        entire line. Set tag to byte flag.
-;     applyebv_single: Apply median extinction calculated using total line flux.
-;        Apply only to spaxels where E(B-V) calculated.
-;        Set tag to byte flag.
-;     applyebv_singleall: Apply median extinction calculated using total line 
-;        flux to all spaxels. Set tag to byte flag.
-      if tag_exist(initmaps,'applyebv_single') OR $
-         tag_exist(initmaps,'applyebv_singleall') then begin
-         tlinrats_tmp = tlinrats['ebv',*,*,0]
-         igd = where(tlinrats_tmp ne bad)
-         medebv = median(tlinrats_tmp[igd])
-         if tag_exist(initmaps,'applyebv_single') then begin
-            tlinrats_tmp = dblarr(dx,dy)+bad
-            tlinrats_tmp[igd] = medebv
-         endif else begin
-            tlinrats_tmp = dblarr(dx,dy)+medebv
-         endelse
-         doebv_tmp = rebin(tlinrats_tmp,dx,dy,initdat.maxncomp)
-      endif else if tag_exist(initmaps,'applyebv_tot') then $
-         doebv_tmp = rebin(tlinrats['ebv',*,*,0],dx,dy,initdat.maxncomp) $
-      else $
-         doebv_tmp = $
-            linrats['ebv'] * $
-            double(rebin(reform(initmaps.applyebv,1,1,initdat.maxncomp),$
-                         dx,dy,initdat.maxncomp))
-      foreach line,outlines do begin
-;        apply E(B-V) only to those components that are specified
-;        and tied to Hbeta or to the same line as Hbeta (this covers the cases
-;        of computing E(B-V) from either Ha/Hb or Hb/Hg
-         if (initdat.linetie)[line] eq 'Hbeta' OR $
-            (initdat.linetie)[line] eq (initdat.linetie)['Hbeta'] then $
-               doebv = doebv_tmp $
-         else doebv=0b
-;        Line maps
-         linspecmaps[line] = $
-            ifsf_cmplinspecmaps(linmaps[line,*,*,*,4],$
-                                linmaps[line,*,*,*,2],$
-                                linmaps[line,*,*,*,3],$
-                                initdat.maxncomp,linelist[line],$
-                                initdat.zsys_gas,ebv=doebv)
-
-         linpararr=1b
-         ofpars_line=0b
-         sigthresh=0b
-         ofthresh=0b
-         ofignore=0b
-         diffthresh=0b
-         if tag_exist(initmaps,'compof') then begin
-            ofpars_line=1b
-            if tag_exist(initmaps,'compof_sigthresh') then $
-               sigthresh=initmaps.compof_sigthresh
-            if tag_exist(initmaps,'compof_ofthresh') then $
-               ofthresh=initmaps.compof_ofthresh
-            if tag_exist(initmaps,'compof_diffthresh') then $
-               diffthresh=initmaps.compof_diffthresh
-            if tag_exist(initmaps,'compof_ignore') then $
-               ofignore=initmaps.compof_ignore
-         endif
-         if line eq diskline then diskrot=0b $
-         else diskrot=linspecpars[diskline].vpk
-         linspecpars[line] = $
-            ifsf_cmplinspecpars(linspecmaps[line],linpararr=linpararr,$
-                                ofpars=ofpars_line,$
-                                sigthresh=sigthresh,ofthresh=ofthresh,$
-                                ofignore=ofignore,diffthresh=diffthresh,$
-                                diskrot=diskrot)
-         if tag_exist(initmaps,'compof') then ofpars[line] = ofpars_line
-         linspecpars_arr[line] = linpararr
-      endforeach         
-   endif
 
    if tag_exist(initdat,'donad') then begin
+
+;     Apply S/N cut. Funny logic is to avoid loops.
+     map = nadfit.weqabs[*,*,0]
+     maperravg = (nadfit.weqabserr[*,*,0] + nadfit.weqabserr[*,*,1]) / 2d
+     mask1 = dblarr(dx,dy)
+     mask2 = dblarr(dx,dy)
+     igd = where(map gt 0d AND $
+                 map ne bad AND $
+                 map ge initmaps.nadabsweq_snrthresh*maperravg)
+     ibd = where(map eq 0d OR $
+                 map eq bad OR $
+                 map lt initmaps.nadabsweq_snrthresh*maperravg)
+     mask1[igd]=1d
+     mask2[ibd]=bad
+     rbmask1 = rebin(mask1,dx,dy,initnad.maxncomp)
+     rbmask2 = rebin(mask2,dx,dy,initnad.maxncomp)
+     nadfit.waveabs*=rbmask1
+     nadfit.waveabserr*=rbmask1
+     nadfit.sigmaabs*=rbmask1
+     nadfit.sigmaabserr*=rbmask1
+     nadfit.tau*=rbmask1
+     nadfit.tauerr*=rbmask1
+     nadfit.waveabs+=rbmask2
+     nadfit.waveabserr+=rbmask2
+     nadfit.sigmaabs+=rbmask2
+     nadfit.sigmaabserr+=rbmask2
+     nadfit.tau+=rbmask2
+     nadfit.tauerr+=rbmask2
+
+
 ;     Compute velocities and column densities of NaD model fits
-      nadabscf = dblarr(dx,dy,maxnadabscomp+1)+bad
-      errnadabscf = dblarr(dx,dy,maxnadabscomp+1,2)+bad
-      nadabstau = dblarr(dx,dy,maxnadabscomp+1)+bad
-      errnadabstau = dblarr(dx,dy,maxnadabscomp+1,2)+bad
+      nadabscftau = dblarr(dx,dy,maxnadabscomp+1)+bad
+      errnadabscftau = dblarr(dx,dy,maxnadabscomp+1,2)+bad
+;      nadabstau = dblarr(dx,dy,maxnadabscomp+1)+bad
+;      errnadabstau = dblarr(dx,dy,maxnadabscomp+1,2)+bad
       nadabsvel = dblarr(dx,dy,maxnadabscomp+1)+bad
-      errnadabsvel = dblarr(dx,dy,maxnadabscomp+1)+bad
+      errnadabsvel = dblarr(dx,dy,maxnadabscomp+1,2)+bad
       nademvel = dblarr(dx,dy,maxnademcomp+1)+bad
       errnademvel = dblarr(dx,dy,maxnademcomp+1)+bad
       nadabssig = dblarr(dx,dy,maxnadabscomp+1)+bad
-      errnadabssig = dblarr(dx,dy,maxnadabscomp+1)+bad
+      errnadabssig = dblarr(dx,dy,maxnadabscomp+1,2)+bad
       nademsig = dblarr(dx,dy,maxnademcomp+1)+bad
       errnademsig = dblarr(dx,dy,maxnademcomp+1)+bad
       nadabsv98 = dblarr(dx,dy,maxnadabscomp+1)+bad
-      errnadabsv98 = dblarr(dx,dy,maxnadabscomp+1)+bad
+;      errnadabsv98 = dblarr(dx,dy,maxnadabscomp+1,2)+bad
       nademv98 = dblarr(dx,dy,maxnademcomp+1)+bad
-      errnademv98 = dblarr(dx,dy,maxnademcomp+1)+bad
-      nadabsnh = dblarr(dx,dy)+bad
-      nadabscnh = dblarr(dx,dy,maxnadabscomp+1)+bad
-      errnadabsnh = dblarr(dx,dy,2)+bad
-      errnadabscnh = dblarr(dx,dy,maxnadabscomp+1,2)+bad
+;      errnademv98 = dblarr(dx,dy,maxnademcomp+1,2)+bad
+;      nadabsnh = dblarr(dx,dy)+bad
+;      nadabscnh = dblarr(dx,dy,maxnadabscomp+1)+bad
+;      errnadabsnh = dblarr(dx,dy,2)+bad
+;      errnadabscnh = dblarr(dx,dy,maxnadabscomp+1,2)+bad
+      nadabsnhcf = dblarr(dx,dy)+bad
+      nadabscnhcf = dblarr(dx,dy,maxnadabscomp+1)+bad
+      errnadabsnhcf = dblarr(dx,dy,2)+bad
+      errnadabscnhcf = dblarr(dx,dy,maxnadabscomp+1,2)+bad
       nadabsncomp = intarr(dx,dy)+bad
       nademncomp = intarr(dx,dy)+bad
       for i=0,dx-1 do begin
@@ -1016,40 +1023,54 @@ pro ifsf_makemaps,initproc
             igd = where(nadfit.waveabs[i,j,*] ne bad AND $
                         nadfit.waveabs[i,j,*] ne 0,ctgd)
             if ctgd gt 0 then begin
-               nnai = total(nadfit.tau[i,j,igd]*nadfit.sigmaabs[i,j,igd]) / $
-                      (1.497d-15/sqrt(2d)*nadlinelist['NaD1']*0.3180d)
-               tauerrlo = nadfit.tau[i,j,igd] - $
-                          10d^(alog10(nadfit.tau[i,j,igd]) - $
-                               nadfit.tauerr[i,j,igd,0])
-               tauerrhi = 10d^(alog10(nadfit.tau[i,j,igd]) + $
-                               nadfit.tauerr[i,j,igd,1]) - nadfit.tau[i,j,igd]
-               nnaierrlo = $
-                  nnai*sqrt(total((tauerrlo/$
-                                   nadfit.tau[i,j,igd])^2d + $
-                                  (nadfit.sigmaabserr[i,j,igd,0]/$
-                                   nadfit.sigmaabs[i,j,igd])^2d))
-               nnaierrhi = $
-                  nnai*sqrt(total((tauerrhi/$
-                                   nadfit.tau[i,j,igd])^2d + $
-                                  (nadfit.sigmaabserr[i,j,igd,1]/$
-                                   nadfit.sigmaabs[i,j,igd])^2d))
-               nadabsnh[i,j] = nnai/(1-0.9d)/10^(-5.69d - 0.95d)
-               errnadabsnh[i,j,*] = [nnaierrlo,nnaierrhi]/$
-                                    (1-0.9d)/10^(-5.69d - 0.95d)
+               tmpcftau=nadfit.cf[i,j,igd]*nadfit.tau[i,j,igd]
+               tmpcftauerr = nadfit.cferr[i,j,igd,*]
+               tmpwaveabs = nadfit.waveabs[i,j,igd]
+               tmpwaveabserr = nadfit.waveabserr[i,j,igd,*]
+               tmpsigabs=nadfit.sigmaabs[i,j,igd]
+               tmpsigabserr = nadfit.sigmaabserr[i,j,igd,*]
+               ineg = where(tmpcftau[0,0,igd] gt 0d AND $
+                            tmpcftau[0,0,igd] lt tmpcftauerr[0,0,igd,0],ctneg)
+               if ctneg gt 0 then tmpcftau[0,0,igd,0] = 0d
+;               nnai = total(nadfit.tau[i,j,igd]*nadfit.sigmaabs[i,j,igd]) / $
+;                      (1.497d-15/sqrt(2d)*nadlinelist['NaD1']*0.3180d)
+               nnaicf = total(tmpcftau*nadfit.sigmaabs[i,j,igd]*$
+                        nadfit.cf[i,j,igd]) / $
+                        (1.497d-15/sqrt(2d)*nadlinelist['NaD1']*0.3180d)
+;               tauerrlo = nadfit.tau[i,j,igd] - $
+;                          10d^(alog10(nadfit.tau[i,j,igd]) - $
+;                               nadfit.tauerr[i,j,igd,0])
+;               tauerrhi = 10d^(alog10(nadfit.tau[i,j,igd]) + $
+;                               nadfit.tauerr[i,j,igd,1]) - nadfit.tau[i,j,igd]
+;               nnaierrlo = $
+;                  nnai*sqrt(total((tauerrlo/$
+;                                   nadfit.tau[i,j,igd])^2d + $
+;                                  (nadfit.sigmaabserr[i,j,igd,0]/$
+;                                   nadfit.sigmaabs[i,j,igd])^2d))
+;               nnaierrhi = $
+;                  nnai*sqrt(total((tauerrhi/$
+;                                   nadfit.tau[i,j,igd])^2d + $
+;                                  (nadfit.sigmaabserr[i,j,igd,1]/$
+;                                   nadfit.sigmaabs[i,j,igd])^2d))
+               nnaicferr = $
+                  [nnaicf,nnaicf]*sqrt(total((nadfit.cferr[i,j,igd,*]/$
+                  rebin(tmpcftau,ctgd,2))^2d + $
+                  (nadfit.sigmaabserr[i,j,igd,*]/$
+                  rebin(nadfit.sigmaabs[i,j,igd],ctgd,2))^2d,3))
+;               nadabsnh[i,j] = nnai/(1-ionfrac)/10^(naabund - nadep)
+               nadabsnhcf[i,j] = nnaicf/(1-ionfrac)/10^(naabund - nadep)
+;               errnadabsnh[i,j,*] = [nnaierr,nnaierrhi]/$
+;                                    (1-ionfrac)/10^(naabund - nadep)
+;               errnadabsnhcf[i,j,*] = nnaicferr/$
+;                                    (1-ionfrac)/10^(naabund - nadep)
+               errnadabsnhcf[i,j,*] = $
+                  nadabsnhcf[i,j]*sqrt((nnaicferr/nnaicf)^2d + $
+                                       (oneminusionfrac_relerr)^2d)
                nadabsncomp[i,j] = ctgd
 ;              For now, average lo/hi errors in wavelength and sigma
-               tmptau=nadfit.tau[i,j,igd]
-               tmptauerrlo = nadfit.tauerr[i,j,*,0]
-               tmptauerrhi = nadfit.tauerr[i,j,*,1]
-               tmpcf=nadfit.cf[i,j,igd]
-               tmpcferrlo = nadfit.cferr[i,j,*,0]
-               tmpcferrhi = nadfit.cferr[i,j,*,1]
-               tmpwaveabs = nadfit.waveabs[i,j,igd]
-               tmpwaveabserr = mean(nadfit.waveabserr[i,j,*,*],dim=4)
-               tmpwaveabserr = tmpwaveabserr[igd]
-               tmpsigabs=nadfit.sigmaabs[i,j,igd]
-               tmpsigabserr = mean(nadfit.sigmaabserr[i,j,*,*],dim=4)
-               tmpsigabserr = tmpsigabserr[igd]
+;               tmptau=nadfit.tau[i,j,igd]
+;               tmptauerrlo = nadfit.tauerr[i,j,igd,0]
+;               tmptauerrhi = nadfit.tauerr[i,j,igd,1]
             endif
 ;           Sort absorption line wavelengths. In output arrays,
 ;           first element of third dimension holds data for spaxels with only
@@ -1058,60 +1079,81 @@ pro ifsf_makemaps,initproc
 ;           in velocity results from computing derivative in Wolfram Alpha w.r.t.
 ;           lambda and rearranging on paper.
             if ctgd eq 1 then begin
-               nadabscnh[i,j,0]=nadabsnh[i,j]
-               errnadabscnh[i,j,0,*]=errnadabsnh[i,j,*]
+;               nadabscnh[i,j,0]=nadabsnh[i,j]
+               nadabscnhcf[i,j,0]=nadabsnhcf[i,j]
+;               errnadabscnh[i,j,0,*]=errnadabsnh[i,j,*]
+               errnadabscnhcf[i,j,0,*]=errnadabsnhcf[i,j,*]
                zdiff = $
                   tmpwaveabs/(nadlinelist['NaD1']*(1d + initdat.zsys_gas)) - 1d
                nadabsvel[i,j,0] = c_kms * ((zdiff+1d)^2d - 1d) / $
                                   ((zdiff+1d)^2d + 1d)
-               errnadabsvel[i,j,0] = $
+               errnadabsvel[i,j,0,*] = $
                   c_kms * (4d/(nadlinelist['NaD1']*(1d + initdat.zsys_gas))*$
-                           (zdiff+1d)/((zdiff+1d)^2d + 1d)^2d) * tmpwaveabserr
+                           ([zdiff,zdiff]+1d)/(([zdiff,zdiff]+1d)^2d + 1d)^2d) * $
+                           tmpwaveabserr
                nadabssig[i,j,0] = tmpsigabs
-               errnadabssig[i,j,0] = tmpsigabserr
+               errnadabssig[i,j,0,*] = tmpsigabserr
                nadabsv98[i,j,0] = nadabsvel[i,j,0]-2d*nadabssig[i,j,0]
-               errnadabsv98[i,j,0] = $
-                  sqrt(errnadabsvel[i,j,0]^2d + 4d*errnadabssig[i,j,0]^2d)
-               nadabscf[i,j,0] = tmpcf
-               errnadabscf[i,j,0,0:1] = [tmpcferrlo[igd],tmpcferrhi[igd]]
-               nadabstau[i,j,0] = tmptau
-               errnadabstau[i,j,0,0:1] = [tmptauerrlo[igd],tmptauerrhi[igd]]
+;               errnadabsv98[i,j,0] = $
+;                  sqrt(errnadabsvel[i,j,0]^2d + 4d*errnadabssig[i,j,0]^2d)
+               nadabscftau[i,j,0] = tmpcftau
+               errnadabscftau[i,j,0,*] = tmpcftauerr
+;               nadabstau[i,j,0] = tmptau
+;               errnadabstau[i,j,0,0:1] = [tmptauerrlo[igd],tmptauerrhi[igd]]
             endif else if ctgd gt 1 then begin
                sortgd = sort(tmpwaveabs)
-               nnai = reverse(tmptau[sortgd]*tmpsigabs[sortgd]) / $
-                      (1.497d-15/sqrt(2d)*nadlinelist['NaD1']*0.3180d)
-               nadabscnh[i,j,1:ctgd] = nnai/(1-0.9d)/10^(-5.69d - 0.95d)
-               nnaierrlo = $
-                  nnai*sqrt(reverse((tmptauerrlo[sortgd]/tmptau[sortgd])^2d + $
-                                    (tmpsigabserr[sortgd]/tmpsigabs[sortgd])^2d))
-               nnaierrhi = $
-                  nnai*sqrt(reverse((tmptauerrhi[sortgd]/tmptau[sortgd])^2d + $
-                                    (tmpsigabserr[sortgd]/tmpsigabs[sortgd])^2d))
-               errnadabscnh[i,j,1:ctgd,0] = nnaierrlo / $
-                                            (1-0.9d)/10^(-5.69d - 0.95d)
-               errnadabscnh[i,j,1:ctgd,1] = nnaierrhi / $
-                                            (1-0.9d)/10^(-5.69d - 0.95d)
+;               nnai = reverse(tmptau[sortgd]*tmpsigabs[sortgd]) / $
+;                      (1.497d-15/sqrt(2d)*nadlinelist['NaD1']*0.3180d)
+               nnaicf = reverse(tmpcftau[sortgd]*tmpsigabs[sortgd]) / $
+                        (1.497d-15/sqrt(2d)*nadlinelist['NaD1']*0.3180d)
+;               nadabscnh[i,j,1:ctgd] = nnai/(1-ionfrac)/10^(naabund - nadep)
+               nadabscnhcf[i,j,1:ctgd] = nnaicf/(1-ionfrac)/10^(naabund - nadep)
+;               nnaierrlo = $
+;                  nnai*sqrt(reverse((tmptauerrlo[sortgd]/tmptau[sortgd])^2d + $
+;                                    (tmpsigabserr[sortgd]/tmpsigabs[sortgd])^2d))
+;               nnaierrhi = $
+;                  nnai*sqrt(reverse((tmptauerrhi[sortgd]/tmptau[sortgd])^2d + $
+;                                    (tmpsigabserr[sortgd]/tmpsigabs[sortgd])^2d))
+               nnaicferr = $
+                  rebin(nnaicf,1,1,ctgd,2)*$
+                  sqrt(reverse((tmpcftauerr[0,0,sortgd,*]/$
+                  rebin(tmpcftau[sortgd],1,1,ctgd,2))^2d + $
+                  (tmpsigabserr[0,0,sortgd,*]/$
+                  rebin(tmpsigabs[sortgd],1,1,ctgd,2))^2d,3))
+;               nnaicferrhi = $
+;                  nnaicf*sqrt(reverse((tmpcftauerrhi[sortgd]/tmpcftau[sortgd])^2d + $
+;                                    (tmpsigabserr[sortgd]/tmpsigabs[sortgd])^2d))
+;               errnadabscnh[i,j,1:ctgd,0] = nnaierrlo / $
+;                                            (1-ionfrac)/10^(naabund - nadep)
+;               errnadabscnh[i,j,1:ctgd,1] = nnaierrhi / $
+;                                            (1-ionfrac)/10^(naabund - nadep)
+;               errnadabscnhcf[i,j,1:ctgd,*] = nnaicferr / $
+;                  (1-ionfrac)/10^(naabund - nadep)
+               errnadabscnhcf[i,j,1:ctgd,*] = $
+                  rebin(nadabscnhcf[i,j,1:ctgd],1,1,ctgd,2)*$
+                  sqrt((nnaicferr/rebin(nnaicf,1,1,ctgd,2))^2d + $
+                     (rebin(oneminusionfrac_relerr,1,1,ctgd,2))^2d)
                zdiff = reverse(tmpwaveabs[sortgd])/$
                        (nadlinelist['NaD1']*(1d + initdat.zsys_gas)) - 1d
                nadabsvel[i,j,1:ctgd] = c_kms * ((zdiff+1d)^2d - 1d) / $
                                        ((zdiff+1d)^2d + 1d)
-               errnadabsvel[i,j,1:ctgd] = $
+               errnadabsvel[i,j,1:ctgd,*] = $
                   c_kms * (4d/(nadlinelist['NaD1']*(1d + initdat.zsys_gas))*$
-                           (zdiff+1d)/((zdiff+1d)^2d + 1d)^2d) * $
-                  reverse(tmpwaveabserr[sortgd])
+                           (rebin(zdiff,1,1,ctgd,2)+1d)/$
+                           ((rebin(zdiff,1,1,ctgd,2)+1d)^2d + 1d)^2d) * $
+                           reverse(tmpwaveabserr[0,0,sortgd,*],3)
                nadabssig[i,j,1:ctgd] = reverse(tmpsigabs[sortgd])
-               errnadabssig[i,j,1:ctgd] = reverse(tmpsigabserr[sortgd])
+               errnadabssig[i,j,1:ctgd,*] = reverse(tmpsigabserr[0,0,sortgd,*],3)
                nadabsv98[i,j,1:ctgd] = nadabsvel[i,j,1:ctgd]-$
                                        2d*nadabssig[i,j,1:ctgd]
-               errnadabsv98[i,j,1:ctgd] = $
-                  sqrt(errnadabsvel[i,j,1:ctgd]^2d + $
-                  4d*errnadabssig[i,j,1:ctgd]^2d)
-               nadabscf[i,j,1:ctgd] = reverse(tmpcf[sortgd])
-               errnadabscf[i,j,1:ctgd,0] = reverse(tmpcferrlo[sortgd])
-               errnadabscf[i,j,1:ctgd,1] = reverse(tmpcferrhi[sortgd])
-               nadabstau[i,j,1:ctgd] = reverse(tmptau[sortgd])
-               errnadabstau[i,j,1:ctgd,0] = reverse(tmptauerrlo[sortgd])
-               errnadabstau[i,j,1:ctgd,1] = reverse(tmptauerrhi[sortgd])
+;               errnadabsv98[i,j,1:ctgd] = $
+;                  sqrt(errnadabsvel[i,j,1:ctgd]^2d + $
+;                  4d*errnadabssig[i,j,1:ctgd]^2d)
+               nadabscftau[i,j,1:ctgd] = reverse(tmpcftau[sortgd])
+               errnadabscftau[i,j,1:ctgd,*] = reverse(tmpcftauerr[0,0,sortgd,*],3)
+;               nadabstau[i,j,1:ctgd] = reverse(tmptau[sortgd])
+;               errnadabstau[i,j,1:ctgd,0] = reverse(tmptauerrlo[sortgd])
+;               errnadabstau[i,j,1:ctgd,1] = reverse(tmptauerrhi[sortgd])
             endif
 ;           Sort emission line wavelengths. In output velocity array,
 ;           first element of third dimension holds data for spaxels with only
@@ -1139,8 +1181,8 @@ pro ifsf_makemaps,initproc
                nademsig[i,j,0] = tmpsigem
                errnadabssig[i,j,0] = tmpsigemerr
                nademv98[i,j,0] = nademvel[i,j,0]+2d*nademsig[i,j,0]
-               errnademv98[i,j,0] = $
-                  sqrt(errnademvel[i,j,0]^2d + 4d*errnademsig[i,j,0]^2d)
+;               errnademv98[i,j,0] = $
+;                  sqrt(errnademvel[i,j,0]^2d + 4d*errnademsig[i,j,0]^2d)
             endif else if ctgd gt 1 then begin
                sortgd = sort(tmpwaveem)
                zdiff = tmpwaveem[sortgd]/$
@@ -1154,9 +1196,9 @@ pro ifsf_makemaps,initproc
                nademsig[i,j,1:ctgd] = tmpsigem[sortgd]
                errnademsig[i,j,1:ctgd] = tmpsigemerr[sortgd]
                nademv98[i,j,1:ctgd] = nademvel[i,j,1:ctgd]+2d*nademsig[i,j,1:ctgd]
-               errnademv98[i,j,1:ctgd] = $
-                  sqrt(errnademvel[i,j,1:ctgd]^2d + $
-                  4d*errnademsig[i,j,1:ctgd]^2d)                                       
+;               errnademv98[i,j,1:ctgd] = $
+;                  sqrt(errnademvel[i,j,1:ctgd]^2d + $
+;                  4d*errnademsig[i,j,1:ctgd]^2d)                                       
             endif
          endfor
       endfor
@@ -1179,14 +1221,23 @@ pro ifsf_makemaps,initproc
       else maxnademncomp_act = 0
 
 ;     Absorption lines: Cumulative velocity distribution functions
-      cvd_nad_maps = ifsf_cmplinspecmaps(nadfit.tau,nadfit.waveabs,$
-                                         nadfit.sigmaabs,initnad.maxncomp,$
-                                         nadlinelist['NaD1'],$
-                                         initdat.zsys_gas)
-      cvd_nad_pars = ifsf_cmplinspecpars(cvd_nad_maps)
+      abscvdf = $
+         ifsf_cmpcvdf_abs(nadfit.waveabs,$
+                          mean(nadfit.waveabserr,dim=4),$
+                          nadfit.sigmaabs,$
+                          mean(nadfit.sigmaabserr,dim=4),$
+                          nadfit.tau,$
+                          mean(nadfit.tauerr,dim=4),$
+                          initnad.maxncomp,nadlinelist['NaD1'],$
+                          initdat.zsys_gas)
+      abscvdfvals = ifsf_cmpcvdfvals_abs(abscvdf)
 
-      
-   endif
+   endif else begin
+      nadabsvel=0b
+      nadabsv98=0b
+      ibd_nadabs_fitweq=0b
+      igd_nadabs_fitweq=0b
+   endelse
 
 ;  Compass rose
    angarr_rad = initdat.positionangle*!DPi/180d
@@ -1246,298 +1297,40 @@ pro ifsf_makemaps,initproc
 ; Fit PSF to Emission Line Map
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   if tag_exist(initmaps,'fit_empsf') then begin
-      linmap_tmp = linspecmaps[initmaps.fit_empsf.line]
-      vel = initmaps.fit_empsf.vel
-      ivel = value_locate(linmap_tmp.vel,vel)
-      empsf_map = linmap_tmp.flux[*,*,ivel]
-      maxempsf_map = max(empsf_map,imax)
-      empsf_map /= maxempsf_map
-
-      ;     Use error in total flux for error in line
-      empsf_err = tlinmaps[initmaps.fit_empsf.line,*,*,0,1]
-      empsf_err /= empsf_err[imax]
-
-      ;     2D Moffat fit to continuum flux vs. radius
-      parinfo = REPLICATE({fixed:0b},8)
-      parinfo[0].fixed = 1b
-      est=[0d,1d,1d,1d,center_nuclei[0]-1d,center_nuclei[1]-1d,0d,2.5d]
-      empsf_fit = $
-         mpfit2dpeak(empsf_map,empsf_fitpar,/moffat,/circular,est=est,$
-         parinfo=parinfo,error=empsf_err)
-
-      map_rempsf = sqrt((map_x - empsf_fitpar[4]+1)^2d + $
-         (map_y - empsf_fitpar[5]+1)^2d)
-      map_rempsfkpc_ifs = map_rempsf * kpc_per_pix
-      empsf1d_x = dindgen(101)/100d*max(map_rempsfkpc_ifs)
-      empsf1d_y = alog10(moffat(empsf1d_x,[empsf_fitpar[1],0d,$
-         empsf_fitpar[2]*kpc_per_pix,$
-         empsf_fitpar[7]]))
-
-   endif
-
-  
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Continuum plots
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;   if tag_exist(initmaps,'fit_empsf') then begin
+;      linmap_tmp = $
+;         emlflx[string(initmaps.fit_empsf.vel,format='(I0)'),$
+;                initmaps.fit_empsf.line]
+;      vel = initmaps.fit_empsf.vel
+;      ivel = value_locate(linmap_tmp.vel,vel)
+;      empsf_map = linmap_tmp.flux[*,*,ivel]
+;      maxempsf_map = max(empsf_map,imax)
+;      empsf_map /= maxempsf_map
 ;
-;   if dohstrd OR dohstbl then begin
-;      npx = 2
-;      npy = 2
-;   endif else begin
-;      npx = 1
-;      npy = 1
-;   endelse
-;   if dohstrd OR dohstbl then begin
-;      if dohstrd AND dohstbl then begin
-;         cap1 = textoidl(initmaps.hstbl.label+'+'+initmaps.hstrd.label)
-;         cap2 = textoidl(initmaps.hstbl.label+'+'+initmaps.hstrd.label)
-;         cap3 = textoidl(initmaps.hstbl.label+'+'+initmaps.hstrd.label)
-;         cap4 = textoidl('IFS cont.')
-;      endif else if dohstrd then begin
-;         cap1 = textoidl(initmaps.hstrd.label)
-;         cap2 = textoidl(initmaps.hstrd.label)
-;         cap3 = textoidl(initmaps.hstrd.label)
-;         cap4 = textoidl('IFS cont.')
-;      endif else begin
-;         cap1 = textoidl(initmaps.hstbl.label)
-;         cap2 = textoidl(initmaps.hstbl.label)
-;         cap3 = textoidl(initmaps.hstbl.label)
-;         cap4 = textoidl('IFS cont.')
-;      endelse
-;   endif else cap4 = textoidl('IFS cont.')
-;;  arrays for positions for zoom box
-;   posbox1x = dblarr(2)
-;   posbox1y = dblarr(2)
-;   posbox2x = dblarr(2)
-;   posbox2y = dblarr(2)
+;      ;     Use error in total flux for error in line
+;      empsf_err = tlinmaps[initmaps.fit_empsf.line,*,*,0,1]
+;      empsf_err /= empsf_err[imax]
 ;
-;   cgps_open,initdat.mapdir+initdat.label+'cont.eps',charsize=1,/encap,$
-;             /inches,xs=plotquantum*npx,ys=plotquantum*npy*aspectrat,/qui
-;   pos = cglayout([npx,npy],ixmar=[2d,2d],iymar=[2d,2d],$
-;                  oxmar=[1,0],oymar=[0,0],xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
+;      ;     2D Moffat fit to continuum flux vs. radius
+;      parinfo = REPLICATE({fixed:0b},8)
+;      parinfo[0].fixed = 1b
+;      est=[0d,1d,1d,1d,center_nuclei[0]-1d,center_nuclei[1]-1d,0d,2.5d]
+;      empsf_fit = $
+;         mpfit2dpeak(empsf_map,empsf_fitpar,/moffat,/circular,est=est,$
+;         parinfo=parinfo,error=empsf_err)
 ;
-;   if (dohstrd OR dohstbl) then begin
-;      i = 0
-;;     HST continuum, large scale
-;      if dohstbl then size_subim = size(bhst_big) $
-;      else size_subim = size(rhst_big)
-;      if dohstrd AND dohstbl then begin
-;         mapscl = bytarr(3,size_subim[1],size_subim[2])
-;         mapscl[0,*,*] = rhst_big
-;         mapscl[2,*,*] = bhst_big
-;         mapscl[1,*,*] = byte((double(rhst_big)+double(bhst_big))/2d)
-;         mapscl = rebin(mapscl,3,size_subim[1]*10,size_subim[2]*10,/sample)
-;      endif else begin
-;         mapscl = bytarr(size_subim[1],size_subim[2])
-;         if dohstrd then mapscl = rhst_big
-;         if dohstbl then mapscl = bhst_big
-;         mapscl = rebin(mapscl,size_subim[1]*10,size_subim[2]*10,/sample)
-;      endelse
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
-;              noerase=i ne 0,missing_value=bad,missing_index=255,$
-;              missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,xran=[0,size_subim[1]],$
-;             yran=[0,size_subim[2]],position=truepos,$
-;             /nodata,/noerase,title=cap1
-;      cgoplot,[hst_big_ifsfov[*,0],hst_big_ifsfov[0,0]],$
-;              [hst_big_ifsfov[*,1],hst_big_ifsfov[0,1]],color='Red'
+;      map_rempsf = sqrt((map_x - empsf_fitpar[4]+1)^2d + $
+;         (map_y - empsf_fitpar[5]+1)^2d)
+;      map_rempsfkpc_ifs = map_rempsf * kpc_per_pix
+;      empsf1d_x = dindgen(101)/100d*max(map_rempsfkpc_ifs)
+;      empsf1d_y = alog10(moffat(empsf1d_x,[empsf_fitpar[1],0d,$
+;         empsf_fitpar[2]*kpc_per_pix,$
+;         empsf_fitpar[7]]))
 ;
-;      imsize = string(fix(initmaps.hst.subim_big*kpc_per_as),format='(I0)')
-;      cgtext,size_subim[1]*0.05,size_subim[2]*0.9,$
-;             textoidl(imsize+'\times'+imsize+' kpc'),$
-;             color='white'
-;      posbox1x[0] = truepos[0]+(truepos[2]-truepos[0])*$
-;                    hst_big_ifsfov[3,0]/size_subim[1]
-;      posbox1y[0] = truepos[1]+(truepos[3]-truepos[1])*$
-;                    hst_big_ifsfov[3,1]/size_subim[2]
-;      posbox2x[0] = truepos[0]+(truepos[2]-truepos[0])*$
-;                    hst_big_ifsfov[0,0]/size_subim[1]
-;      posbox2y[0] = truepos[1]+(truepos[3]-truepos[1])*$
-;                    hst_big_ifsfov[0,1]/size_subim[2]
-;
-;      i = 1
-;;     HST continuum, IFS FOV
-;      if dohstbl then size_subim = size(bhst_fov) $
-;      else size_subim = size(rhst_fov)
-;      if dohstbl AND dohstrd then begin
-;         mapscl = bytarr(3,size_subim[1],size_subim[2])
-;         mapscl[0,*,*] = rhst_fov
-;         mapscl[2,*,*] = bhst_fov
-;         mapscl[1,*,*] = byte((double(rhst_fov)+double(bhst_fov))/2d)
-;         ctmap = (rhst_fov_ns+bhst_fov_ns)/2d
-;         mapscl = rebin(mapscl,3,size_subim[1]*10,size_subim[2]*10,/sample)
-;      endif else begin
-;         mapscl = bytarr(size_subim[1],size_subim[2])
-;         if dohstrd then begin
-;            mapscl = rhst_fov
-;            ctmap = rhst_fov_ns
-;         endif else if dohstbl then begin
-;            mapscl = bhst_fov
-;            ctmap = bhst_fov_ns
-;         endif
-;         mapscl = rebin(mapscl,size_subim[1]*10,size_subim[2]*10,/sample)
-;      endelse
-;
-;      
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
-;              noerase=i ne 0,missing_value=bad,missing_index=255,$
-;              missing_color='white'
-;      if tag_exist(initmaps.hst,'fithstpeak') AND $
-;         tag_exist(initmaps.hst,'fithstpeakwin_kpc') then begin
-;         nucfit_dwin_kpc = initmaps.hst.fithstpeakwin_kpc
-;         nucfit_halfdwin_hstpix = round(nucfit_dwin_kpc/kpc_per_hstpix/2d)
-;;        subsets of images for peak fitting, centered around (first) nucleus
-;         xhst_sub = round(center_nuclei_hst[0,0]) + $
-;                    [-nucfit_halfdwin_hstpix,nucfit_halfdwin_hstpix]
-;         yhst_sub = round(center_nuclei_hst[1,0]) + $
-;                    [-nucfit_halfdwin_hstpix,nucfit_halfdwin_hstpix]
-;         ctmap_center = ctmap[xhst_sub[0]:xhst_sub[1],$
-;                              yhst_sub[0]:yhst_sub[1]]
-;;        Circular moffat fit
-;         yfit = mpfit2dpeak(ctmap_center,a,/moffat,/circular)
-;;        Fitted peak coordinate in HST pixels, in single-offset coordinates
-;         peakfit_hstpix = [a[4]+xhst_sub[0]+1,a[5]+yhst_sub[0]+1]
-;         peakfit_hst_distance_from_nucleus_hstpix = peakfit_hstpix - $
-;                                                    center_nuclei_hst[*,0]
-;         peakfit_hst_distance_from_nucleus_kpc = $
-;            peakfit_hst_distance_from_nucleus_hstpix * kpc_per_hstpix
-;         size_hstpix = size(ctmap)
-;         cgplot,[0],xsty=5,ysty=5,xran=[1,size_hstpix[1]],$
-;                yran=[1,size_hstpix[2]],position=truepos,$
-;                /nodata,/noerase,title=cap2
-;         cgoplot,peakfit_hstpix[0],peakfit_hstpix[1],psym=1,color='Red'         
-;      endif else begin
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase,title=cap2         
-;      endelse
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cgtext,xran_kpc[0]+(xran_kpc[1]-xran_kpc[0])*0.05,$
-;             yran_kpc[1]-(yran_kpc[1]-yran_kpc[0])*0.1,$
-;             'IFS FOV',/data,color='white'
-;      ifsf_plotcompass,xarr_kpc,yarr_kpc,carr=carr
-;      posbox1x[1] = truepos[0]
-;      posbox1y[1] = truepos[3]
-;      posbox2x[1] = truepos[0]
-;      posbox2y[1] = truepos[1]
-;
-;      i = 2
-;;     smoothed HST continuum, IFS FOV
-;      if dohstsm then begin
-;;;        3-color image
-;;         mapscl = bytarr(3,size_subim[1],size_subim[2])
-;;         if dohstrd then mapscl[0,*,*] = rhst_fov_sm
-;;         if dohstbl then mapscl[2,*,*] = bhst_fov_sm
-;;         if dohstrd AND dohstbl then $
-;;            mapscl[1,*,*] = byte((double(rhst_fov_sm)+double(bhst_fov_sm))/2d)
-;;        Flux image
-;         if dohstbl AND dohstrd then $
-;            ctmap = (double(rhst_fov_sm_ns_rb)+double(bhst_fov_sm_ns_rb))/2d $
-;         else if dohstbl then ctmap = bhst_fov_sm_ns_rb $
-;         else ctmap = rhst_fov_sm_ns_rb
-;         ctmap /= max(ctmap)
-;         zran = initmaps.ct.scllim
-;         dzran = zran[1]-zran[0]
-;         mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
-;                           minval=zran[0],max=zran[1],$
-;                           stretch=initmaps.ct.stretch)
-;         cgloadct,65,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
-;                 noerase=i ne 0,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         if tag_exist(initmaps.ct,'fitifspeak') AND $
-;            tag_exist(initmaps.ct,'fitifspeakwin_kpc') then begin
-;            nucfit_dwin_kpc = initmaps.ct.fitifspeakwin_kpc
-;            nucfit_halfdwin_pix = round(nucfit_dwin_kpc/kpc_per_pix/2d)
-;;           subsets of images for peak fitting, centered around (first) nucleus
-;            x_sub = round(center_nuclei[0,0]) + $
-;                    [-nucfit_halfdwin_pix,nucfit_halfdwin_pix]
-;            y_sub = round(center_nuclei[1,0]) + $
-;                    [-nucfit_halfdwin_pix,nucfit_halfdwin_pix]
-;            ctmap_center = ctmap[x_sub[0]:x_sub[1],$
-;                                 y_sub[0]:y_sub[1]]
-;;           Circular moffat fit
-;            yfit = mpfit2dpeak(ctmap_center,a,/moffat,/circular)
-;;           Fitted peak coordinate in IFS pixels, in single-offset coordinates
-;            peakfit_pix = [a[4]+x_sub[0]+1,a[5]+y_sub[0]+1]
-;            peakfit_hstconv_distance_from_nucleus_pix = peakfit_pix - $
-;                                                        center_nuclei[*,0]
-;            peakfit_hstconv_distance_from_nucleus_kpc = $
-;                peakfit_hstconv_distance_from_nucleus_pix * kpc_per_pix
-;            cgplot,[0],xsty=5,ysty=5,xran=[1,dx],$
-;                   yran=[1,dy],position=truepos,$
-;                   /nodata,/noerase,title=cap3
-;            cgoplot,peakfit_pix[0],peakfit_pix[1],psym=1,color='Red'         
-;         endif else begin
-;            cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                   /nodata,/noerase,title=cap3        
-;         endelse
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         cgtext,xran_kpc[0]+(xran_kpc[1]-xran_kpc[0])*0.05,$
-;                yran_kpc[1]-(yran_kpc[1]-yran_kpc[0])*0.1,$
-;                'IFS FOV, conv.',/data,color='white'
-;      endif
-; 
-;      i=3
-; 
-;   endif else i=0
-;
-;   if tag_exist(initmaps,'ct') then begin
-;      ictlo = value_locate(datacube.wave,initmaps.ct.sumrange[0])
-;      icthi = value_locate(datacube.wave,initmaps.ct.sumrange[1])
-;      zran = initmaps.ct.scllim
-;      dzran = zran[1]-zran[0]
-;      ctmap = total(datacube.dat[*,*,ictlo:icthi],3)
-;      ctmap /= max(ctmap)
-;      ctmap_save = ctmap
-;      mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
-;                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
-;              noerase=i ne 0,missing_value=bad,missing_index=255,$
-;              missing_color='white'
-;      if tag_exist(initmaps.ct,'fitifspeak') AND $
-;         tag_exist(initmaps.ct,'fitifspeakwin_kpc') then begin
-;            nucfit_dwin_kpc = initmaps.ct.fitifspeakwin_kpc
-;            nucfit_halfdwin_pix = round(nucfit_dwin_kpc/kpc_per_pix/2d)
-;;           subsets of images for peak fitting, centered around (first) nucleus
-;            x_sub = round(center_nuclei[0,0]) + $
-;                    [-nucfit_halfdwin_pix,nucfit_halfdwin_pix]
-;            y_sub = round(center_nuclei[1,0]) + $
-;                    [-nucfit_halfdwin_pix,nucfit_halfdwin_pix]
-;            ctmap_center = ctmap[x_sub[0]:x_sub[1],$
-;                                 y_sub[0]:y_sub[1]]
-;;           Circular moffat fit
-;            yfit = mpfit2dpeak(ctmap_center,a,/moffat,/circular)
-;;           Fitted peak coordinate in IFS pixels, in single-offset coordinates
-;            peakfit_pix = [a[4]+x_sub[0]+1,a[5]+y_sub[0]+1]
-;            peakfit_pix_ifs = peakfit_pix ; save for later
-;            peakfit_ifs_distance_from_nucleus_pix = peakfit_pix - $
-;                                                    center_nuclei[*,0]
-;            peakfit_ifs_distance_from_nucleus_kpc = $
-;                peakfit_ifs_distance_from_nucleus_pix * kpc_per_pix
-;            cgplot,[0],xsty=5,ysty=5,xran=[1,dx],$
-;                   yran=[1,dy],position=truepos,$
-;                   /nodata,/noerase,title=cap4
-;            cgoplot,peakfit_pix[0],peakfit_pix[1],psym=1,color='Red'         
-;      endif else begin
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase,title=cap4    
-;      endelse
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
 ;   endif
-;
-;   cgplot,posbox1x,posbox1y,color='Red',$
-;          xsty=5,ysty=5,/noerase,xran=[0,1],yran=[0,1],pos=[0,0,1,1]
-;   cgoplot,posbox2x,posbox2y,color='Red'
-;
-;   cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Continuum plots, row orientation
+; Continuum plots
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    if tag_exist(initmaps,'ct') then begin
@@ -1626,7 +1419,7 @@ pro ifsf_makemaps,initproc
 
    endelse
 
-   cgps_open,initdat.mapdir+initdat.label+'cont_roworient.eps',$
+   cgps_open,initdat.mapdir+initdat.label+'cont.eps',$
              charsize=1d*charscale,$
              /encap,/inches,xs=xsize_in,ys=ysize_in,/qui
 
@@ -1885,127 +1678,6 @@ pro ifsf_makemaps,initproc
 
    cgps_close
 
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Continuum color plots
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if (dohstrd AND dohstbl) then begin
-
-      npx = 2
-      npy = 2
-      cap1 = textoidl(initmaps.hstbl.label+'-'+initmaps.hstrd.label)
-      cap2 = textoidl(initmaps.hstbl.label+'-'+initmaps.hstrd.label)
-      cap3 = textoidl(initmaps.hstbl.label+'-'+initmaps.hstrd.label)
-      cap4 = textoidl('IFS cont.')
-      cbform='(D0.1)'
-
-      cgps_open,initdat.mapdir+initdat.label+'color.eps',charsize=1,/encap,$
-                /inches,xs=plotquantum*npx,ys=plotquantum*npy,/qui
-      pos = cglayout([npx,npy],ixmar=[2,2],iymar=[2,2],oxmar=[0,0],oymar=[0,0],$
-                     xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-
-      i = 0
-      size_subim = size(chst_big)
-      cgloadct,65
-      cgimage,rebin(chst_big,size_subim[1]*10,size_subim[2]*10,/sample),$
-              /keep,pos=pos[*,i],opos=truepos,$
-              noerase=i ne 0,missing_value=bad,missing_index=255,$
-              missing_color='white'
-      cgplot,[0],xsty=5,ysty=5,xran=[0,size_subim[1]],$
-             yran=[0,size_subim[2]],position=truepos,$
-             /nodata,/noerase,title=cap1,color='Black'
-      cgoplot,[hst_big_ifsfov[*,0],hst_big_ifsfov[0,0]],$
-              [hst_big_ifsfov[*,1],hst_big_ifsfov[0,1]],color='Black'
-      imsize = string(fix(initmaps.hst.subim_big*kpc_per_as),format='(I0)')
-      cgtext,size_subim[1]*0.05,size_subim[2]*0.9,$
-             textoidl(imsize+'\times'+imsize+' kpc'),color='black'
-      posbox1x[0] = truepos[0]+(truepos[2]-truepos[0])*$
-                    hst_big_ifsfov[0,0]/size_subim[1]
-      posbox1y[0] = truepos[1]+(truepos[3]-truepos[1])*$
-                    hst_big_ifsfov[3,1]/size_subim[2]
-      posbox2x[0] = posbox1x[0]
-      posbox2y[0] = truepos[1]+(truepos[3]-truepos[1])*$
-                    hst_big_ifsfov[0,1]/size_subim[2]
-
-
-      i = 1
-      size_subim = size(chst_fov)
-      cgloadct,65
-      cgimage,rebin(chst_fov,size_subim[1]*10,size_subim[2]*10,/sample),$
-              /keep,pos=pos[*,i],opos=truepos,$
-              noerase=i ne 0,missing_value=bad,missing_index=255,$
-              missing_color='white'
-      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-             /nodata,/noerase,title=cap2
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-      cgtext,-2,1.8,'IFS FOV',/data,color='black'
-      ifsf_plotcompass,xarr_kpc,yarr_kpc
-      zran=initmaps.hstcol.scllim
-      dzran = zran[1]-zran[0]
-      ncbdiv = initmaps.hstcol.ncbdiv
-      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-                         (dzran - zran[1]),format=cbform)
-      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                 ticknames=ticknames,/ver,/right,charsize=0.6
-      posbox1x[1] = truepos[0]
-      posbox1y[1] = truepos[3]
-      posbox2x[1] = truepos[0]
-      posbox2y[1] = truepos[1]
-
-      i = 2
-      size_subim = size(cshst_fov_s)
-;     smoothed HST continuum, IFS FOV
-      if dohstcolsm then begin
-         cgloadct,65
-         cgimage,rebin(cshst_fov_s,size_subim[1]*10,size_subim[2]*10,/sample),$
-                 /keep,pos=pos[*,i],opos=truepos,$
-                 noerase=i ne 0,missing_value=bad,missing_index=255,$
-                 missing_color='white'
-         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase,title=cap3
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-         cgtext,-2,1.8,'IFS FOV, conv.',/data,color='black'
-         zran=initmaps.hstcolsm.scllim
-         dzran = zran[1]-zran[0]
-         ncbdiv = initmaps.hstcolsm.ncbdiv
-         ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-                            (dzran - zran[1]),format=cbform)
-         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-         cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                    ticknames=ticknames,/ver,/right,charsize=0.6
-      endif
- 
-      i=3
- 
-      if tag_exist(initmaps,'ct') then begin
-         ictlo = value_locate(datacube.wave,initmaps.ct.sumrange[0])
-         icthi = value_locate(datacube.wave,initmaps.ct.sumrange[1])
-         zran = initmaps.ct.scllim
-         dzran = zran[1]-zran[0]
-         ctmap = total(datacube.dat[*,*,ictlo:icthi],3)
-         ctmap /= max(ctmap)
-         mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
-                           minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
-         cgloadct,65,/reverse
-         cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
-                 noerase=i ne 0,missing_value=bad,missing_index=255,$
-                 missing_color='white'
-         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase,title=cap4
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-      endif
-
-      cgplot,posbox1x,posbox1y,color='Black',$
-             xsty=5,ysty=5,/noerase,xran=[0,1],yran=[0,1],pos=[0,0,1,1]
-      cgoplot,posbox2x,posbox2y,color='Black'
-
-      cgps_close
-
-   endif
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Continuum radial profiles
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2015,6 +1687,7 @@ pro ifsf_makemaps,initproc
       npy = 2
       npx = 1
       if tag_exist(initdat,'decompose_qso_fit') then npx = 3
+      if tag_exist(initdat,'remove_scattered') then npx = 4
 
 ;  Figure out correct image size in inches
       panel_in = 2d
@@ -2031,37 +1704,37 @@ pro ifsf_makemaps,initproc
       mar_yfrac = margin_in/ysize_in
       hmar_xfrac = halfmargin_in/xsize_in
       hmar_yfrac = halfmargin_in/ysize_in
-      pos_top = dblarr(4,3)
-      pos_bot = dblarr(4,3)
-      pos_top[*,0] = [mar_xfrac,1d - (hmar_yfrac+pan_yfrac),$
-                      mar_xfrac+pan_xfrac,1d - hmar_yfrac]
-      pos_top[*,1] = [mar_xfrac+pan_xfrac,1d - (hmar_yfrac+pan_yfrac),$
-                      mar_xfrac+2d*pan_xfrac,1d - hmar_yfrac]
-      pos_top[*,2] = [mar_xfrac+2d*pan_xfrac,1d - (hmar_yfrac+pan_yfrac),$
-                      mar_xfrac+3d*pan_xfrac,1d - hmar_yfrac]
-      pos_bot[*,0] = [mar_xfrac,hmar_yfrac,$
-                      mar_xfrac+pan_xfrac,hmar_yfrac+ifs_yfrac]
-      pos_bot[*,1] = [mar_xfrac+pan_xfrac,hmar_yfrac,$
-                      mar_xfrac+2d*pan_xfrac,hmar_yfrac+ifs_yfrac]
-      pos_bot[*,2] = [mar_xfrac+2d*pan_xfrac,hmar_yfrac,$
-                      mar_xfrac+3d*pan_xfrac,hmar_yfrac+ifs_yfrac]
+      pos_top = dblarr(4,npx)
+      pos_bot = dblarr(4,npx)
+      for i=0,npx-1 do begin
+         pos_top[*,i] = [mar_xfrac+double(i)*pan_xfrac,$
+                         1d - (hmar_yfrac+pan_yfrac),$
+                         mar_xfrac+double(i+1)*pan_xfrac,$
+                         1d - hmar_yfrac]
+         pos_bot[*,i] = [mar_xfrac+double(i)*pan_xfrac,$
+                         hmar_yfrac,$
+                         mar_xfrac+double(i+1)*pan_xfrac,$
+                         hmar_yfrac+ifs_yfrac]
+      endfor
 
-      zran = initmaps.ct.scllim
-      dzran = zran[1]-zran[0]
+      zran = initmaps.ct.scllim_rad
+;      dzran = zran[1]-zran[0]
 
-      cgps_open,initdat.mapdir+initdat.label+'cont_radprof.eps',charsize=1,/encap,$
+      cgps_open,initdat.mapdir+initdat.label+'cont_rad.eps',charsize=1,/encap,$
                 /inches,xs=xsize_in,ys=ysize_in,/qui
       
-;     Total (continuum-only) flux. Plot fits if decompose tags set, otherwise
+;     Total (continuum-only) model flux. Plot fits if decompose tags set, otherwise
 ;     plot total cube flux within specified range.
       if tag_exist(initdat,'decompose_qso_fit') then begin
-         ctmap = total(contcube.qso+contcube.host,3)
+;        Divide model flux by total # pixels for cases where total number of 
+;        pixels varies by spaxel (due to contracted spectra at edges, e.g.)
+         ctmap = total(contcube.qso_mod+contcube.host_mod,3) / contcube.npts
          ctsumrange_tmp = initdat.fitran
       endif else if tag_exist(initdat,'decompose_ppxf_fit') then begin
-         tmpstel = contcube.cont_fit_stel_tot
+         tmpstel = contcube.stel_mod_tot
          ibdtmp = where(tmpstel eq bad,ctbdtmp)
          if ctbdtmp gt 0 then tmpstel[ibdtmp] = 0d
-         tmppoly = contcube.cont_fit_poly_tot
+         tmppoly = contcube.poly_mod_tot
          ibdtmp = where(tmppoly eq bad,ctbdtmp)
          if ctbdtmp gt 0 then tmppoly[ibdtmp] = 0d
          ctmap = tmpstel+tmppoly
@@ -2079,11 +1752,12 @@ pro ifsf_makemaps,initproc
             capran = string(ctsumrange_tmp[0]/1d4,'-',ctsumrange_tmp[1]/1d4,$
                             format='(D0.2,A0,D0.2)')
       endif
-      ctmap /= max(ctmap)
+      maxctmap = max(ctmap)
+      ctmap /= maxctmap
       cgplot,map_rkpc_ifs,alog10(ctmap),yran=[-4,0],$
              xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
              pos=pos_top[*,0],aspect=1d,title=initdat.name,$
-             xtit = 'Radius (kpc)',ytit = 'log I/I$\downmax$
+             xtit = 'Radius (kpc)',ytit = 'log I/I$\downmax$'
       if tag_exist(initdat,'decompose_qso_fit') then begin
          cgoplot,psf1d_x,psf1d_y,color='Red'
       endif else if tag_exist(initmaps,'fit_empsf') then begin
@@ -2105,7 +1779,9 @@ pro ifsf_makemaps,initproc
          cgoplot,x,y,color='Blue'
       endif     
 
-      mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
+;      mapscl = cgimgscl(rebin(ctmap,dx*20,dy*20,/sample),$
+;                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+      mapscl = cgimgscl(rebin(alog10(ctmap),dx*20,dy*20,/sample),$
                         minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_bot[*,0],opos=truepos,$
@@ -2122,43 +1798,46 @@ pro ifsf_makemaps,initproc
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
 
       if tag_exist(initdat,'decompose_qso_fit') then begin
-         qso_map = total(contcube.qso,3)
-         qso_map /= max(qso_map)
+         qso_map = total(contcube.qso_mod,3) / contcube.npts
+;         qso_map /= max(qso_map)
+         qso_map /= maxctmap
          cgplot,map_rkpc_ifs,alog10(qso_map),yran=[-4,0],$
                 xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
                 pos=pos_top[*,1],/noerase,aspect=1d,$
                 xtickformat='(A1)',ytickformat='(A1)'
-         if tag_exist(initdat,'decompose_qso_fit') then begin
-            cgoplot,psf1d_x,psf1d_y,color='Red'
-            cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.1d,'FWHM='+$
-              string(qso_fitpar[2]*initdat.platescale,format='(D0.2)')+$
-              ' asec',align=1d
-            cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.2d,'FWHM='+$
-              string(qso_fitpar[2]*initdat.platescale*kpc_per_as,format='(D0.2)')+$
-              ' kpc',align=1d
-            cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.3d,'$\gamma$='+$
-              string(qso_fitpar[7],format='(D0.1)'),align=1d
-         endif else if tag_exist(initmaps,'fit_empsf') then begin
-            cgoplot,empsf1d_x,empsf1d_y,color='Red'
-         endif else if tag_exist(initmaps,'ctradprof_psffwhm') then begin
-            x = dindgen(101)/100d*max(map_rkpc_ifs)
-            fwhm=initmaps.ctradprof_psffwhm * kpc_per_as
-;           Gaussian
-            y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
-            cgoplot,x,y,color='Black'
-;           Moffat, index = 1.5
-            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
-            cgoplot,x,y,color='Red',/linesty
-;           Moffat, index = 2.5
-            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
-            cgoplot,x,y,color='Red'
-;           Moffat, index = 5
-            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
-            cgoplot,x,y,color='Blue'
-         endif
+;         if tag_exist(initdat,'decompose_qso_fit') then begin
+         cgoplot,psf1d_x,psf1d_y,color='Red'
+         cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.1d,'FWHM='+$
+                string(qso_fitpar[2]*initdat.platescale,format='(D0.2)')+$
+                ' asec',align=1d
+         cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.2d,'FWHM='+$
+                string(qso_fitpar[2]*initdat.platescale*kpc_per_as,format='(D0.2)')+$
+                ' kpc',align=1d
+         cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.3d,'$\gamma$='+$
+                string(qso_fitpar[7],format='(D0.1)'),align=1d
+;         endif else if tag_exist(initmaps,'fit_empsf') then begin
+;            cgoplot,empsf1d_x,empsf1d_y,color='Red'
+;         endif else if tag_exist(initmaps,'ctradprof_psffwhm') then begin
+;            x = dindgen(101)/100d*max(map_rkpc_ifs)
+;            fwhm=initmaps.ctradprof_psffwhm * kpc_per_as
+;;           Gaussian
+;            y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
+;            cgoplot,x,y,color='Black'
+;;           Moffat, index = 1.5
+;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
+;            cgoplot,x,y,color='Red',/linesty
+;;           Moffat, index = 2.5
+;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
+;            cgoplot,x,y,color='Red'
+;;           Moffat, index = 5
+;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
+;            cgoplot,x,y,color='Blue'
+;         endif
 
-         mapscl = cgimgscl(rebin(qso_map,dx*20,dy*20,/sample),$
-                           minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+;         mapscl = cgimgscl(rebin(qso_map,dx*20,dy*20,/sample),$
+;                           minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+         mapscl = cgimgscl(rebin(alog10(qso_map),dx*20,dy*20,/sample),$
+                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,1],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
@@ -2179,35 +1858,38 @@ pro ifsf_makemaps,initproc
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
 
-         host_map = total(contcube.host,3)
-         host_map /= max(host_map)
+         host_map = total(contcube.host_mod,3) / contcube.npts
+;         host_map /= max(host_map)
+         host_map /= maxctmap
          cgplot,map_rkpc_ifs,alog10(host_map),yran=[-4,0],$
                 xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
                 pos=pos_top[*,2],/noerase,aspect=1d,$
                 xtickformat='(A1)',ytickformat='(A1)'
-         if tag_exist(initdat,'decompose_qso_fit') then begin
-            cgoplot,psf1d_x,psf1d_y,color='Red'
-         endif else if tag_exist(initmaps,'fit_empsf') then begin
-            cgoplot,empsf1d_x,empsf1d_y,color='Red'
-         endif else if tag_exist(initmaps,'ctradprof_psffwhm') then begin
-            x = dindgen(101)/100d*max(map_rkpc_ifs)
-            fwhm=initmaps.ctradprof_psffwhm * kpc_per_as
-;           Gaussian
-            y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
-            cgoplot,x,y,color='Black'
-;           Moffat, index = 1.5
-            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
-            cgoplot,x,y,color='Red',/linesty
-;           Moffat, index = 2.5
-            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
-            cgoplot,x,y,color='Red'
-;           Moffat, index = 5
-            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
-            cgoplot,x,y,color='Blue'
-         endif
+;         if tag_exist(initdat,'decompose_qso_fit') then begin
+         cgoplot,psf1d_x,psf1d_y,color='Red'
+;         endif else if tag_exist(initmaps,'fit_empsf') then begin
+;            cgoplot,empsf1d_x,empsf1d_y,color='Red'
+;         endif else if tag_exist(initmaps,'ctradprof_psffwhm') then begin
+;            x = dindgen(101)/100d*max(map_rkpc_ifs)
+;            fwhm=initmaps.ctradprof_psffwhm * kpc_per_as
+;;           Gaussian
+;            y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
+;            cgoplot,x,y,color='Black'
+;;           Moffat, index = 1.5
+;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
+;            cgoplot,x,y,color='Red',/linesty
+;;           Moffat, index = 2.5
+;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
+;            cgoplot,x,y,color='Red'
+;;           Moffat, index = 5
+;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
+;            cgoplot,x,y,color='Blue'
+;         endif
          
-         mapscl = cgimgscl(rebin(host_map,dx*20,dy*20,/sample),$
-                           minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+;         mapscl = cgimgscl(rebin(host_map,dx*20,dy*20,/sample),$
+;                           minval=zran[0]),max=zran[1],stretch=initmaps.ct.stretch)
+         mapscl = cgimgscl(rebin(alog10(host_map),dx*20,dy*20,/sample),$
+                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,2],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
@@ -2218,330 +1900,246 @@ pro ifsf_makemaps,initproc
          cgtext,dx*0.05,dy*0.95,'Host Cont.',color='white'
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
+
+         if tag_exist(initdat,'remove_scattered') then begin
+            
+            scatt_map = total(contcube.poly_mod,3) / contcube.npts
+;;           Use maximum flux for normalization unless it's much higher than 
+;;           second highest flux
+;            ifsort = reverse(sort(scatt_map))
+;            if scatt_map[ifsort[0]]/scatt_map[ifsort[1]] gt 2 then $
+;               scatt_map /= scatt_map[ifsort[1]] $
+;            else scatt_map /= scatt_map[ifsort[0]]
+            scatt_map /= maxctmap
+            cgplot,map_rkpc_ifs,alog10(scatt_map),yran=[-4,0],$
+                   xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
+                   pos=pos_top[*,3],/noerase,aspect=1d,$
+                   xtickformat='(A1)',ytickformat='(A1)'
+            cgoplot,psf1d_x,psf1d_y,color='Red'
+
+;            mapscl = cgimgscl(rebin(scatt_map,dx*20,dy*20,/sample),$
+;                              minval=zran[0],max=zran[1],$
+;                              stretch=initmaps.ct.stretch)
+            mapscl = cgimgscl(rebin(alog10(scatt_map),dx*20,dy*20,/sample),$
+                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+            cgloadct,65,/reverse
+            cgimage,mapscl,/keep,pos=pos_bot[*,3],opos=truepos,$
+                    /noerase,missing_value=bad,missing_index=255,$
+                    missing_color='white'
+            cgplot,[0],xsty=5,ysty=5,xran=[0.5,dx+0.5],$
+                   yran=[0.5,dy+0.5],position=truepos,$
+                   /nodata,/noerase
+            cgtext,dx*0.05,dy*0.95,'Scattered Light',color='white'
+            ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+                             center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
+
+         endif
+
       endif
 
       cgps_close
+
    endif
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Continuum components: Percentage of summed continuum fit by additive polynomial
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;   cgps_open,initdat.mapdir+initdat.label+'cont_polypct.eps',charsize=1,/encap,$
-;         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
-;
-;   map = contcube.cont_fit_poly_tot_pct
-;   ibd = where(map eq bad)
-;   map[ibd] = 0l
-;      
-;   zran = [0,1]
-;   dzran = zran[1]-zran[0]
-;   mapscl = cgimgscl(rebin(map,dx*20,dy*20,/sample),$
-;                     minval=zran[0],maxval=zran[1],ncolors=5)
-;   cgloadct,8,/brewer,ncolors=5
-;   cgimage,mapscl,/keep,opos=truepos,mar=0.2d
-;   cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;          /nodata,/noerase
-;   ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;   cbpos=[truepos[2],truepos[1],truepos[2]+0.02,truepos[3]]
-;   ticknames = ['0.0-0.2','0.2-0.4','0.4-0.6','0.6-0.8','0.8-1.0']
-;   cgDCBar,ncolors=5,position=cbpos,labels=ticknames,/ver,/right,$
-;           charsize=0.6
-;   cgps_close
-;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Continuum components: Percentage of summed continuum fit by additive polynomial
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;   cgps_open,initdat.mapdir+initdat.label+'NaDcont_polypct.eps',charsize=1,/encap,$
-;         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
-;
-;   map = contcube.cont_fit_poly_nad_pct
-;   ibd = where(map eq bad)
-;   map[ibd] = 0l
-;      
-;   zran = [0,1]
-;   dzran = zran[1]-zran[0]
-;   mapscl = cgimgscl(rebin(map,dx*20,dy*20,/sample),$
-;                     minval=zran[0],maxval=zran[1],ncolors=5)
-;   cgloadct,8,/brewer,ncolors=5
-;   cgimage,mapscl,/keep,opos=truepos,mar=0.2d
-;   cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;          /nodata,/noerase
-;   ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;   cbpos=[truepos[2],truepos[1],truepos[2]+0.02,truepos[3]]
-;   ticknames = ['0.0-0.2','0.2-0.4','0.4-0.6','0.6-0.8','0.8-1.0']
-;   cgDCBar,ncolors=5,position=cbpos,labels=ticknames,/ver,/right,$
-;           charsize=0.6
-;   cgps_close
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Continuum plots: Stellar velocity / sigma
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+   if tag_exist(initdat,'decompose_qso_fit') OR $
+      tag_exist(initdat,'decompose_ppxf_fit') then begin
+         
+;     Size of plot grid
+      npx = 2
+      npy = 1
+
+;     Figure out correct image size in inches
+      xpanel_in = 1.75d
+      margin_in = 0.5d
+      topmargin_in = 0.5d
+      halfmargin_in = margin_in/1d
+      xsize_in = xpanel_in*double(npx) + margin_in
+      aspectrat_fov=double(dx)/double(dy)
+      ysize_in = xpanel_in/aspectrat_fov + margin_in*2d + topmargin_in
+;     Sizes and positions of image windows in real and normalized coordinates
+      pan_xfrac = xpanel_in/xsize_in
+      pan_yfrac = xpanel_in/aspectrat_fov/ysize_in
+      sqpan_yfrac = xpanel_in/ysize_in
+      mar_xfrac = margin_in/xsize_in
+      mar_yfrac = margin_in/ysize_in
+      topmar_yfrac = topmargin_in/ysize_in
+      hmar_xfrac = halfmargin_in/xsize_in
+      hmar_yfrac = halfmargin_in/ysize_in
+      pos_top = dblarr(4,npx)
+      pos_toptit = dblarr(2,npx)
+      for i=0,npx-1 do $
+         pos_top[*,i] = [mar_xfrac+double(i)*pan_xfrac,$
+                         mar_yfrac,$
+                         mar_xfrac+double(i+1)*pan_xfrac,$
+                         mar_yfrac + pan_yfrac]
+      pos_title = [mar_xfrac+double(npx)*pan_xfrac/2d,$
+                   1d - topmar_yfrac*0.75d]
+
+      cgps_open,initdat.mapdir+initdat.label+'stel.eps',$
+                charsize=1d*charscale,$
+                /encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+
+      cbform = '(I0)' ; colorbar syntax
+      stel_z = contcube.stel_z
+      igd = where(stel_z ne bad,ctgd)
+
+      if ctgd gt 0 then begin
+
+;        Stellar velocity
+         zdiff = dblarr(dx,dy)+bad
+         stel_vel = dblarr(dx,dy)+bad
+         zdiff[igd] = contcube.stel_z[igd] - initdat.zsys_gas
+         stel_vel[igd] = c_kms * ((zdiff[igd]+1d)^2d - 1d) / $
+                                 ((zdiff[igd]+1d)^2d + 1d)
+         map = stel_vel
+
+;        Set up range
+         if hasrangefile then begin
+            ithisline = where(rangeline eq 'stel' AND $
+                              rangequant eq 'vel',ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = ifsf_plotrange(auto=auto,$
+                                  mapgd=map[igd],divinit=100d,$
+                                  ncbdivmax=ncbdivmax,$
+                                  rline=rangeline,matline='stel',$
+                                  rcomp=rangecomp,$
+                                  rquant=rangequant,matquant='vel',$
+                                  rncbdiv=rangencbdiv,$
+                                  rlo=rangelo,rhi=rangehi)
+
+         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,74,/reverse
+         cgimage,mapscl,/keep,pos=pos_top[*,0],opos=truepos,$
+                 missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase,xran=[0,dx],yran=[0,dy]
+;        Velocity contours
+         if tag_exist(initmaps,'contourlevels') then begin
+            key = 'stel_vel'
+            if initmaps.contourlevels->haskey(key) then begin
+               nlevels = n_elements(initmaps.contourlevels[key])
+               cgcontour,map,dindgen(dx)+0.5,dindgen(dy)+0.5,$
+                         /overplot,color=0,c_linesty=2,c_thick=4,$
+                         levels=initmaps.contourlevels[key],$
+                         max=1000d
+            endif
+         endif
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                          center_nuclei_kpc_y,/toplab
+;        Colorbar
+         xoffset = pan_xfrac*0.05
+         yoffset = mar_yfrac*0.2
+         cbpos=[truepos[0]+xoffset,truepos[1]-yoffset,$
+                truepos[2]-xoffset,truepos[1]]
+         ticknames = string(dindgen(plotdat[3]+1)*$
+                            plotdat[2]/double(plotdat[3]) - $
+                            (plotdat[2] - plotdat[1]),format=cbform)
+         ticknames[0]=' '
+         ticknames[plotdat[3]]=' '
+         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                    ticknames=ticknames,charsize=0.6
+;        Title
+         title='v$\down50$'
+         yoffset = mar_yfrac*0.85
+         cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                truepos[1]-yoffset,title,charsize=1.25,align=0.5,/norm
+
+      endif
+
+      map = contcube.stel_sigma
+      igd = where(map ne bad,ctgd)
+
+      if ctgd gt 0 then begin
+
+;        Set up range
+         if hasrangefile then begin
+            ithisline = where(rangeline eq 'stel' AND $
+                              rangequant eq 'vsig',ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = ifsf_plotrange(auto=auto,$
+                                  mapgd=map[igd],divinit=100d,$
+                                  ncbdivmax=ncbdivmax,$
+                                  rline=rangeline,matline='stel',$
+                                  rcomp=rangecomp,$
+                                  rquant=rangequant,matquant='vsig',$
+                                  rncbdiv=rangencbdiv,$
+                                  rlo=rangelo,rhi=rangehi)
+
+         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,65,/reverse
+         cgimage,mapscl,/keep,pos=pos_top[*,1],opos=truepos,$
+                 /noerase,missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase,xran=[0,dx],yran=[0,dy]
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                          center_nuclei_kpc_y,/nolab
+;        Colorbar
+         xoffset = pan_xfrac*0.05
+         yoffset = mar_yfrac*0.2
+         cbpos=[truepos[0]+xoffset,truepos[1]-yoffset,$
+                truepos[2]-xoffset,truepos[1]]
+         ticknames = string(dindgen(plotdat[3]+1)*$
+                            plotdat[2]/double(plotdat[3]) - $
+                            (plotdat[2] - plotdat[1]),format=cbform)
+         ticknames[0]=' '
+         ticknames[plotdat[3]]=' '
+         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                    ticknames=ticknames,charsize=0.6
+;        Title
+         title='$\sigma$'
+         yoffset = mar_yfrac*0.85
+         cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                truepos[1]-yoffset,title,charsize=1.25,align=0.5,/norm
+
+      endif
+
+;     Title
+      cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
+      cgtext,pos_title[0],pos_title[1],initdat.name+': Stellar',$
+             charsize=1.25d,align=0.5
+
+      cgps_close
+
+   endif
+
+   
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; EMISSION LINE PLOTS
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if ~ tag_exist(initdat,'noemlinfit') then begin
+   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Plots of individual emission lines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   if ~ tag_exist(initdat,'noemlinfit') then begin
-
-;     Size of plot grid
-      npx = initdat.maxncomp
-      npy = 3
-
-;     Linemap indices to plot below: flux, wavelength (converted to velocity), sigma
-      ilinmap = [0,2,3]
-
-;     Loop through emission lines
-      foreach line,outlines do begin
-
-;        Get syntax of linelabel right; otherwise call to DEVICE chokes
-         linelab=line
-         ilb = strpos(linelab,'[')
-         if ilb ne -1 then $
-            linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
-         irb = strpos(linelab,']')
-         if irb ne -1 then $
-            linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
-
-         cgps_open,initdat.mapdir+initdat.label+linelab+'_comp.eps',charsize=1,/encap,$
-                   /inches,xs=plotquantum*npx,ys=plotquantum*npy*aspectrat,/qui
-         pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
-                        xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-
-;        loop through plot types
-         for j=0,2 do begin
-
-;           Set up colorbar labeling
-            if j eq 0 then cbform = '(D0.1)' else cbform = '(I0)'
-
-
-;           Set up ranges for all components at once
-            if tag_exist(initmaps,'setplotrange_allcomp') then begin
-        
-               mapallcomp = linmaps[line,*,*,0:initdat.maxncomp-1,ilinmap[j]]
-               ibd = where(mapallcomp eq bad,ctbd)
-               igd = where(mapallcomp ne bad AND mapallcomp ne 0,ctgd)
-               if j eq 1 then begin
-;                 redshift with respect to galaxy systemic
-                  zdiff = $
-                     mapallcomp[igd]/(linelist[line]*(1d + initdat.zsys_gas)) $
-                     - 1d
-;                 relativistic velocity shift;
-;                 see http://hyperphysics.phy-astr.gsu.edu/hbase/relativ/reldop2.html
-                  mapallcomp[igd] = $
-                     c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-               endif
-               zran = [min(mapallcomp[igd]),max(mapallcomp[igd])]
-               if j eq 0 then begin
-                  zmax_flux = zran[1]
-                  zran=[0,1]
-                  dzran = 1
-                  ncbdiv = 5
-               endif else begin
-                  divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-                  ncbdiv = divarr[0]
-                  dzran = zran[1]-zran[0]
-               endelse
-
-            endif
-
-;           Loop through velocity components
-            for i=0,initdat.maxncomp-1 do begin
-
-;              Plot index
-               iplot = j*npx+i
-
-;              Get map and scale
-               map = linmaps[line,*,*,i,ilinmap[j]]
-               fluxmap = linmaps[line,*,*,i,0]
-               ibd = where(map eq bad AND ~ finite(map),ctbd)
-               inan = where(~finite(map),ctnan)
-               izero = where(fluxmap eq 0)
-               igd = where(map ne bad AND fluxmap ne 0 AND finite(map),ctgd)
-
-               map[ibd] = bad
-               map[inan] = bad
-               map[izero] = bad
-
-               if ctgd gt 0 then begin
-            
-                  if j eq 0 AND tag_exist(initmaps,'fluxfactor') then begin
-                     map[igd] *= initmaps.fluxfactor
-                  endif else if j eq 1 then begin
-                     zdiff = map[igd]/(linelist[line]*(1d + initdat.zsys_gas))-1d
-                     map[igd] = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-                  endif
-
-;                 Set up ranges for each component separately
-
-;                 Check for manual range first ...
-                  hasrange = 0
-                  if hasrangefile then begin
-                     ithisline = where(line eq rangeline AND $
-                                       i+1 eq rangecomp AND $
-                                       plottypes[j] eq rangequant,ctthisline)
-                     if ctthisline eq 1 then begin
-                        zran = [rangelo[ithisline],rangehi[ithisline]]
-                        dzran = zran[1]-zran[0]
-                        ncbdiv = rangencbdiv[ithisline]
-                        ncbdiv = ncbdiv[0]
-                        hasrange = 1
-                     endif
-                  endif
-;                 otherwise set it automagically.
-                  if ~tag_exist(initmaps,'setplotrange_allcomp') AND $
-                     ~hasrange then begin
-                     zran = [min(map[igd]),max(map[igd])]
-                     if j eq 0 then begin
-                        zmax_flux = zran[1]
-                        zran=[0,1]
-                        dzran = 1
-                        ncbdiv = 5
-                     endif else begin
-                        divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-                        ncbdiv = divarr[0]
-                        dzran = zran[1]-zran[0]
-                     endelse
-                  endif
- 
-                  if j eq 0 then map[igd] = map[igd]/zmax_flux
-                  if ctnan gt 0 then map[inan] = bad
-                  mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-                                  min=zran[0],max=zran[1])
-   
-;                 Plot image
-                  if j eq 0 then begin
-                     cgloadct,65,/reverse
-                     title='c'+string(i+1,format='(I0)')+' flux'
-                     title += ' ('+string(zmax_flux,format='(E0.2)')+')'
-                  endif
-                  if j eq 1 then begin
-                     cgloadct,74,/reverse
-                     title='c'+string(i+1,format='(I0)')+' velocity'
-                  endif
-                  if j eq 2 then begin
-                     cgloadct,65,/reverse
-                     title='c'+string(i+1,format='(I0)')+' sigma'
-                  endif
-                  cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
-                          noerase=iplot ne 0,missing_value=bad,missing_index=255,$
-                          missing_color='white'
-                  cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                         /nodata,/noerase,title=title
-                  ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;                 Colorbar
-                  cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-                  ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-                                     (dzran - zran[1]),format=cbform)
-                  cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                             ticknames=ticknames,/ver,/right,charsize=0.6
-
-               endif
- 
-            endfor
-
-         endfor
- 
-         cgps_close
-
-      endforeach
-
-   endif
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; 1D velocity cross-sections [CVDF]
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;  hash to hold endpoints for plotting cross-sections on maps
-   xsec_endpoints = 0b
-   if tag_exist(initmaps,'xsec') then begin
-
-      xsec = initmaps.xsec
-      nsec = n_elements(xsec.line)
-      xsec_endpoints = dblarr(2,2,nsec)
-
-      for i=0,nsec-1 do begin
-         linelab=xsec.line[i]
-         ilb = strpos(linelab,'[')
-         if ilb ne -1 then $
-            linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
-         irb = strpos(linelab,']')
-         if irb ne -1 then $
-            linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
-
-;        Get map and scale
-         itag = where(strcmp(linspecpars_tags,xsec.tag[i],/fold_case) eq 1)
-         map = linspecpars[xsec.line[i]].(itag)
-         ibd = where(map eq bad OR ~finite(map),ctbd)
-         igd = where(map ne bad AND finite(map),ctgd)
-
-         if ctgd gt 0 then begin
-            hasrange = 0
-            if hasrangefile then begin
-            ithisline = where(xsec.line[i] eq rangeline AND $
-                              xsec.tag[i] eq rangequant,ctthisline)
-               if ctthisline eq 1 then begin
-                  zran = [rangelo[ithisline],rangehi[ithisline]]
-                  dzran = zran[1]-zran[0]
-                  ncbdiv = rangencbdiv[ithisline]                   
-                  ncbdiv = ncbdiv[0]
-                  hasrange = 1
-               endif
-            endif
-         endif
-         if ~hasrange then begin
-            zran = [min(map[igd]),max(map[igd])]
-            divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-            ncbdiv = divarr[0]
-            dzran = zran[1]-zran[0]
-         endif
- 
-         if ctbd gt 0 then map[ibd] = bad
-
-         if tag_exist(xsec,'nearest') then nearest=1b else nearest=0b
-         slit = ifsf_xsec(map,[xsec.xcenter[i],xsec.ycenter[i]],$
-                          xsec.length[i],xsec.angle[i],bad=bad,$
-                          nearest=nearest,ends=ends)
-         xsec_endpoints[*,*,i] = ends
-         islitgd = where(slit[*,1] ne bad,ctslitgd)
-         if ctslitgd gt 0 then begin
-            rslit = slit[islitgd,0]
-            mslit = slit[islitgd,1]
-         endif else begin
-            rslit=0d
-            mslit=0d
-         endelse
-
-         file = initdat.mapdir+initdat.label+linelab+'_cvdf_xsec_'+$
-                xsec.tag[i]+'_'+string(xsec.angle[i],format='(I0)')+'deg.eps'
-         cgps_open,file,charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui
-         xran = 1.05d*[min(rslit),max(rslit)]*kpc_per_pix
-         cgplot,rslit*kpc_per_pix,mslit,/xsty,/ysty,$
-                xran=xran,yran=zran,xtit='Position (kpc)',$
-                ytit=xsec.title[i],psym=16,symsize=2
-;         cgoplot,rslit*kpc_per_as,mslit
-         cgoplot,[0d,0d],zran,/linesty
-         cgoplot,xran,[0d,0d],/linesty
-         cgps_close
-
-      endfor
-
-   endif
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Plots of individual emission lines [CVDF]
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if ~ tag_exist(initdat,'noemlinfit') then begin
+   if tag_exist(initmaps,'emlplot') then begin
 
 ;     Quantities to plot
-      if tag_exist(initmaps,'cvdf_ftags') then ftags = initmaps.cvdf_ftags $
-      else ftags = ['ftot','fpk','fv50','fv84','fv98']
-      if tag_exist(initmaps,'cvdf_vtags') then vtags = initmaps.cvdf_vtags $
-      else vtags = ['sig','vpk','v50','v84','v98']
-      if tag_exist(initmaps,'cvdf_ftitles') then ftitles = initmaps.cvdf_ftitles $
-      else ftitles = ['F$\downtot$','F$\downpk$','F$\downv50$',$
-                    'F$\downv84$','F$\downv98$']
-      if tag_exist(initmaps,'cvdf_vtitles') then vtitles = initmaps.cvdf_vtitles $
-      else vtitles = ['$\sigma$','v$\downpeak$','v$\down50$',$
-                      'v$\down84$','v$\down98$']
+      if tag_exist(initmaps.emlplot,'ftags') then ftags = initmaps.emlplot.ftags $
+      else ftags = ['ftot','fpk']
+      if tag_exist(initmaps.emlplot,'vtags') then vtags = initmaps.emlplot.vtags $
+      else vtags = ['vsig','vpk']
+      if tag_exist(initmaps.emlplot,'ftitles') then ftitles = initmaps.emlplot.ftitles $
+      else ftitles = ['F$\downtot$','F$\downpk$']
+      if tag_exist(initmaps.emlplot,'vtitles') then vtitles = initmaps.emlplot.vtitles $
+      else vtitles = ['$\sigma$','v$\downpeak$']
 
 ;     Size of plot grid
       npx = max([n_elements(vtags),n_elements(ftags)])
@@ -2583,21 +2181,12 @@ pro ifsf_makemaps,initproc
                    1d - topmar_yfrac*0.75d]
         
 ;     Loop through emission lines
-      foreach line,outlines do begin
+      foreach line,lines_with_doublets do begin
 
-;        Get syntax of linelabel right; otherwise call to DEVICE chokes
-         linelab=line
-         ilb = strpos(linelab,'[')
-         if ilb ne -1 then $
-            linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
-         irb = strpos(linelab,']')
-         if irb ne -1 then $
-            linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
-
-         cgps_open,initdat.mapdir+initdat.label+linelab+'_cvdf.eps',$
+         linelab = ifsf_linesyntax(line)
+         cgps_open,initdat.mapdir+initdat.label+linelab+ '.eps',$
                    charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
 
-         ichan=0
 ;        loop through plot types
          for j=0,npx-1 do begin
 
@@ -2608,27 +2197,8 @@ pro ifsf_makemaps,initproc
             if j lt n_elements(ftags) then begin
 
 ;              Get map and scale
-;              Channel map option
-               ftag_use = ftags[j]
-               if ftags[j] eq 'ch' then begin
-                  if tag_exist(initmaps,'cvdf_channels') then begin
-                     ftag_use = 'ch'+string(ichan,format='(I0)')
-                     linmap_tmp = linspecmaps[line]
-                     vel = initmaps.cvdf_channels[ichan]
-                     ivel = $
-                        value_locate(linmap_tmp.vel,vel)
-                     map = linmap_tmp.flux[*,*,ivel]
-                     ichan++
-                  endif else begin
-                     map = 0b
-                  endelse
-;              vel% map option
-               endif else begin
-                  itag = where(strcmp(linspecpars_tags,ftags[j],/fold_case) eq 1)
-                  map = linspecpars[line].(itag)
-               endelse
-               ibd = where(map eq bad AND ~ finite(map),ctbd)
-               inan = where(~finite(map),ctnan)
+               map = emlflx[ftags[j],line]
+               ibd = where(map eq bad OR map eq 0 OR ~ finite(map),ctbd)
                igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
                ctgdlin = ctgd ; saving for later ...
             
@@ -2636,6 +2206,8 @@ pro ifsf_makemaps,initproc
                
                   if tag_exist(initmaps,'fluxfactor') then $
                      map[igd] *= initmaps.fluxfactor
+                  if tag_exist(initmaps,'fluxunits') then $
+                     map[igd] *= initmaps.fluxunits
                                  
                   zran=[0,1]
                   dzran = 1
@@ -2644,14 +2216,12 @@ pro ifsf_makemaps,initproc
 
                   if hasrangefile then begin
                      ithisline = where(line eq rangeline AND $
-                                       ftag_use eq rangequant,ctthisline)
-                     if ctthisline eq 1 then zmax_flux = rangelo[ithisline]
+                                       ftags[j] eq rangequant,ctthisline)
+                     if ctthisline eq 1 then zmax_flux = rangehi[ithisline]
                   endif
                
                   map[igd] = map[igd]/zmax_flux[0]
-                  if ctnan gt 0 then map[inan] = bad
-                  izero = where(map eq 0d,ctzero)
-                  if ctzero gt 0 then map[izero] = bad
+                  if ctbd gt 0 then map[ibd] = bad
                   mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
                                   min=zran[0],max=zran[1])
    
@@ -2688,7 +2258,7 @@ pro ifsf_makemaps,initproc
  
 ;                 Title
                   title=ftitles[j]
-                  title += ' ('+string(zmax_flux*initmaps.fluxunits,format='(E0.2)')+')'
+                  title += ' ('+string(zmax_flux,format='(E0.2)')+')'
                   yoffset = mar_yfrac*0.65
                   cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
                          truepos[3]+yoffset,title,charsize=1.05,align=0.5,/norm
@@ -2705,11 +2275,11 @@ pro ifsf_makemaps,initproc
                iplot = npx+j ; plot index
 
 ;              Get map and scale
-               itag = where(strcmp(linspecpars_tags,vtags[j],/fold_case) eq 1)
-               map = linspecpars[line].(itag)
-               ibd = where(map eq bad AND ~ finite(map),ctbd)
-               inan = where(~finite(map),ctnan)
-               igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
+               if emlvel[vtags[j]].haskey(line) then begin
+                  map = emlvel[vtags[j],line]
+                  ibd = where(map eq bad OR ~ finite(map),ctbd)
+                  igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
+               endif else ctgd = 0
 
                if ctgd gt 0 then begin
  
@@ -2732,12 +2302,12 @@ pro ifsf_makemaps,initproc
                      dzran = zran[1]-zran[0]
                   endif
  
-                  if ctnan gt 0 then map[inan] = bad
+                  if ctbd gt 0 then map[ibd] = bad
                   mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
                                   min=zran[0],max=zran[1])
    
 ;                 Plot image
-                  if vtags[j] eq 'sig' then cgloadct,65,/reverse $
+                  if stregex(vtags[j],'sig',/bool) then cgloadct,65,/reverse $
                   else cgloadct,74,/reverse
                   cgimage,mapscl,/keep,pos=pos_bot[*,j],opos=truepos,$
                           noerase=iplot ne 0,missing_value=bad,missing_index=255,$
@@ -2753,25 +2323,26 @@ pro ifsf_makemaps,initproc
                         cgcontour,map,dindgen(dx)+0.5,dindgen(dy)+0.5,$
                                   /overplot,color=0,c_linesty=2,c_thick=4,$
                                   levels=initmaps.contourlevels[key],$
-                                  max=initmaps.contourmax[key] ;,$
+;                                  max=initmaps.contourmax[key]
+                                  max=1000d
 ;                                  c_labels=dblarr(nlevels)+1b,$
 ;                                  c_charsize=0.75
                      endif
                   endif
-;                 Cross section
-                  if xsec_endpoints[0] ne 0b then $
-                     for k=0,n_elements(initmaps.xsec.line)-1 do $
-                        if initmaps.xsec.line[k] eq line AND $
-                           initmaps.xsec.tag[k] eq vtags[j] then $
-                           cgoplot,xsec_endpoints[*,0,k]+0.5d,$
-                                   xsec_endpoints[*,1,k]+0.5d,$
-                                   thick=4,linesty=0
-;                 Disk axes
-                  linsty_da=[2,1]
-                  if diskaxes_endpoints[0] ne 0b then $
-                     for k=0,1 do cgoplot,diskaxes_endpoints[*,0,k]+0.5d,$
-                                          diskaxes_endpoints[*,1,k]+0.5d,$
-                                          thick=4,linesty=linsty_da[k]
+;;                 Cross section
+;                  if xsec_endpoints[0] ne 0b then $
+;                     for k=0,n_elements(initmaps.xsec.line)-1 do $
+;                        if initmaps.xsec.line[k] eq line AND $
+;                           initmaps.xsec.tag[k] eq vtags[j] then $
+;                           cgoplot,xsec_endpoints[*,0,k]+0.5d,$
+;                                   xsec_endpoints[*,1,k]+0.5d,$
+;                                   thick=4,linesty=0
+;;                 Disk axes
+;                  linsty_da=[2,1]
+;                  if diskaxes_endpoints[0] ne 0b then $
+;                     for k=0,1 do cgoplot,diskaxes_endpoints[*,0,k]+0.5d,$
+;                                          diskaxes_endpoints[*,1,k]+0.5d,$
+;                                          thick=4,linesty=linsty_da[k]
                   ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
                                    center_nuclei_kpc_y,/nolab
 ;                 Colorbar
@@ -2799,7 +2370,7 @@ pro ifsf_makemaps,initproc
 ;        Title
          cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
          cgtext,pos_title[0],pos_title[1],initdat.name+': '+linelabels[line],$
-                charsize=1.8,align=0.5
+                charsize=1.25d,align=0.5
  
          cgps_close
 
@@ -2809,111 +2380,371 @@ pro ifsf_makemaps,initproc
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Emission line radial profiles [CVDF]
+; Extinction plots
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   if ~ tag_exist(initdat,'noemlinfit') AND $
-      tag_exist(initmaps,'doemlinradprof') then begin
+   if tag_exist(initmaps,'ebv') then begin
+      if tag_exist(initmaps.ebv,'calc') then begin
 
-;     Quantities to plot
-      if tag_exist(initmaps,'cvdf_ftags') then ftags = initmaps.cvdf_ftags $
-      else ftags = ['ftot','fpk','fv50','fv84','fv98']
+;        Loop through types
+         for i=0,n_elements(initmaps.ebv.calc)-1 do begin
+            
+            fluxtype = initmaps.ebv.calc[i]
+            
+            map = ebv[fluxtype]
+            ibd = where(map eq bad OR ~ finite(map),ctbd)
+            igd = where(map ne bad AND finite(map),ctgd)
 
-;     Size of plot grid
-      npx = max([n_elements(vtags),n_elements(ftags)])
-      npy = 1
+            if ctgd gt 0 then begin
 
-;     Figure out correct image size in inches
-      xpanel_in = 1.75d
-      margin_in = 0.5d
-      topmargin_in = 0.25d
-      halfmargin_in = margin_in/1d
-      xsize_in = xpanel_in*double(npx) + margin_in
-      ysize_in = xpanel_in + margin_in*2d + topmargin_in
-      ;  Sizes and positions of image windows in real and normalized coordinates
-      pan_xfrac = xpanel_in/xsize_in
-      pan_yfrac = xpanel_in/ysize_in
-      mar_xfrac = margin_in/xsize_in
-      mar_yfrac = margin_in/ysize_in
-      topmar_yfrac = topmargin_in/ysize_in
-      hmar_xfrac = halfmargin_in/xsize_in
-      hmar_yfrac = halfmargin_in/ysize_in
-      pos_top = dblarr(4,npx)
-      pos_toptit = dblarr(2,npx)
-      pos_mid = dblarr(4,npx)
-      pos_midtit = dblarr(2,npx)
-      pos_bot = dblarr(4,npx)
-      for i=0,npx-1 do $
-         pos_bot[*,i] = [mar_xfrac+double(i)*pan_xfrac,$
+               npx = 1
+;              Figure out correct image size in inches
+               xpanel_in = 1.75d
+               margin_in = 0.5d
+               topmargin_in = 0.5d
+               halfmargin_in = margin_in/1d
+               xsize_in = xpanel_in*double(npx) + margin_in
+               aspectrat_fov=double(dx)/double(dy)
+               ysize_in = xpanel_in * 1d/aspectrat_fov + margin_in + topmargin_in
+;              Sizes and positions of image windows in real and normalized coordinates
+               pan_xfrac = xpanel_in/xsize_in
+               pan_yfrac = xpanel_in/aspectrat_fov/ysize_in
+               sqpan_yfrac = xpanel_in/ysize_in
+               mar_xfrac = margin_in/xsize_in
+               mar_yfrac = margin_in/ysize_in
+               topmar_yfrac = topmargin_in/ysize_in
+               hmar_xfrac = halfmargin_in/xsize_in
+               hmar_yfrac = halfmargin_in/ysize_in
+               pos = dblarr(4,npx)
+               pos_tit = dblarr(2,npx)
+               for j=0,npx-1 do $
+                  pos[*,j] = [mar_xfrac+double(j)*pan_xfrac,$
+                              1d - (mar_yfrac+pan_yfrac) - topmar_yfrac,$
+                              mar_xfrac+double(j+1)*pan_xfrac,$
+                              1d - mar_yfrac - topmar_yfrac]
+               pos_title = [mar_xfrac+double(npx)*pan_xfrac/2d,$
+                            1d - topmar_yfrac*0.75d]
+
+;              Set up range
+               if hasrangefile then begin
+                  ithisline = where(rangeline eq 'ebv' AND $
+                                    rangequant eq fluxtype,ctthisline)
+                  if ctthisline eq 1 then auto=0b
+               endif else auto=1b
+               plotdat = $
+                  ifsf_plotrange(auto=auto,$
+                                 mapgd=map[igd],divinit=0.5d,$
+                                 ncbdivmax=ncbdivmax,$
+                                 rline=rangeline,matline='ebv',$
+                                 rcomp=rangecomp,$
+                                 rquant=rangequant,matquant=fluxtype,$
+                                 rncbdiv=rangencbdiv,$
+                                 rlo=rangelo,rhi=rangehi)
+
+               cgps_open,initdat.mapdir+initdat.label+'ebv_'+fluxtype+'.eps',$
+                         charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+               cbform = '(D0.2)'
+
+               title+=textoidl('E(B-V)')
+
+               mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                               min=plotdat[0],max=plotdat[1])
+               cgloadct,74,/reverse
+               cgimage,mapscl,/keep,pos=pos,opos=truepos,$
+                       /noerase,missing_value=bad,missing_index=255,$
+                       missing_color='white'
+               cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                      /nodata,/noerase
+               ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+                                center_nuclei_kpc_x,center_nuclei_kpc_y
+               xoffset = pan_xfrac*0.05
+               yoffset = mar_yfrac*0.2
+               cbpos=[truepos[0]+xoffset,truepos[3],truepos[2]-xoffset,$
+                      truepos[3]+yoffset]
+               ticknames = string(dindgen(plotdat[3]+1)*$
+                                  plotdat[2]/double(plotdat[3]) - $
+                                  (plotdat[2] - plotdat[1]),format=cbform)
+               cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                          ticknames=ticknames,/top,charsize=0.6
+               yoffset = mar_yfrac*0.65
+               cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                      truepos[3]+yoffset,initmaps.ebv.titles[i],$
+                      charsize=1.05,align=0.5,/norm
+
+
+;              Title
+               cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
+               cgtext,pos_title[0],pos_title[1],$
+                      initdat.name+': E(B-V)',$
+                      charsize=1d,align=0.5
+
+               cgps_close
+
+            endif
+         endfor
+      endif
+   endif
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Plots of line ratios
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if tag_exist(initmaps,'lr') then begin
+      if tag_exist(initmaps.lr,'calc') then begin
+
+;        Loop through types
+         for i=0,n_elements(initmaps.lr.calc)-1 do begin
+
+            fluxtype = initmaps.lr.calc[i]
+            plotorder = ['o3hb','n2ha','s2ha','o1ha']
+            lrtype = (lr[fluxtype].keys())->toarray()
+
+;           Size of plot grid
+            lrsort=!NULL
+            npx=lr[fluxtype].count()
+            npy=1
+            for j=0,n_elements(plotorder)-1 do begin
+               ilr = where(lrtype eq plotorder[j],ctlr)
+               if ctlr eq 1 then begin
+                  lrsort = [lrsort,lrtype[ilr]]
+                  if lrtype[ilr] eq 'o3hb' then npy=2
+               endif
+            endfor
+
+;           Figure out correct image size in inches
+            xpanel_in = 1.75d
+            margin_in = 0.5d
+            topmargin_in = 0.5d
+            halfmargin_in = margin_in/1d
+            xsize_in = xpanel_in*double(npx) + margin_in
+            aspectrat_fov=double(dx)/double(dy)
+            ysize_in = (xpanel_in * 1d/aspectrat_fov + margin_in) + $
+                       (xpanel_in + 2d*margin_in) + topmargin_in
+;           Sizes and positions of image windows in real and normalized coordinates
+            pan_xfrac = xpanel_in/xsize_in
+            pan_yfrac = xpanel_in/aspectrat_fov/ysize_in
+            sqpan_yfrac = xpanel_in/ysize_in
+            mar_xfrac = margin_in/xsize_in
+            mar_yfrac = margin_in/ysize_in
+            topmar_yfrac = topmargin_in/ysize_in
+            hmar_xfrac = halfmargin_in/xsize_in
+            hmar_yfrac = halfmargin_in/ysize_in
+            pos_top = dblarr(4,npx)
+            pos_toptit = dblarr(2,npx)
+            pos_mid = dblarr(4,npx)
+            pos_midtit = dblarr(2,npx)
+            pos_bot = dblarr(4,npx)
+            for k=0,npx-1 do begin
+               pos_top[*,k] = [mar_xfrac+double(k)*pan_xfrac,$
+                         1d - (mar_yfrac+pan_yfrac) - topmar_yfrac,$
+                         mar_xfrac+double(k+1)*pan_xfrac,$
+                         1d - mar_yfrac - topmar_yfrac]
+               pos_bot[*,k] = [mar_xfrac+double(k)*pan_xfrac,$
                          mar_yfrac,$
-                         mar_xfrac+double(i+1)*pan_xfrac,$
-                         mar_yfrac+pan_yfrac]
-      pos_title = [mar_xfrac+double(npx)*pan_xfrac/2d,$
-                   1d - topmar_yfrac*1.5d]
-      pos_xtit = [mar_xfrac+double(npx)*pan_xfrac/2d,$
-                  mar_yfrac*0.25d]
+                         mar_xfrac+double(k+1)*pan_xfrac,$
+                         mar_yfrac+sqpan_yfrac]
+            endfor
+            pos_title = [mar_xfrac+double(npx)*pan_xfrac/2d,$
+                         1d - topmar_yfrac*0.75d]
 
-      yran = [-4d,0d]
+            cgps_open,initdat.mapdir+initdat.label+'lr_'+fluxtype+'.eps',$
+                      charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+            cbform = '(D0.2)'
 
-;     Loop through emission lines
-      foreach line,outlines do begin
+;           Loop through plot panels
+            for j=0,npx-1 do begin
 
-;        Get syntax of linelabel right; otherwise call to DEVICE chokes
-         linelab=line
-         ilb = strpos(linelab,'[')
-         if ilb ne -1 then $
-            linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
-         irb = strpos(linelab,']')
-         if irb ne -1 then $
-            linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
+               map = lr[fluxtype,lrsort[j]]
+               maperrlo = lrerrlo[fluxtype,lrsort[j]]
+               maperrhi = lrerrhi[fluxtype,lrsort[j]]
+               ibd = where(map eq bad OR ~ finite(map),ctbd)
+               igd = where(map ne bad AND finite(map),ctgd)
 
-         cgps_open,initdat.mapdir+initdat.label+linelab+'_rad_cvdf.eps',$
-                   charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+;              Set up range
+               if hasrangefile then begin
+                  ithisline = where(rangeline eq lrsort[j] AND $
+                                    rangequant eq fluxtype,ctthisline)
+                  if ctthisline eq 1 then auto=0b
+               endif else auto=1b
+               plotdat = $
+                  ifsf_plotrange(auto=auto,$
+                                 mapgd=map[igd],divinit=0.5d,$
+                                 ncbdivmax=ncbdivmax,$
+                                 rline=rangeline,matline=lrsort[j],$
+                                 rcomp=rangecomp,$
+                                 rquant=rangequant,matquant=fluxtype,$
+                                 rncbdiv=rangencbdiv,$
+                                 rlo=rangelo,rhi=rangehi)
 
-         ichan=0
-         for j=0,npx-1 do begin
+               mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                               min=plotdat[0],max=plotdat[1])
+               cgloadct,74,/reverse
+               cgimage,mapscl,/keep,pos=pos_top[*,j],opos=truepos,$
+                       /noerase,missing_value=bad,missing_index=255,$
+                       missing_color='white'
+               cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                      /nodata,/noerase
+               if j eq 0 then nolab=0b else nolab=1b
+               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                                   center_nuclei_kpc_y,nolab=nolab
+               xoffset = pan_xfrac*0.05
+               yoffset = mar_yfrac*0.2
+               cbpos=[truepos[0]+xoffset,truepos[3],truepos[2]-xoffset,$
+                      truepos[3]+yoffset]
+               ticknames = string(dindgen(plotdat[3]+1)*$
+                                  plotdat[2]/double(plotdat[3]) - $
+                                  (plotdat[2] - plotdat[1]),format=cbform)
+               cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                          ticknames=ticknames,/top,charsize=0.6
+               yoffset = mar_yfrac*0.65
+               if lrsort[j] eq 'o3hb' then panel_title='[OIII]/H$\beta$'
+               if lrsort[j] eq 'n2ha' then panel_title='[NII]/H$\alpha$'
+               if lrsort[j] eq 'o1ha' then panel_title='[OI]/H$\alpha$'
+               if lrsort[j] eq 's2ha' then panel_title='[SII]/H$\alpha$'
+               cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                      truepos[3]+yoffset,panel_title,$
+                      charsize=1.05,align=0.5,/norm
 
-            cbform = '(D0.1)' ; colorbar syntax
-            iplot = j ; plot index
-            if j lt n_elements(ftags) then begin
+               if lrsort[j] eq 'o3hb' then begin
+                  map_o3hb = map
+                  maperrlo_o3hb = maperrlo
+                  maperrhi_o3hb = maperrhi
+                  igd_o3hb = igd
+                  plotdat_o3hb = plotdat
+               endif
+
+               if npy eq 2 AND j ne 0 then begin
+
+                  if lrsort[j] eq 'n2ha' then begin
+                     xran = [-1.99d,0.99d]
+                     yran = [-1.19d,1.49d]
+                     xkew1 = 0.05d*indgen(110)-5d
+                     ykew1 = 0.61d / (xkew1-0.47d)+1.19d
+                     xkew2 = 0.05d*indgen(41)-2d
+                     ykew2 = 0.61d / (xkew2-0.05d)+1.3d
+                  endif
+                  if lrsort[j] eq 'o1ha' then begin
+                     xran = [-2.19d,0.79d]
+                     yran = [-1.19d,1.49d]
+                     xkew1 = 0.05*indgen(85)-5
+                     ykew1 = 0.73d / (xkew1+0.59d)+1.33d
+                     xkew2 = 0.5d*indgen(2)-1.1d
+                     ykew2 = 1.18d*xkew2 + 1.30d
+                  endif
+                  if lrsort[j] eq 's2ha' then begin
+                     xran = [-1.99d,0.99d]
+                     yran = [-1.19d,1.49d]
+                     xkew1 = 0.05*indgen(105)-5
+                     ykew1 = 0.72d / (xkew1-0.32d)+1.30d
+                     xkew2 = 0.5d*indgen(2)-0.4d
+                     ykew2 = 1.89d*xkew2+0.76d
+                  endif
+
+                  igdvo = cgsetintersection(igd,igd_o3hb)
+
+                  if j eq 1 then ytit = '[OIII]/H$\beta$' else ytit=''
+                  if j gt 1 then ytickf='(A1)' else ytickf='(D0.1)'
+                  cgplot,[0],/xsty,/ysty,xran=xran,yran=yran,pos=pos_bot[*,j],$
+                             /nodata,/noerase,xtit=panel_title,ytit=ytit,$
+                             aspect=1d,ytickf=ytickf
+                  cgoplot,map[igdvo],map_o3hb[igdvo],psym=16,symsize=0.01,$
+                          err_xlow=maperrlo[igdvo],err_xhigh=maperrhi[igdvo],$
+                          err_ylow=maperrlo_o3hb[igdvo],$
+                          err_yhigh=maperrhi_o3hb[igdvo],$
+                          err_color='Red',err_thick=2,/err_clip,$
+                          err_width=0d
+                  cgoplot,map[igdvo],map_o3hb[igdvo],psym=16,symsize=0.5d
+                  cgoplot,xkew1,ykew1
+                  cgoplot,xkew2,ykew2,linesty=1
+
+               endif
+
+            endfor
+
+;           Title
+            cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
+            cgtext,pos_title[0],pos_title[1],$
+                   initdat.name+': Line Ratios',$
+                   charsize=1.25d,align=0.5
+
+            cgps_close
+
+         endfor
+      endif
+   endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Emission line radial profiles
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   if tag_exist(initmaps,'emlplot') then begin
+      if tag_exist(initmaps.emlplot,'radtags') AND $
+         tag_exist(initmaps.emlplot,'radtitles') then begin
+
+;        Quantities to plot
+         radtags = initmaps.emlplot.radtags
+
+;        Size of plot grid
+         npx = n_elements(radtags)
+         npy = 1
+
+;        Figure out correct image size in inches
+         xpanel_in = 1.75d
+         margin_in = 0.5d
+         topmargin_in = 0.25d
+         halfmargin_in = margin_in/1d
+         xsize_in = xpanel_in*double(npx) + margin_in
+         ysize_in = xpanel_in + margin_in*2d + topmargin_in
+      ;  Sizes and positions of image windows in real and normalized coordinates
+         pan_xfrac = xpanel_in/xsize_in
+         pan_yfrac = xpanel_in/ysize_in
+         mar_xfrac = margin_in/xsize_in
+         mar_yfrac = margin_in/ysize_in
+         topmar_yfrac = topmargin_in/ysize_in
+         hmar_xfrac = halfmargin_in/xsize_in
+         hmar_yfrac = halfmargin_in/ysize_in
+         pos_top = dblarr(4,npx)
+         pos_toptit = dblarr(2,npx)
+         pos_mid = dblarr(4,npx)
+         pos_midtit = dblarr(2,npx)
+         pos_bot = dblarr(4,npx)
+         for i=0,npx-1 do $
+            pos_bot[*,i] = [mar_xfrac+double(i)*pan_xfrac,$
+                            mar_yfrac,$
+                            mar_xfrac+double(i+1)*pan_xfrac,$
+                            mar_yfrac+pan_yfrac]
+         pos_title = [mar_xfrac+double(npx)*pan_xfrac/2d,$
+                      1d - topmar_yfrac*1.5d]
+         pos_xtit = [mar_xfrac+double(npx)*pan_xfrac/2d,$
+                     mar_yfrac*0.25d]
+
+         yran = [-4d,0d]
+         cbform = '(D0.1)' ; colorbar syntax
+
+;        Loop through emission lines
+         foreach line,lines_with_doublets do begin
+
+            linelab = ifsf_linesyntax(line)
+            cgps_open,initdat.mapdir+initdat.label+linelab+'_rad.eps',$
+                      charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+
+            ichan=0
+            for j=0,npx-1 do begin
 
 ;              Get map and scale
-;              Channel map option
-               ftag_use = ftags[j]
-               if ftags[j] eq 'ch' then begin
-                  if tag_exist(initmaps,'cvdf_channels') then begin
-                     ftag_use = 'ch'+string(ichan,format='(I0)')
-                     linmap_tmp = linspecmaps[line]
-                     vel = initmaps.cvdf_channels[ichan]
-                     ivel = $
-                        value_locate(linmap_tmp.vel,vel)
-                     map = linmap_tmp.flux[*,*,ivel]
-                     ichan++
-                  endif else begin
-                     map = 0b
-                  endelse
-;              vel% map option
-               endif else begin
-                  itag = where(strcmp(linspecpars_tags,ftags[j],/fold_case) eq 1)
-                  map = linspecpars[line].(itag)
-               endelse
-               ibd = where(map eq bad AND ~ finite(map),ctbd)
-               inan = where(~finite(map),ctnan)
-               izero = where(map eq 0d,ctzero)
+               map = emlflx[radtags[j],line]
+               ibd = where(map eq bad OR map eq 0 OR ~ finite(map),ctbd)
                igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
 
                if ctgd gt 0 then begin
 
-                  if tag_exist(initmaps,'fluxfactor') then $
-                     map[igd] *= initmaps.fluxfactor
-
                   zmax_flux = max(map[igd])
                   maplin = map
                   maplin[igd] = alog10(maplin[igd]/zmax_flux[0])
-                  if ctnan gt 0 then maplin[inan] = bad
-                  if ctzero gt 0 then maplin[izero] = bad
+                  if ctbd gt 0 then maplin[ibd] = bad
 
-                  title = ftitles[j]
+                  title = initmaps.emlplot.radtitles[j]
                   if j eq 0 then $
                      cgplot,map_rkpc_ifs,maplin,/xsty,/ysty,yran=yran,$
                             xran=[0,max(map_rkpc_ifs)],/noerase,$
@@ -2930,7 +2761,7 @@ pro ifsf_makemaps,initproc
                   endif else if tag_exist(initmaps,'fit_empsf') then begin
                      cgoplot,empsf1d_x,empsf1d_y,color='Red'
                   endif else if $
-                     tag_exist(initmaps,'emlinradprof_psffwhm') then begin
+                     tag_exist(initmaps.emlplot,'rad_psffwhm') then begin
                      x = dindgen(101)/100d*max(map_rkpc_ifs)
                      fwhm=initmaps.emlinradprof_psffwhm * kpc_per_as
 ;                    Gaussian
@@ -2950,332 +2781,580 @@ pro ifsf_makemaps,initproc
                   endif
 
                endif
+            endfor
 
-            endif
+;           Title and axis labels
+            cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
+            cgtext,pos_title[0],pos_title[1],initdat.name+': '+linelabels[line],$
+                   charsize=1d,align=0.5
+            cgtext,pos_xtit[0],pos_xtit[1],'Radius (kpc)',$
+                   charsize=1.25d,align=0.5
+            cgps_close
 
-         endfor
-
-;        Title and axis labels
-         cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
-         cgtext,pos_title[0],pos_title[1],initdat.name+': '+linelabels[line],$
-                charsize=2d,align=0.5
-         cgtext,pos_xtit[0],pos_xtit[1],'Radius (kpc)',$
-                charsize=1.25d,align=0.5
-
-         cgps_close
-
-      endforeach
-
+         endforeach
+      endif
    endif
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Plots of line ratios
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if hasratpar_comp then begin
-
-      keys = comp_lr_args->keys()
-
-;     Loop through plot files
-      foreach plt,keys do begin
-
-;        Size of plot grid
-         arrsiz = size(comp_lr_args[plt])
-         npx = arrsiz[1]
-         if arrsiz[0] gt 1 then begin
-            npy = arrsiz[2]
-            nplots = npx*npy
-         endif else begin
-            npy = 1
-            nplots = npx
-         endelse
-
-         cgps_open,initdat.mapdir+initdat.label+plt+'_comp.eps',charsize=1,/encap,$
-            /inches,xs=plotquantum*npx,ys=plotquantum*npy*aspectrat,/qui
-         pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
-            xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-         cbform = '(D0.2)'
-
-;        Loop through plot panels
-         for i=0,nplots-1 do begin
-
-            tmpstr = strsplit(comp_lr_args[plt,i],'_',/extract)
-            vcomp = fix(tmpstr[0])
-            ptype = tmpstr[1]
-
-            map = linrats[ptype[0],*,*,vcomp-1]
-            ibd = where(map eq bad AND ~ finite(map),ctbd)
-            inan = where(~finite(map),ctnan)
-            igd = where(map ne bad AND finite(map),ctgd)
-
-;           Line ratio maps
-            if n_elements(tmpstr) eq 2 AND ctgd gt 0 then begin
-               
-               hasrange = 0
-               if hasrangefile then begin
-                  ithisline = where(ptype eq rangeline AND $
-                     vcomp eq rangecomp,ctthisline)
-                  if ctthisline eq 1 then begin
-                     zran = [rangelo[ithisline],rangehi[ithisline]]
-                     dzran = zran[1]-zran[0]
-                     ncbdiv = rangencbdiv[ithisline]
-                     ncbdiv = ncbdiv[0]
-                     hasrange = 1
-                  endif
-               endif
-               if ~tag_exist(initmaps,'setplotrange_allcomp') AND $
-                  ~hasrange then begin
-                  zran = [min(map[igd]),max(map[igd])]
-                  dzran = zran[1] - zran[0]
-                  ncbdiv = ifsf_cbdiv(zran,0.5,7)
-               endif
-
-               title='c'+string(vcomp,format='(I0)')+' '
-               if ptype eq 'n2ha' then title+=textoidl('[NII]/H\alpha')
-               if ptype eq 'o1ha' then title+=textoidl('[OI]/H\alpha')
-               if ptype eq 'o3hb' then title+=textoidl('[OIII]/H\beta')
-               if ptype eq 'ebv' then title+=textoidl('E(B-V)')
-
-               if ctnan gt 0 then map[inan] = bad
-               mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-                               min=zran[0],max=zran[1])
-
-               cgloadct,65,/reverse
-               cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
-                       noerase=i ne 0,missing_value=bad,missing_index=255,$
-                       missing_color='white'
-               cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                      /nodata,/noerase,title=title,xran=[0,dx],yran=[0,dy]
-;              Disk axes
-               linsty_da=[2,1]
-               if diskaxes_endpoints[0] ne 0b then $
-                  for k=0,1 do $
-                     cgoplot,diskaxes_endpoints[*,0,k]+0.5d,$
-                             diskaxes_endpoints[*,1,k]+0.5d,$
-                             thick=4,linesty=linsty_da[k]
-               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-               cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-               ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-                                  (dzran - zran[1]),format=cbform)
-               cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                  ticknames=ticknames,/ver,/right,charsize=0.6
-
-;           VO plots
-            endif else if n_elements(tmpstr) eq 4 AND ctgd gt 0 then begin
-               
-               map2 = linrats[tmpstr[3],*,*,vcomp-1]
-               ibd2 = where(map2 eq bad AND ~ finite(map2),ctbd2)
-               inan2 = where(~finite(map2),ctnan2)
-               igd2 = where(map2 ne bad AND finite(map2),ctgd2)
-
-
-               if ctgd2 gt 0 then begin
-
-                  title='c'+string(vcomp,format='(I0)')
-                  ptype = ptype+'_vs_'+tmpstr[3]
-                  if ptype eq 'n2ha_vs_o3hb' then begin
-                     xran = [-1.99d,0.99d]
-                     yran = [-1.19d,1.49d]
-                     xkew1 = 0.05d*indgen(110)-5d
-                     ykew1 = 0.61d / (xkew1-0.47d)+1.19d
-                     xkew2 = xkew1
-                     ykew2 = xkew1-xkew1-99d
-                     xtit = textoidl('[NII]/H\alpha')
-                     ytit = textoidl('[OIII]/H\beta')
-                  endif
-                  if ptype eq 'o1ha_vs_o3hb' then begin
-                     xran = [-1.99d,0.49d]
-                     yran = [-1.19d,1.49d]
-                     xkew1 = 0.05d*indgen(110)-5d
-                     ykew1 = 0.73d / (xkew1+0.59d)+1.33d
-                     xkew2 = xkew1
-                     ykew2 = xkew1-xkew1-99d
-                     xtit = textoidl('[OI]/H\alpha')
-                     ytit = textoidl('[OIII]/H\beta')
-                  endif
-
-                  if ctnan gt 0 then map[inan] = bad
-                  if ctnan2 gt 0 then map2[inan2] = bad
-
-                  cgplot,[0],/xsty,/ysty,xran=xran,yran=yran,pos=pos[*,i],$
-                     /nodata,noerase=i ne 0,title=title,xtit=xtit,ytit=ytit,$
-                     aspect=1d
-                  cgoplot,map,map2,psym=1
-                  cgoplot,xkew1,ykew1
-                  cgoplot,xkew2,ykew2
-                  
-               endif
-               
-            endif
-
-         endfor
-
-         cgps_close
-
-      endforeach
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; end emission line plots
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   
    endif
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Plots of line ratios (by CVDF)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if hasratpar_cvdf then begin
-
-      ftags = cvdf_lr_ftags
-      titles = cvdf_lr_ftitles
-      keys = cvdf_lr_args->keys()
-
-;     Loop through plot files
-      foreach plt,keys do begin
-
-;        Size of plot grid
-         arrsiz = size(cvdf_lr_args[plt])
-         npx = arrsiz[1]
-         if arrsiz[0] gt 1 then begin
-            npy = arrsiz[2]
-            nplots = npx*npy
-         endif else begin
-            npy = 1
-            nplots = npx
-         endelse
-
-         cgps_open,initdat.mapdir+initdat.label+plt+'_cvdf.eps',charsize=1,/encap,$
-            /inches,xs=plotquantum*npx,ys=plotquantum*npy*aspectrat,/qui
-         pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
-            xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-         cbform = '(D0.2)'
-
-;        Loop through plot panels
-         for i=0,nplots-1 do begin
-
-            tmpstr = strsplit(cvdf_lr_args[plt,i],'_',/extract)
-            ftype = tmpstr[0]
-            vcomp = where(ftype eq ftags)
-            ptype = tmpstr[1]
-
-            map = linrats_cvdf[ptype[0],*,*,vcomp]
-            ibd = where(map eq bad AND ~ finite(map),ctbd)
-            inan = where(~finite(map),ctnan)
-            igd = where(map ne bad AND finite(map),ctgd)
-
-;           Line ratio maps
-            if n_elements(tmpstr) eq 2 AND ctgd gt 0 then begin
-               
-               hasrange = 0
-               if hasrangefile then begin
-                  ithisline = where(ptype eq rangeline AND $
-                     ftype eq rangequant,ctthisline)
-                  if ctthisline eq 1 then begin
-                     zran = [rangelo[ithisline],rangehi[ithisline]]
-                     dzran = zran[1]-zran[0]
-                     ncbdiv = rangencbdiv[ithisline]
-                     ncbdiv = ncbdiv[0]
-                     hasrange = 1
-                  endif
-               endif
-               if ~tag_exist(initmaps,'setplotrange_allcomp') AND $
-                  ~hasrange then begin
-                  zran = [min(map[igd]),max(map[igd])]
-                  dzran = zran[1] - zran[0]
-                  ncbdiv = ifsf_cbdiv(zran,0.5,7)
-               endif
-
-               title = titles[vcomp]
-               if ptype eq 'n2ha' then title+=textoidl('[NII]/H\alpha')
-               if ptype eq 'o1ha' then title+=textoidl('[OI]/H\alpha')
-               if ptype eq 'o3hb' then title+=textoidl('[OIII]/H\beta')
-               if ptype eq 'ebv' then title+=textoidl('E(B-V)')
-
-               if ctnan gt 0 then map[inan] = bad
-               mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-                               min=zran[0],max=zran[1])
-
-               cgloadct,65,/reverse
-               cgimage,mapscl,/keep,pos=pos[*,i],opos=truepos,$
-                       noerase=i ne 0,missing_value=bad,missing_index=255,$
-                       missing_color='white'
-               cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                      /nodata,/noerase,title=title,xran=[0,dx],yran=[0,dy]
-;              Disk axes
-               linsty_da=[2,1]
-               if diskaxes_endpoints[0] ne 0b then $
-                  for k=0,1 do $
-                     cgoplot,diskaxes_endpoints[*,0,k]+0.5d,$
-                             diskaxes_endpoints[*,1,k]+0.5d,$
-                             thick=4,linesty=linsty_da[k]
-               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-               cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-               ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-                                  (dzran - zran[1]),format=cbform)
-               cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                  ticknames=ticknames,/ver,/right,charsize=0.6
-
-;           VO plots
-            endif else if n_elements(tmpstr) eq 4 AND ctgd gt 0 then begin
-               
-               map2 = linrats_cvdf[tmpstr[3],*,*,vcomp]
-               ibd2 = where(map2 eq bad AND ~ finite(map2),ctbd2)
-               inan2 = where(~finite(map2),ctnan2)
-               igd2 = where(map2 ne bad AND finite(map2),ctgd2)
-
-
-               if ctgd2 gt 0 then begin
-                  
-                  title = titles[vcomp]
-                     
-                  ptype = ptype+'_vs_'+tmpstr[3]
-                  if ptype eq 'n2ha_vs_o3hb' then begin
-                     xran = [-1.99d,0.99d]
-                     yran = [-1.19d,1.49d]
-                     xkew1 = 0.05d*indgen(110)-5d
-                     ykew1 = 0.61d / (xkew1-0.47d)+1.19d
-                     xkew2 = xkew1
-                     ykew2 = xkew1-xkew1-99d
-                     xtit = textoidl('[NII]/H\alpha')
-                     ytit = textoidl('[OIII]/H\beta')
-                  endif
-                  if ptype eq 'o1ha_vs_o3hb' then begin
-                     xran = [-1.99d,0.49d]
-                     yran = [-1.19d,1.49d]
-                     xkew1 = 0.05*indgen(85)-5
-                     ykew1 = 0.73d / (xkew1+0.59d)+1.33d
-                     xkew2 = xkew1
-                     ykew2 = xkew1-xkew1-99d
-                     xtit = textoidl('[OI]/H\alpha')
-                     ytit = textoidl('[OIII]/H\beta')
-                  endif
-
-                  if ctnan gt 0 then map[inan] = bad
-                  if ctnan2 gt 0 then map2[inan2] = bad
-
-                  cgplot,[0],/xsty,/ysty,xran=xran,yran=yran,pos=pos[*,i],$
-                     /nodata,noerase=i ne 0,title=title,xtit=xtit,ytit=ytit,$
-                     aspect=1d
-                  cgoplot,map,map2,psym=1
-                  cgoplot,xkew1,ykew1
-                  cgoplot,xkew2,ykew2
-                  
-               endif
-               
-            endif
-
-         endfor
-
-         cgps_close
-
-      endforeach
-
-   endif
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; NaD EQUIVALENT WIDTH
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; NaD PLOTS
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    if tag_exist(initdat,'donad') then begin
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; W_eq + velocities [absorption] [presently only works for 1 or 2 comp]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+      npx_fov=3
+      npx_sq=1
+      npx = npx_fov + npx_sq
+      npy=1 + maxnadabsncomp_act
+
+;     Figure out correct image size in inches
+      xpanel_in = 1.75d
+      margin_in = 0.5d
+      topmargin_in = 0.5d
+      halfmargin_in = margin_in/1d
+      xsize_in = xpanel_in*double(npx_fov+npx_sq)+margin_in*(1d +double(npx_sq))
+      aspectrat_fov=double(dx)/double(dy)
+      ysize_in = (xpanel_in/aspectrat_fov + margin_in)*2d + topmargin_in
+;      if npy eq 3 then ysize_in += xpanel_in/aspectrat_fov
+;     Sizes and positions of image windows in real and normalized coordinates
+      pan_xfrac = xpanel_in/xsize_in
+      pan_yfrac = xpanel_in/aspectrat_fov/ysize_in
+      sqpan_yfrac = xpanel_in/ysize_in
+      mar_xfrac = margin_in/xsize_in
+      mar_yfrac = margin_in/ysize_in
+      topmar_yfrac = topmargin_in/ysize_in
+      hmar_xfrac = halfmargin_in/xsize_in
+      hmar_yfrac = halfmargin_in/ysize_in
+      pos_top = dblarr(4,npx)
+      pos_toptit = dblarr(2,npx)
+;      pos_mid = dblarr(4,npx)
+;      pos_midtit = dblarr(2,npx)
+      pos_bot = dblarr(4,npx)
+      for i=0,npx-1 do begin
+         pos_top[*,i] = [mar_xfrac+double(i)*pan_xfrac,$
+                         1d - (mar_yfrac+pan_yfrac) - topmar_yfrac,$
+                         mar_xfrac+double(i+1)*pan_xfrac,$
+                         1d - mar_yfrac - topmar_yfrac]
+         pos_bot[*,i] = [mar_xfrac+double(i)*pan_xfrac,$
+                         mar_yfrac,$
+                         mar_xfrac+double(i+1)*pan_xfrac,$
+                         mar_yfrac+pan_yfrac]
+;         if npy eq 3 then $
+;            pos_mid[*,i] = pos_bot[*,i] + [0d,pan_yfrac,0d,pan_yfrac]
+      endfor
+      if dx gt dy then pad_yfrac = xpanel_in*(1d - 1d/aspectrat_fov)/ysize_in $
+      else pad_yfrac = 0d
+      pos_top[*,3] = [mar_xfrac+double(npx_fov)*pan_xfrac+mar_xfrac,$
+                      1d - (mar_yfrac/2d +pan_yfrac) - topmar_yfrac + pad_yfrac,$
+                      mar_xfrac+double(npx_fov)*pan_xfrac+mar_xfrac+pan_xfrac,$
+                      1d - mar_yfrac/2d - topmar_yfrac + pad_yfrac]
+      pos_title = [mar_xfrac+double(npx)*pan_xfrac/2d,$
+                   1d - topmar_yfrac*0.75d]
+
+      cgps_open,initdat.mapdir+initdat.label+'NaDweq+vel.eps',$
+                charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+      ranlin='NaDabs'
+      cbform = '(I0)'
+      panel_title_chars=1.05
+
+;     Empirical W_eq
+;-------------------------------------------------------------------------------
+      ranlab = 'empweq'
+      panel_title = textoidl('W_{eq}^{abs} (emp)')
+      cbdivinit=1d
+      map = nadcube.weq[*,*,0]
+      maperr = nadcube.weq[*,*,1]
+      igd = where(map ge initmaps.nadabsweq_snrthresh*maperr AND $
+                  map gt 0d AND map ne bad)
+      ibd = where(map lt initmaps.nadabsweq_snrthresh*maperr OR $
+                  map eq 0d OR map eq bad)
+
+      if hasrangefile then begin
+         ithisline = where(rangeline eq ranlin AND $
+                           rangequant eq ranlab,ctthisline)
+         if ctthisline eq 1 then auto=0b
+      endif else auto=1b
+      plotdat = $
+         ifsf_plotrange(auto=auto,$
+                        mapgd=map[igd],divinit=cbdivinit,ncbdivmax=ncbdivmax,$
+                        rline=rangeline,matline=ranlin,$
+                        rquant=rangequant,matquant=ranlab,$
+                        rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
+
+      map[ibd] = bad
+
+;     Save some things for later
+      igd_nadabs_empweq = igd
+      ibd_nadabs_empweq = ibd
+      plotdat_nadabs_empweq = plotdat
+      map_nadabs_empweq = map
+      map_nadabs_empweq_err = maperr
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                      min=plotdat[0],max=plotdat[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos_top[*,0],opos=truepos,$
+              missing_value=bad,missing_index=255,$
+              missing_color='white'
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+             /nodata,/noerase
+      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+                       center_nuclei_kpc_x,center_nuclei_kpc_y,/noxlab
+      xoffset = pan_xfrac*0.05
+      yoffset = mar_yfrac*0.2
+      cbpos=[truepos[0]+xoffset,truepos[3],truepos[2]-xoffset,$
+             truepos[3]+yoffset]
+      ticknames = string(dindgen(plotdat[3]+1)*$
+                         plotdat[2]/double(plotdat[3]) - $
+                         (plotdat[2] - plotdat[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                 ticknames=ticknames,/top,charsize=0.6
+      yoffset = mar_yfrac*0.65
+      cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+             truepos[3]+yoffset,panel_title,$
+             charsize=panel_title_chars,align=0.5,/norm
+
+;     Fitted W_eq
+;-------------------------------------------------------------------------------
+      ranlab = 'fitweq'
+      panel_title = textoidl('W_{eq}^{abs} (fit)')
+      cbdivinit=1d
+
+      map = nadfit.weqabs[*,*,0]
+      maperrlo = nadfit.weqabserr[*,*,0]
+      maperrhi = nadfit.weqabserr[*,*,1]
+      maperravg = (maperrlo + maperrhi) / 2d
+      igd = where(map gt 0d AND $
+                  map ne bad AND $
+                  map ge initmaps.nadabsweq_snrthresh*maperravg,ctgdtmp)
+
+      if ctgdtmp gt 0 then begin
+
+         ibd = where(map eq 0d OR $
+                     map eq bad OR $
+                     map lt initmaps.nadabsweq_snrthresh*maperravg)
+
+         if hasrangefile then begin
+            ithisline = where(rangeline eq ranlin AND $
+                              rangequant eq ranlab,ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = $
+            ifsf_plotrange(auto=auto,$
+                           mapgd=map[igd],divinit=cbdivinit,ncbdivmax=ncbdivmax,$
+                           rline=rangeline,matline=ranlin,$
+                           rquant=rangequant,matquant=ranlab,$
+                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
+
+         map[ibd] = bad
+
+;        Save some things for later
+         igd_nadabs_fitweq = igd
+         ibd_nadabs_fitweq = ibd
+         plotdat_nadabs_fitweq = plotdat
+         map_nadabs_fitweq = map
+         map_nadabs_fitweq_errlo = maperrlo
+         map_nadabs_fitweq_errhi = maperrhi
+
+         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,65,/reverse
+         cgimage,mapscl,/keep,pos=pos_top[*,1],opos=truepos,$
+                 missing_value=bad,missing_index=255,$
+                 missing_color='white',/noerase
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+                          center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
+         xoffset = pan_xfrac*0.05
+         yoffset = mar_yfrac*0.2
+         cbpos=[truepos[0]+xoffset,truepos[3],truepos[2]-xoffset,$
+                truepos[3]+yoffset]
+         ticknames = string(dindgen(plotdat[3]+1)*$
+                            plotdat[2]/double(plotdat[3]) - $
+                            (plotdat[2] - plotdat[1]),format=cbform)
+         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                    ticknames=ticknames,/top,charsize=0.6
+         yoffset = mar_yfrac*0.65
+         cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                truepos[3]+yoffset,panel_title,$
+                charsize=panel_title_chars,align=0.5,/norm
+      endif
+
+;     S/N (fitted)
+;-------------------------------------------------------------------------------
+;      ranlab = 'empweqsnr'
+;      panel_title = textoidl('W_{eq}^{abs}/\deltaW')
+;      cbdivinit=5d
+;
+;      map = map_nadabs_empweq
+;      maperr = map_nadabs_empweq_err
+;      igd = igd_nadabs_empweq
+;      map[igd] /= maperr[igd]
+
+      ranlab = 'fitweqsnr'
+      panel_title = textoidl('W_{eq}^{abs}/\deltaW')
+      cbdivinit=5d
+
+      map = map_nadabs_fitweq
+      maperr = sqrt((map_nadabs_fitweq_errlo^2d + map_nadabs_fitweq_errhi^2d)/2d)
+      igd = igd_nadabs_fitweq
+      map[igd] /= maperr[igd]
+
+      if hasrangefile then begin
+         ithisline = where(rangeline eq ranlin AND $
+                           rangequant eq ranlab,ctthisline)
+         if ctthisline eq 1 then auto=0b
+      endif else auto=1b
+      plotdat = $
+         ifsf_plotrange(auto=auto,$
+                        mapgd=map[igd],divinit=cbdivinit,ncbdivmax=ncbdivmax,$
+                        rline=rangeline,matline=ranlin,$
+                        rquant=rangequant,matquant=ranlab,$
+                        rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
+
+
+      mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                      min=plotdat[0],max=plotdat[1])
+      cgloadct,65,/reverse
+      cgimage,mapscl,/keep,pos=pos_top[*,2],opos=truepos,$
+              missing_value=bad,missing_index=255,$
+              missing_color='white',/noerase
+      cgplot,[0],xsty=5,ysty=5,position=truepos,$
+             /nodata,/noerase
+      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+                       center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
+      xoffset = pan_xfrac*0.05
+      yoffset = mar_yfrac*0.2
+      cbpos=[truepos[0]+xoffset,truepos[3],truepos[2]-xoffset,$
+             truepos[3]+yoffset]
+      ticknames = string(dindgen(plotdat[3]+1)*$
+                         plotdat[2]/double(plotdat[3]) - $
+                         (plotdat[2] - plotdat[1]),format=cbform)
+      cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                 ticknames=ticknames,/top,charsize=0.6
+      yoffset = mar_yfrac*0.65
+      cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+             truepos[3]+yoffset,panel_title,$
+             charsize=panel_title_chars,align=0.5,/norm
+
+;     Fitted W_eq vs. Empirical W_eq
+;-------------------------------------------------------------------------------
+      igderr = where(map_nadabs_fitweq ne 0d AND map_nadabs_fitweq ne bad AND $
+                     map_nadabs_empweq ne 0d AND map_nadabs_empweq ne bad,ctgderr)
+
+      if ctgderr gt 0 then begin
+         ibderr = where(map_nadabs_fitweq eq 0d OR map_nadabs_fitweq eq bad OR $
+                        map_nadabs_empweq eq 0d OR map_nadabs_empweq eq bad)
+         map_nadabs_fitweq_errlo[ibderr] = 0d
+         map_nadabs_fitweq_errhi[ibderr] = 0d
+         map_nadabs_empweq_err[ibderr] = 0d
+
+         xran = [0d,max([map_nadabs_fitweq[igd_nadabs_fitweq],$
+                         map_nadabs_empweq[igd_nadabs_empweq]])*1.1d]
+         yran = xran
+         cgplot,map_nadabs_empweq,map_nadabs_fitweq,/xsty,/ysty,$
+                xran=xran,yran=yran,psym=3,pos=pos_top[*,3],$
+                xtit=textoidl('W_{eq}^{abs} (emp)'),$
+                ytit=textoidl('W_{eq}^{abs} (fit)'),$
+                /noerase,aspect=1d,$
+                chars=0.8,err_width=0,err_color='Gray',/err_clip,$
+                err_xlow=map_nadabs_empweq_err,err_xhigh=map_nadabs_empweq_err,$
+                err_ylow=map_nadabs_fitweq_errlo,err_yhigh=map_nadabs_fitweq_errhi
+         cgoplot,map_nadabs_empweq,map_nadabs_fitweq,psym=16,symsize=0.4
+         cgoplot,xran,xran
+         inz = where(map_nadabs_fitweq ne 0d AND map_nadabs_fitweq ne bad AND $
+                     map_nadabs_empweq ne 0d AND map_nadabs_empweq ne bad)
+         weq_rms = sqrt(mean((map_nadabs_fitweq[inz]-map_nadabs_empweq[inz])^2d))
+         cgoplot,xran-weq_rms,xran,linesty=3
+         cgoplot,xran+weq_rms,xran,linesty=3
+      endif
+
+;     Velocities
+;-------------------------------------------------------------------------------
+;      abslab = ['Abs (1 Comp)']
+;      if maxnadabsncomp_act gt 1 then $
+;         for i=1,nyabs-1 do $
+;            abslab = [abslab,string('Abs (',i,' of ',nyabs-1,' Comp)',$
+;                                    format=('(A0,I0,A0,I0,A0)'))]
+
+;      for i=0,maxnadabsncomp_act-1 do begin
+;        
+;         if i eq 0 then pos_use = pos_bot
+;         if i eq 1 then pos_use = pos_mid
+        
+;        sigma
+;-------------------------------------------------------------------------------
+         panel_title = '$\sigma$ (km/s)'
+;         ranlab = 'fitc'+string(i+1,format='(I0)')+'vsig'
+         ranlab = 'fitvsig'
+         cbdivinit=100d
+         
+;         map = nadabssig[*,*,i]
+         map = abscvdfvals['vsig']
+         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
+         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
+         if ctgd_thiscomp gt 0 then $
+            igd = cgsetintersection(igd_nadabs_fitweq,igd_thiscomp) $
+         else igd=igd_nadabs_fitweq
+         if ctbd_thiscomp gt 0 then $
+            ibd = cgsetunion(ibd_nadabs_fitweq,ibd_thiscomp) $
+         else ibd = ibd_nadabs_fitweq
+
+         map[ibd] = bad
+
+         if hasrangefile then begin
+            ithisline = where(rangeline eq ranlin AND $
+                              rangequant eq ranlab,ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = $
+            ifsf_plotrange(auto=auto,$
+                           mapgd=map[igd],divinit=cbdivinit,ncbdivmax=ncbdivmax,$
+                           rline=rangeline,matline=ranlin,$
+                           rquant=rangequant,matquant=ranlab,$
+                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
+
+         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,65,/reverse
+         cgimage,mapscl,/keep,pos=pos_bot[*,0],opos=truepos,$
+                 /noerase,missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                          center_nuclei_kpc_y,/noxlab
+         xoffset = pan_xfrac*0.05
+         yoffset = mar_yfrac*0.2
+         cbpos=[truepos[0]+xoffset,truepos[1]-yoffset,$
+                truepos[2]-xoffset,truepos[1]]
+         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
+                            (plotdat[2] - plotdat[1]),format=cbform)
+         ticknames[0]=' '
+         ticknames[plotdat[3]]=' '
+         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                    ticknames=ticknames,charsize=0.6
+         yoffset = mar_yfrac*0.85
+         cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                truepos[1]-yoffset,panel_title,$
+                charsize=panel_title_chars,align=0.5,/norm
+         
+;        vpk
+;-------------------------------------------------------------------------------
+         panel_title = 'v$\downpk$ (km/s)'
+;         ranlab = 'fitc'+string(i+1,format='(I0)')+'vpk'
+         ranlab = 'fitvpk'
+         cbdivinit=100d
+         
+;         map = nadabsvel[*,*,i]
+         map = abscvdfvals['vpk']
+         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
+         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
+         if ctgd_thiscomp gt 0 then $
+            igd = cgsetintersection(igd_nadabs_fitweq,igd_thiscomp) $
+         else igd=igd_nadabs_fitweq
+         if ctbd_thiscomp gt 0 then $
+            ibd = cgsetunion(ibd_nadabs_fitweq,ibd_thiscomp) $
+         else ibd = ibd_nadabs_fitweq
+
+         map[ibd] = bad
+
+         if hasrangefile then begin
+            ithisline = where(rangeline eq ranlin AND $
+                              rangequant eq ranlab,ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = $
+            ifsf_plotrange(auto=auto,$
+                           mapgd=map[igd],divinit=cbdivinit,ncbdivmax=ncbdivmax,$
+                           rline=rangeline,matline=ranlin,$
+                           rquant=rangequant,matquant=ranlab,$
+                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
+
+         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,74,/reverse
+         cgimage,mapscl,/keep,pos=pos_bot[*,1],opos=truepos,$
+                 /noerase,missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase,xran=[0,dx],yran=[0,dy]
+         maptmp = map*0d
+         iblue = where(map lt 0 AND map ne bad,ctblue)
+         if ctblue gt 0 then maptmp[iblue] = 1d
+         cgcontour,maptmp,dindgen(dx)+0.5,dindgen(dy)+0.5,$
+                   /overplot,color=0,c_thick=4,$
+                   levels=[1d]
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                          center_nuclei_kpc_y,/nolab
+         xoffset = pan_xfrac*0.05
+         yoffset = mar_yfrac*0.2
+         cbpos=[truepos[0]+xoffset,truepos[1]-yoffset,$
+                truepos[2]-xoffset,truepos[1]]
+         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
+                            (plotdat[2] - plotdat[1]),format=cbform)
+         ticknames[0]=' '
+         ticknames[plotdat[3]]=' '
+         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                    ticknames=ticknames,charsize=0.6
+         yoffset = mar_yfrac*0.85
+         cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                truepos[1]-yoffset,panel_title,$
+                charsize=panel_title_chars,align=0.5,/norm
+
+         
+;        v50
+;-------------------------------------------------------------------------------
+         panel_title = 'v$\down50$ (km/s)'
+;         ranlab = 'fitc'+string(i+1,format='(I0)')+'v%50'
+         ranlab = 'fitv%50'
+         cbdivinit=100d
+         
+;         map = nadabsvel[*,*,i]
+         map = abscvdfvals['v%50']
+         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
+         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
+         if ctgd_thiscomp gt 0 then $
+            igd = cgsetintersection(igd_nadabs_fitweq,igd_thiscomp) $
+         else igd=igd_nadabs_fitweq
+         if ctbd_thiscomp gt 0 then $
+            ibd = cgsetunion(ibd_nadabs_fitweq,ibd_thiscomp) $
+         else ibd = ibd_nadabs_fitweq
+
+         map[ibd] = bad
+
+         if hasrangefile then begin
+            ithisline = where(rangeline eq ranlin AND $
+                              rangequant eq ranlab,ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = $
+            ifsf_plotrange(auto=auto,$
+                           mapgd=map[igd],divinit=cbdivinit,ncbdivmax=ncbdivmax,$
+                           rline=rangeline,matline=ranlin,$
+                           rquant=rangequant,matquant=ranlab,$
+                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
+
+         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,74,/reverse
+         cgimage,mapscl,/keep,pos=pos_bot[*,2],opos=truepos,$
+                 /noerase,missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase,xran=[0,dx],yran=[0,dy]
+         maptmp = map*0d
+         iblue = where(map lt 0 AND map ne bad,ctblue)
+         if ctblue gt 0 then maptmp[iblue] = 1d
+         cgcontour,maptmp,dindgen(dx)+0.5,dindgen(dy)+0.5,$
+                   /overplot,color=0,c_thick=4,$
+                   levels=[1d]
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                          center_nuclei_kpc_y,/nolab
+         xoffset = pan_xfrac*0.05
+         yoffset = mar_yfrac*0.2
+         cbpos=[truepos[0]+xoffset,truepos[1]-yoffset,$
+                truepos[2]-xoffset,truepos[1]]
+         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
+                            (plotdat[2] - plotdat[1]),format=cbform)
+         ticknames[0]=' '
+         ticknames[plotdat[3]]=' '
+         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                    ticknames=ticknames,charsize=0.6
+         yoffset = mar_yfrac*0.85
+         cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                truepos[1]-yoffset,panel_title,$
+                charsize=panel_title_chars,align=0.5,/norm
+         
+;        v98
+;-------------------------------------------------------------------------------
+         panel_title = 'v$\down98$ (km/s)'
+;         ranlab = 'fitc'+string(i+1,format='(I0)')+'v%98'
+         ranlab = 'fitv%98'
+         cbdivinit=200d
+         
+;         map = nadabsv98[*,*,i]
+         map = abscvdfvals['v%98']
+         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
+         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
+         if ctgd_thiscomp gt 0 then $
+            igd = cgsetintersection(igd_nadabs_fitweq,igd_thiscomp) $
+         else igd=igd_nadabs_fitweq
+         if ctbd_thiscomp gt 0 then $
+            ibd = cgsetunion(ibd_nadabs_fitweq,ibd_thiscomp) $
+         else ibd = ibd_nadabs_fitweq
+
+         map[ibd] = bad
+
+         if hasrangefile then begin
+            ithisline = where(rangeline eq ranlin AND $
+                              rangequant eq ranlab,ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = $
+            ifsf_plotrange(auto=auto,$
+                           mapgd=map[igd],divinit=cbdivinit,ncbdivmax=ncbdivmax,$
+                           rline=rangeline,matline=ranlin,$
+                           rquant=rangequant,matquant=ranlab,$
+                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
+
+         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,74,/reverse
+         cgimage,mapscl,/keep,pos=pos_bot[*,3],opos=truepos,$
+                 /noerase,missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                          center_nuclei_kpc_y,/nolab
+         xoffset = pan_xfrac*0.05
+         yoffset = mar_yfrac*0.2
+         cbpos=[truepos[0]+xoffset,truepos[1]-yoffset,$
+                truepos[2]-xoffset,truepos[1]]
+         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
+                            (plotdat[2] - plotdat[1]),format=cbform)
+         ticknames[0]=' '
+         ticknames[plotdat[3]]=' '
+         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                    ticknames=ticknames,charsize=0.6
+         yoffset = mar_yfrac*0.85
+         cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                truepos[1]-yoffset,panel_title,$
+                charsize=panel_title_chars,align=0.5,/norm
+;
+;      endfor
+
+;     Title
+;-------------------------------------------------------------------------------
+      cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
+      cgtext,pos_title[0],pos_title[1],$
+             initdat.name+': NaI D absorption',$
+             charsize=1.25d,align=0.5
+
+      cgps_close
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; W_eq (empirical)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
       if maxnademncomp_act gt 0 then ny=3 else ny=1
 
@@ -3300,7 +3379,7 @@ pro ifsf_makemaps,initproc
       hasrange = 0
       if hasrangefile then begin
          ithisline = where(rangeline eq 'NaDabs' AND $
-                           rangequant eq 'weq',ctthisline)
+                           rangequant eq 'empweq',ctthisline)
          if ctthisline eq 1 then begin
             zran = [rangelo[ithisline],rangehi[ithisline]]
             dzran = zran[1]-zran[0]
@@ -3542,13 +3621,9 @@ pro ifsf_makemaps,initproc
 
       cgps_close
 
-   endif
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; NaD EQUIVALENT WIDTH (FITS)
+; W_eq (fits)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if tag_exist(initdat,'donad') then begin
 
       if maxnademncomp_act gt 0 then ny=3 else ny=1
 
@@ -3582,7 +3657,7 @@ pro ifsf_makemaps,initproc
       hasrange = 0
       if hasrangefile then begin
          ithisline = where(rangeline eq 'NaDabs' AND $
-                           rangequant eq 'weqfit',ctthisline)
+                           rangequant eq 'fitweq',ctthisline)
          if ctthisline eq 1 then begin
             zran = [rangelo[ithisline],rangehi[ithisline]]
             dzran = zran[1]-zran[0]
@@ -3820,41 +3895,9 @@ pro ifsf_makemaps,initproc
 
       cgps_close
 
-   endif
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; NaD components map (fits)
+; components (fits)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if tag_exist(initdat,'donad') then begin
-
-;      cgps_open,initdat.mapdir+initdat.label+'NaDfitncomp.eps',charsize=1.5,$
-;         /encap,$
-;         /inches,xs=plotquantum*2,ys=plotquantum*2,/qui
-;      map = nadabsncomp
-;      ibd = where(map eq bad)
-;      map[ibd] = 0l
-;      
-;      zran = [0,2]
-;      ncbdiv = 2
-;      dzran = zran[1]-zran[0]
-;      cbform = '(I0)'
-;
-;      mapscl = cgimgscl(rebin(map,dx*20,dy*20,/sample),$
-;                        minval=zran[0],maxval=zran[1],ncolors=3)
-;      cgloadct,8,/brewer,ncolors=3
-;      cgimage,mapscl,opos=truepos,mar=0.1d
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title=textoidl('N_{comp}^{abs}')
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;;      cbpos=[pos[2,0],pos[1,0],pos[2,0]+0.02,pos[3,0]]
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.02,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgDCBar,ncolors=3,position=cbpos,labels=ticknames,/ver,/right,$
-;         charsize=1.5
-;         
-;      cgps_close
 
       cgps_open,initdat.mapdir+initdat.label+'NaDfitncomp.eps',charsize=1.5,$
          /encap,$
@@ -3888,13 +3931,9 @@ pro ifsf_makemaps,initproc
          
       cgps_close
       
-   endif
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; NaD "empirical" velocity maps
+; velocity (empirical)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if tag_exist(initdat,'donad') then begin
 
       if maxnademncomp_act gt 0 then ny=3 else ny=1
 
@@ -3919,7 +3958,7 @@ pro ifsf_makemaps,initproc
       hasrange = 0
       if hasrangefile then begin
          ithisline = where(rangeline eq 'NaDabs' AND $
-            rangequant eq 'empvelwid',ctthisline)
+            rangequant eq 'empvwidth',ctthisline)
          if ctthisline eq 1 then begin
             zran = [rangelo[ithisline],rangehi[ithisline]]
             dzran = zran[1]-zran[0]
@@ -3965,7 +4004,7 @@ pro ifsf_makemaps,initproc
       hasrange = 0
       if hasrangefile then begin
          ithisline = where(rangeline eq 'NaDabs' AND $
-            rangequant eq 'empvelavg',ctthisline)
+            rangequant eq 'empvavg',ctthisline)
          if ctthisline eq 1 then begin
             zran = [rangelo[ithisline],rangehi[ithisline]]
             dzran = zran[1]-zran[0]
@@ -3987,7 +4026,7 @@ pro ifsf_makemaps,initproc
 
       mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
          min=zran[0],max=zran[1])
-      cgloadct,65,/reverse
+      cgloadct,74,/reverse
       cgimage,mapscl,/keep,pos=pos[*,1],opos=truepos,$
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
@@ -4012,7 +4051,7 @@ pro ifsf_makemaps,initproc
       hasrange = 0
       if hasrangefile then begin
          ithisline = where(rangeline eq 'NaDabs' AND $
-            rangequant eq 'empvelmax',ctthisline)
+            rangequant eq 'empvmax',ctthisline)
          if ctthisline eq 1 then begin
             zran = [rangelo[ithisline],rangehi[ithisline]]
             dzran = zran[1]-zran[0]
@@ -4034,7 +4073,7 @@ pro ifsf_makemaps,initproc
 
       mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
          min=zran[0],max=zran[1])
-      cgloadct,65,/reverse
+      cgloadct,74,/reverse
       cgimage,mapscl,/keep,pos=pos[*,2],opos=truepos,$
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
@@ -4136,7 +4175,7 @@ pro ifsf_makemaps,initproc
 
       mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
          min=zran[0],max=zran[1])
-      cgloadct,65,/reverse
+      cgloadct,74,/reverse
       cgimage,mapscl,/keep,pos=pos[*,4],opos=truepos,$
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
@@ -4184,7 +4223,7 @@ pro ifsf_makemaps,initproc
 
       mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
          min=zran[0],max=zran[1])
-      cgloadct,65,/reverse
+      cgloadct,74,/reverse
       cgimage,mapscl,/keep,pos=pos[*,5],opos=truepos,$
          noerase=i ne 0,missing_value=bad,missing_index=255,$
          missing_color='white'
@@ -4201,13 +4240,9 @@ pro ifsf_makemaps,initproc
 
       cgps_close
 
-   endif
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; NaD fitted velocity maps
+;; velocity (fits)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if tag_exist(initdat,'donad') then begin
 
       nx = 3
       nyabs=0
@@ -4247,13 +4282,28 @@ pro ifsf_makemaps,initproc
          map = nadabssig[*,*,i]
 ;         igd = where(map ne bad)
 ;         ibd = where(map eq bad)
-         igd_thiscomp = where(map ne bad)
-         ibd_thiscomp = where(map eq bad)
-         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
-         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
+         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
+         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
+         if ctgd_thiscomp gt 0 then $
+            igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp) $
+         else igd=igd_nadfitabsweq
+         if ctbd_thiscomp gt 0 then $
+            ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp) $
+         else ibd = ibd_nadfitabsweq
          map[ibd] = bad
-         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=100d,$
-                                  ncbdivmax=ncbdivmax)
+;        Set up range
+         ranlab = 'fitc'+string(i,format='(I0)')+'vsig'
+         if hasrangefile then begin
+            ithisline = where(rangeline eq 'NaDabs' AND $
+                              rangequant eq ranlab,ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = $
+            ifsf_plotrange(auto=auto,$
+                           mapgd=map[igd],divinit=100d,ncbdivmax=ncbdivmax,$
+                           rline=rangeline,matline='NaDabs',$
+                           rquant=rangequant,matquant=ranlab,$
+                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,65,/reverse
@@ -4282,17 +4332,32 @@ pro ifsf_makemaps,initproc
          map = nadabsvel[*,*,i]
 ;         igd = where(map ne bad)
 ;         ibd = where(map eq bad)
-         igd_thiscomp = where(map ne bad)
-         ibd_thiscomp = where(map eq bad)
-         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
-         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
+         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
+         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
+         if ctgd_thiscomp gt 0 then $
+            igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp) $
+         else igd=igd_nadfitabsweq
+         if ctbd_thiscomp gt 0 then $
+            ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp) $
+         else ibd = ibd_nadfitabsweq
          map[ibd] = bad
-         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=200d,$
-                                  ncbdivmax=ncbdivmax)
+;        Set up range
+         ranlab = 'fitc'+string(i,format='(I0)')+'v%50'
+         if hasrangefile then begin
+            ithisline = where(rangeline eq 'NaDabs' AND $
+                              rangequant eq ranlab,ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = $
+            ifsf_plotrange(auto=auto,$
+                           mapgd=map[igd],divinit=200d,ncbdivmax=ncbdivmax,$
+                           rline=rangeline,matline='NaDabs',$
+                           rcomp=rangecomp,matquant=ranlab,$
+                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
                          min=plotdat[0],max=plotdat[1])
-         cgloadct,22,/brewer,/reverse
-;         cgloadct,65,/reverse
+;         cgloadct,22,/brewer,/reverse
+         cgloadct,74,/reverse
          cgimage,mapscl,/keep,pos=pos[*,1+i*nx],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
@@ -4312,17 +4377,32 @@ pro ifsf_makemaps,initproc
          map = nadabsv98[*,*,i]
 ;         igd = where(map ne bad)
 ;         ibd = where(map eq bad)
-         igd_thiscomp = where(map ne bad)
-         ibd_thiscomp = where(map eq bad)
-         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
-         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
+         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
+         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
+         if ctgd_thiscomp gt 0 then $
+            igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp) $
+         else igd=igd_nadfitabsweq
+         if ctbd_thiscomp gt 0 then $
+            ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp) $
+         else ibd = ibd_nadfitabsweq
          map[ibd] = bad
-         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=200d,$
-                                  ncbdivmax=ncbdivmax)
+;        Set up range
+         ranlab = 'fitc'+string(i,format='(I0)')+'v%98'
+         if hasrangefile then begin
+            ithisline = where(rangeline eq 'NaDabs' AND $
+                              rangequant eq ranlab,ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = $
+            ifsf_plotrange(auto=auto,$
+                           mapgd=map[igd],divinit=200d,ncbdivmax=ncbdivmax,$
+                           rline=rangeline,matline='NaDabs',$
+                           rcomp=rangecomp,matquant=ranlab,$
+                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
          mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
             min=plotdat[0],max=plotdat[1])
-         cgloadct,22,/brewer,/reverse
-;         cgloadct,65,/reverse
+;         cgloadct,22,/brewer,/reverse
+         cgloadct,74,/reverse
          cgimage,mapscl,/keep,pos=pos[*,2+i*nx],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
@@ -4429,242 +4509,263 @@ pro ifsf_makemaps,initproc
 
       cgps_close
 
-   endif
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; tau and C_f
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;      nx = 2
+;      ny = 1
+;;      if donadabsonecomp then ny=1
+;      if donadabsmulticomp then ny+=maxnadabsncomp_act
+;
+;      cgps_open,initdat.mapdir+initdat.label+'NaDfit_taucf.eps',charsize=1,/encap,$
+;                /inches,xs=plotquantum*nx,ys=plotquantum*ny*aspectrat,/qui
+;
+;      pos = cglayout([nx,ny],ixmar=[2,3],iymar=[2,2],oxmar=[2,0],oymar=[0,2],$
+;                     xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
+;      abslab = ['Abs (1 Comp)']
+;      if nyabs gt 1 then $
+;         for i=1,nyabs do $
+;            abslab = [abslab,string('Abs (',i,' of ',nyabs,' Comp)',$
+;                                    format=('(A0,I0,A0,I0,A0)'))]
+;
+;      for i=0,ny-1 do begin
+;;        tau
+;         map = nadabstau[*,*,i]
+;;         igd = where(map ne bad)
+;;         ibd = where(map eq bad)
+;         igd_thiscomp = where(map ne bad)
+;         ibd_thiscomp = where(map eq bad)
+;         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
+;         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
+;         map[ibd]=bad
+;         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=0.5d,$
+;                                  ncbdivmax=ncbdivmax)
+;         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+;                         min=plotdat[0],max=plotdat[1])
+;         cgloadct,65,/reverse
+;         cgimage,mapscl,/keep,pos=pos[*,0+i*nx],opos=truepos,$
+;                 noerase=i ne 0,missing_value=bad,missing_index=255,$
+;                 missing_color='white'
+;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+;                /nodata,/noerase
+;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+;         if i eq 0 then begin
+;            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
+;                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
+;                  '$\tau$',chars=1.25,align=0.5
+;            ifsf_plotcompass,xarr_kpc,yarr_kpc
+;         endif
+;         cgtext,xran_kpc[0]-0.17*(xran_kpc[1]-xran_kpc[0]),$
+;                (yran_kpc[0]+yran_kpc[1])/2d,$
+;                abslab[i],align=0.5,orient=90d,chars=1.25
+;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
+;                            (plotdat[2] - plotdat[1]),format=cbform)
+;         cbform = '(I0)'
+;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+;                    ticknames=ticknames,/ver,/right,charsize=0.6
+;         
+;;        C_f
+;         map = nadabscf[*,*,i]
+;;         igd = where(map ne bad)
+;;         ibd = where(map eq bad)
+;         igd_thiscomp = where(map ne bad)
+;         ibd_thiscomp = where(map eq bad)
+;         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
+;         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
+;         map[ibd]=bad
+;         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=0.2d,$
+;                                  ncbdivmax=ncbdivmax)
+;         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+;                         min=plotdat[0],max=plotdat[1])
+;         cgloadct,65,/reverse
+;         cgimage,mapscl,/keep,pos=pos[*,1+i*nx],opos=truepos,$
+;                 /noerase,missing_value=bad,missing_index=255,$
+;                 missing_color='white'
+;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+;                /nodata,/noerase
+;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+;         if i eq 0 then $
+;            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
+;                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
+;                  'C$\downf$',chars=1.25,align=0.5
+;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
+;                            (plotdat[2] - plotdat[1]),format=cbform)
+;         cbform = '(D0.1)'
+;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+;                    ticknames=ticknames,/ver,/right,charsize=0.6
+;      endfor
+;
+;      cgps_close
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; NaD abs. fit tau and C_f
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if tag_exist(initdat,'donad') then begin
-
-      nx = 2
-      if donadabsonecomp then ny=1
-      if donadabsmulticomp then ny+=maxnadabsncomp_act
-
-      cgps_open,initdat.mapdir+initdat.label+'NaDfit_taucf.eps',charsize=1,/encap,$
-                /inches,xs=plotquantum*nx,ys=plotquantum*ny*aspectrat,/qui
-
-      pos = cglayout([nx,ny],ixmar=[2,3],iymar=[2,2],oxmar=[2,0],oymar=[0,2],$
-                     xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-      abslab = ['Abs (1 Comp)']
-      if nyabs gt 1 then $
-         for i=1,nyabs-1 do $
-            abslab = [abslab,string('Abs (',i,' of ',nyabs-1,' Comp)',$
-                                    format=('(A0,I0,A0,I0,A0)'))]
-
-     for i=0,ny-1 do begin
-;        tau
-         map = nadabstau[*,*,i]
-;         igd = where(map ne bad)
-;         ibd = where(map eq bad)
-         igd_thiscomp = where(map ne bad)
-         ibd_thiscomp = where(map eq bad)
-         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
-         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
-         map[ibd]=bad
-         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=0.5d,$
-                                  ncbdivmax=ncbdivmax)
-         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-                         min=plotdat[0],max=plotdat[1])
-         cgloadct,65,/reverse
-         cgimage,mapscl,/keep,pos=pos[*,0+i*nx],opos=truepos,$
-                 noerase=i ne 0,missing_value=bad,missing_index=255,$
-                 missing_color='white'
-         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-         if i eq 0 then begin
-            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
-                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
-                  '$\tau$',chars=1.25,align=0.5
-            ifsf_plotcompass,xarr_kpc,yarr_kpc
-         endif
-         cgtext,xran_kpc[0]-0.17*(xran_kpc[1]-xran_kpc[0]),$
-                (yran_kpc[0]+yran_kpc[1])/2d,$
-                abslab[i],align=0.5,orient=90d,chars=1.25
-         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-                            (plotdat[2] - plotdat[1]),format=cbform)
-         cbform = '(I0)'
-         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-                    ticknames=ticknames,/ver,/right,charsize=0.6
-         
-;        C_f
-         map = nadabscf[*,*,i]
-;         igd = where(map ne bad)
-;         ibd = where(map eq bad)
-         igd_thiscomp = where(map ne bad)
-         ibd_thiscomp = where(map eq bad)
-         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
-         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
-         map[ibd]=bad
-         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=0.2d,$
-                                  ncbdivmax=ncbdivmax)
-         mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-                         min=plotdat[0],max=plotdat[1])
-         cgloadct,65,/reverse
-         cgimage,mapscl,/keep,pos=pos[*,1+i*nx],opos=truepos,$
-                 /noerase,missing_value=bad,missing_index=255,$
-                 missing_color='white'
-         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-         if i eq 0 then $
-            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
-                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
-                  'C$\downf$',chars=1.25,align=0.5
-         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-                            (plotdat[2] - plotdat[1]),format=cbform)
-         cbform = '(D0.1)'
-         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-                    ticknames=ticknames,/ver,/right,charsize=0.6
-      endfor
-
-      cgps_close
-
-   endif
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Outflow maps
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   if tag_exist(initmaps,'compof') AND $
-    ~ tag_exist(initmaps,'noemlinfit') then begin
-
-;     Quantities to plot
-      if tag_exist(initmaps,'cvdf_oftags') then tags=initmaps.cvdf_oftags $
-      else tags=['f','sig','v50','v84','v98']
-      if tag_exist(initmaps,'cvdf_oftagtypes') then $
-         tagtypes=initmaps.cvdf_oftagtypes $
-      else tagtypes=['flux','vel','vel','vel','vel']
-      if tag_exist(initmaps,'cvdf_oftitles') then $
-         titles=initmaps.cvdf_oftitles $
-      else titles = ['F$\downtot$','$\sigma$','v$\down50$',$
-                     'v$\down84$','v$\down98$']
-
-;     Size of plot grid
-      if tag_exist(initmaps,'cvdf_ofnpx') then npx=initmaps.cvdf_ofnpx $
-      else npx=3
-      if tag_exist(initmaps,'cvdf_ofnpy') then npy=initmaps.cvdf_ofnpy $
-      else npy=2
-      
-;     Loop through emission lines
-      foreach line,outlines do begin
-
-;        Get syntax of linelabel right; otherwise call to DEVICE chokes
-         linelab=line
-         ilb = strpos(linelab,'[')
-         if ilb ne -1 then $
-            linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
-         irb = strpos(linelab,']')
-         if irb ne -1 then $
-            linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
-
-         cgps_open,initdat.mapdir+initdat.label+linelab+'_of_c.eps',charsize=1,/encap,$
-                   /inches,xs=plotquantum*npx,ys=plotquantum*npy*aspectrat,/qui
-         pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
-                        xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-
-;        loop through plot types
-         for j=0,n_elements(tags)-1 do begin
-
-            iplot = j ; plot index
-;           Get map and scale
-            itag = where(strcmp(ofpars_tags,tags[j],/fold_case) eq 1,cttag)
-            if cttag ne 0 then begin
-
-            map = ofpars[line].(itag)
-            ibd = where(map eq bad AND ~ finite(map),ctbd)
-            inan = where(~finite(map),ctnan)
-            igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
-
-            title=titles[j]
-            
-            if ctgd gt 0 then begin
-               
-               if tagtypes[j] eq 'flux' then begin
- 
-                  cbform = '(D0.1)' ; colorbar syntax
-               
-                  if tag_exist(initmaps,'fluxfactor') then $
-                     map[igd] *= initmaps.fluxfactor
-                                 
-                  zran=[0,1]
-                  dzran = 1
-                  ncbdiv = 5
-                  zmax_flux = max(map[igd])
-
-                  if hasrangefile then begin
-                     ithisline = where(line eq rangeline AND $
-                                       'of_'+tags[j] eq rangequant,ctthisline)
-                     if ctthisline eq 1 then zmax_flux = rangelo[ithisline]
-                  endif
-                
-                  map[igd] = map[igd]/zmax_flux[0]
-                  title += ' ('+string(zmax_flux,format='(E0.2)')+')'
-                  cgloadct,65,/reverse
-
-               endif else begin
-       
-                  cbform = '(I0)' ; colorbar syntax
-                  hasrange = 0
-                  if hasrangefile then begin
-                     ithisline = where(line eq rangeline AND $
-                                       'of_'+tags[j] eq rangequant,ctthisline)
-                     if ctthisline eq 1 then begin
-                        zran = [rangelo[ithisline],rangehi[ithisline]]
-                        dzran = zran[1]-zran[0]
-                        ncbdiv = rangencbdiv[ithisline]                   
-                        ncbdiv = ncbdiv[0]
-                        hasrange = 1
-                     endif
-                  endif
-                  if ~hasrange then begin
-                     zran = [min(map[igd]),max(map[igd])]
-                     divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-                     ncbdiv = divarr[0]
-                     dzran = zran[1]-zran[0]
-                  endif
-
-                  cgloadct,74,/reverse
- 
-               endelse
- 
-               if ctnan gt 0 then map[inan] = bad
-               mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
-                               min=zran[0],max=zran[1])
-
-;              Plot image
-               cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
-                       noerase=iplot ne 0,missing_value=bad,missing_index=255,$
-                       missing_color='white'
-               cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                         /nodata,/noerase,title=title
-               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;              Colorbar
-               cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-               ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-                                  (dzran - zran[1]),format=cbform)
-               cgcolorbar,position=cbpos,divisions=ncbdiv,$
-                          ticknames=ticknames,/ver,/right,charsize=0.6
-
-            endif
-            endif
-            
-         endfor
- 
-         cgps_close
-
-      endforeach
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; end NaD plots
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    endif
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Outflow maps
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;   if tag_exist(initmaps,'compof') AND $
+;    ~ tag_exist(initmaps,'noemlinfit') then begin
+;
+;;     Quantities to plot
+;      if tag_exist(initmaps,'cvdf_oftags') then tags=initmaps.cvdf_oftags $
+;      else tags=['f','sig','v50','v84','v98']
+;      if tag_exist(initmaps,'cvdf_oftagtypes') then $
+;         tagtypes=initmaps.cvdf_oftagtypes $
+;      else tagtypes=['flux','vel','vel','vel','vel']
+;      if tag_exist(initmaps,'cvdf_oftitles') then $
+;         titles=initmaps.cvdf_oftitles $
+;      else titles = ['F$\downtot$','$\sigma$','v$\down50$',$
+;                     'v$\down84$','v$\down98$']
+;
+;;     Size of plot grid
+;      if tag_exist(initmaps,'cvdf_ofnpx') then npx=initmaps.cvdf_ofnpx $
+;      else npx=3
+;      if tag_exist(initmaps,'cvdf_ofnpy') then npy=initmaps.cvdf_ofnpy $
+;      else npy=2
+;      
+;;     Loop through emission lines
+;      foreach line,lines_with_doublets do begin
+;
+;         linelab = ifsf_linesyntax(line)
+;         cgps_open,initdat.mapdir+initdat.label+linelab+'_of_c.eps',charsize=1,/encap,$
+;                   /inches,xs=plotquantum*npx,ys=plotquantum*npy*aspectrat,/qui
+;         pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
+;                        xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
+;
+;;        loop through plot types
+;         for j=0,n_elements(tags)-1 do begin
+;
+;            iplot = j ; plot index
+;;           Get map and scale
+;            itag = where(strcmp(ofpars_tags,tags[j],/fold_case) eq 1,cttag)
+;            if cttag ne 0 then begin
+;
+;            map = ofpars[line].(itag)
+;            ibd = where(map eq bad AND ~ finite(map),ctbd)
+;            inan = where(~finite(map),ctnan)
+;            igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
+;
+;            title=titles[j]
+;            
+;            if ctgd gt 0 then begin
+;               
+;               if tagtypes[j] eq 'flux' then begin
+; 
+;                  cbform = '(D0.1)' ; colorbar syntax
+;               
+;                  if tag_exist(initmaps,'fluxfactor') then $
+;                     map[igd] *= initmaps.fluxfactor
+;                                 
+;                  zran=[0,1]
+;                  dzran = 1
+;                  ncbdiv = 5
+;                  zmax_flux = max(map[igd])
+;
+;                  if hasrangefile then begin
+;                     ithisline = where(line eq rangeline AND $
+;                                       'of_'+tags[j] eq rangequant,ctthisline)
+;                     if ctthisline eq 1 then zmax_flux = rangelo[ithisline]
+;                  endif
+;                
+;                  map[igd] = map[igd]/zmax_flux[0]
+;                  title += ' ('+string(zmax_flux,format='(E0.2)')+')'
+;                  cgloadct,65,/reverse
+;
+;               endif else begin
+;       
+;                  cbform = '(I0)' ; colorbar syntax
+;                  hasrange = 0
+;                  if hasrangefile then begin
+;                     ithisline = where(line eq rangeline AND $
+;                                       'of_'+tags[j] eq rangequant,ctthisline)
+;                     if ctthisline eq 1 then begin
+;                        zran = [rangelo[ithisline],rangehi[ithisline]]
+;                        dzran = zran[1]-zran[0]
+;                        ncbdiv = rangencbdiv[ithisline]                   
+;                        ncbdiv = ncbdiv[0]
+;                        hasrange = 1
+;                     endif
+;                  endif
+;                  if ~hasrange then begin
+;                     zran = [min(map[igd]),max(map[igd])]
+;                     divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
+;                     ncbdiv = divarr[0]
+;                     dzran = zran[1]-zran[0]
+;                  endif
+;
+;                  cgloadct,74,/reverse
+; 
+;               endelse
+; 
+;               if ctnan gt 0 then map[inan] = bad
+;               mapscl = bytscl(rebin(map,dx*20,dy*20,/sample),$
+;                               min=zran[0],max=zran[1])
+;
+;;              Plot image
+;               cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
+;                       noerase=iplot ne 0,missing_value=bad,missing_index=255,$
+;                       missing_color='white'
+;               cgplot,[0],xsty=5,ysty=5,position=truepos,$
+;                         /nodata,/noerase,title=title
+;               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+;;              Colorbar
+;               cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
+;               ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+;                                  (dzran - zran[1]),format=cbform)
+;               cgcolorbar,position=cbpos,divisions=ncbdiv,$
+;                          ticknames=ticknames,/ver,/right,charsize=0.6
+;
+;            endif
+;            endif
+;            
+;         endfor
+; 
+;         cgps_close
+;
+;      endforeach
+;
+;   endif
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Compute outflow properties
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   m_nad = 0d
+   dmdt_nad = 0d
+   p_nad = 0d
+   dpdt_nad = 0d
+   e_nad = 0d
+   dedt_nad = 0d
+   Rmax_kpc_nad = 0d
+
+;   m_errlo_arr_nad = !NULL
+;   dmdt_errlo_arr_nad = !NULL
+;   p_errlo_arr_nad = !NULL
+;   dpdt_errlo_arr_nad = !NULL
+;   e_errlo_arr_nad = !NULL
+;   dedt_errlo_arr_nad = !NULL
+;   m_errhi_arr_nad = !NULL
+;   dmdt_errhi_arr_nad = !NULL
+;   p_errhi_arr_nad = !NULL
+;   dpdt_errhi_arr_nad = !NULL
+;   e_errhi_arr_nad = !NULL
+;   dedt_errhi_arr_nad = !NULL
+   m_err_nad = dblarr(2)
+   dmdt_err_nad = dblarr(2)
+   p_err_nad = dblarr(2)
+   dpdt_err_nad = dblarr(2)
+   e_err_nad = dblarr(2)
+   dedt_err_nad = dblarr(2)
 
    m_ha = 0d
    dmdt_ha = 0d
@@ -4672,45 +4773,315 @@ pro ifsf_makemaps,initproc
    dpdt_ha = 0d
    e_ha = 0d
    dedt_ha = 0d
-   
-   m_nad = 0d
-   dmdt_nad = 0d
-   p_nad = 0d
-   dpdt_nad = 0d
-   e_nad = 0d
-   dedt_nad = 0d
+   Rmax_kpc_ha = 0d
 
-   if tag_exist(initmaps,'compof') then begin
+   m_err_ha = 0d
+   dmdt_err_ha = 0d
+   p_err_ha = 0d
+   dpdt_err_ha = 0d
+   e_err_ha = 0d
+   dedt_err_ha = 0d
+
+
+   ;;;;;;;;;;;
+   ; NEUTRAL ;
+   ;;;;;;;;;;;
+
+;  Sum over outflowing components to get outflow properties
+
+   if tag_exist(initdat,'donad') AND tag_exist(initmaps,'outflow_abs') then begin
+
+      ;;;;;;;;;;;;;;
+      ; CRFW model ;
+      ;;;;;;;;;;;;;;
+  
+      Rcm_nad = 3.08567802d18 * initmaps.outflow_abs.R * 1d3
+;     radius of wind in cm
+      Rpix_nad = (initmaps.outflow_abs.R / kpc_per_as)/initdat.platescale
+;     radius of wind in spaxels
+      map_dphi_sintheta_nad = 1/Rpix_nad
+      map_dtheta_nad = asin((map_r+0.5)/Rpix_nad) - asin((map_r-0.5)/Rpix_nad)
+      map_domega_nad = map_dphi_sintheta_nad*map_dtheta_nad
+      map_costheta_nad = cos(asin(map_r/Rpix_nad))
+
+;     Cycle through components
+      for i=0,maxnadabsncomp_act do begin
+         cnhcf =  nadabscnhcf[*,*,i]
+         vel = nadabsvel[*,*,i]*1d5
+         sig = nadabssig[*,*,i]*1d5
+         errcnhcf =  reform(errnadabscnhcf[*,*,i,*],dx,dy,2)
+         errvel = rebin(errnadabsvel[*,*,i,*],dx,dy,2)*1d5
+         errsig = rebin(errnadabssig[*,*,i,*],dx,dy,2)*1d5
+         igdof = where(cnhcf ne bad AND cnhcf gt 0 $
+                       AND cnhcf gt errcnhcf[*,*,0] AND vel le 0,ctgd)
+         if ctgd gt 0 then begin
+
+;           Calculate max radius
+            Rmax_kpc_nad_c = max(map_rkpc_ifs[igdof])
+            Rmax_kpc_nad = Rmax_kpc_nad_c > Rmax_kpc_nad ? Rmax_kpc_nad_c : Rmax_kpc_nad
+
+;           Now discard above specified radius
+            igdof = where(cnhcf ne bad AND $
+                          cnhcf gt 0 AND $
+                          cnhcf gt errcnhcf[*,*,0] AND $
+                          vel le 0 AND $
+                          map_rkpc_ifs lt initmaps.outflow_abs.R,ctgd)
+
+            map_vrad_comp_nad = dblarr(dx,dy)
+            map_sig_comp_nad = dblarr(dx,dy)
+            map_m_comp_nad = dblarr(dx,dy)
+            map_dmdt_comp_nad = dblarr(dx,dy)
+            map_p_comp_nad = dblarr(dx,dy)
+            map_dpdt_comp_nad = dblarr(dx,dy)
+            map_e_comp_nad = dblarr(dx,dy)
+            map_dedt_comp_nad = dblarr(dx,dy)
+            map_vrad_comp_err_nad = dblarr(dx,dy,2)
+            map_sig_comp_err_nad = dblarr(dx,dy,2)
+            map_m_comp_err_nad = dblarr(dx,dy,2)
+            map_dmdt_comp_err_nad = dblarr(dx,dy,2)
+            map_p_comp_err_nad = dblarr(dx,dy,2)
+            map_dpdt_comp_err_nad = dblarr(dx,dy,2)
+            map_e_comp_err_nad = dblarr(dx,dy,2)
+            map_dedt_comp_err_nad = dblarr(dx,dy,2)
+
+            map_vrad_comp_nad[igdof] = $
+               abs(vel[igdof]) / map_costheta_nad[igdof]
+            map_sig_comp_nad[igdof] = sig[igdof]
+            map_m_comp_nad[igdof] = $
+               mumpsm*Rcm_nad^2d*cnhcf[igdof]*map_domega_nad[igdof]
+            map_dmdt_comp_nad[igdof] = $
+               mumpsm*Rcm_nad*cnhcf[igdof]*map_vrad_comp_nad[igdof]*speryr*$
+               map_domega_nad[igdof]
+            map_p_comp_nad[igdof] = $
+               map_m_comp_nad[igdof] * msun * map_vrad_comp_nad[igdof]
+                  ; in dyne s
+            map_dpdt_comp_nad[igdof] = $
+               map_dmdt_comp_nad[igdof] * msun / speryr * $
+               map_vrad_comp_nad[igdof] * c_cms / lsun
+                  ; dp/dt*c, in Lsun
+            map_e_comp_nad[igdof] = $
+               map_m_comp_nad[igdof] * msun * $
+               (0.5d*map_vrad_comp_nad[igdof]^2d + $
+               1.5d*map_sig_comp_nad[igdof]^2d)
+                  ; in erg
+            map_dedt_comp_nad[igdof] = $
+               map_dmdt_comp_nad[igdof] * msun / speryr * $
+               (0.5d*map_vrad_comp_nad[igdof]^2d + $
+               1.5d*map_sig_comp_nad[igdof]^2d)
+                  ; in erg/s
+
+            for j=0,1 do begin
+               xyind = array_indices(cnhcf,igdof)
+               xigdof = xyind[0,*]
+               yigdof = xyind[1,*]
+               for k=0,ctgd-1 do begin
+                  map_vrad_comp_err_nad[xigdof[k],yigdof[k],j] = $
+                    abs(errvel[xigdof[k],yigdof[k],j]) / map_costheta_nad[igdof[k]]
+                  map_sig_comp_err_nad[xigdof[k],yigdof[k],j] = errsig[xigdof[k],yigdof[k],j]
+                  map_m_comp_err_nad[xigdof[k],yigdof[k],j] = $
+                     map_m_comp_nad[xigdof[k],yigdof[k]] * $
+                     errcnhcf[xigdof[k],yigdof[k],j]/cnhcf[xigdof[k],yigdof[k]]
+                  map_dmdt_comp_err_nad[xigdof[k],yigdof[k],j] = $
+                     map_dmdt_comp_nad[igdof[k]] * $
+                     sqrt((errcnhcf[xigdof[k],yigdof[k],j]/cnhcf[igdof[k]])^2d + $
+                          (map_vrad_comp_err_nad[xigdof[k],yigdof[k],j]/$
+                           map_vrad_comp_nad[igdof[k]])^2d)
+                  map_p_comp_err_nad[xigdof[k],yigdof[k],j] = $
+                     map_p_comp_nad[igdof[k]] * $
+                     sqrt((errcnhcf[xigdof[k],yigdof[k],j]/cnhcf[igdof[k]])^2d + $
+                          (map_vrad_comp_err_nad[xigdof[k],yigdof[k],j]/$
+                           map_vrad_comp_nad[igdof[k]])^2d)
+                  map_dpdt_comp_err_nad[xigdof[k],yigdof[k],j] = $
+                     map_dpdt_comp_nad[igdof[k]] * $
+                     sqrt((errcnhcf[xigdof[k],yigdof[k],j]/cnhcf[igdof[k]])^2d + $
+                          2d*(map_vrad_comp_err_nad[xigdof[k],yigdof[k],j]/$
+                           map_vrad_comp_nad[igdof[k]])^2d)
+                  map_e_comp_err_nad[xigdof[k],yigdof[k],j] = $
+                     sqrt($
+                        (map_e_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_m_comp_err_nad[xigdof[k],yigdof[k],j]/$
+                         map_m_comp_nad[xigdof[k],yigdof[k]])^2d + $
+                        (msun*map_m_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_vrad_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_vrad_comp_err_nad[xigdof[k],yigdof[k],j])^2d + $
+                        (3d*msun*map_m_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_sig_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_sig_comp_err_nad[xigdof[k],yigdof[k],j])^2d)
+                  map_dedt_comp_err_nad[xigdof[k],yigdof[k],j] = $
+                     sqrt($
+                        (map_dedt_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_dmdt_comp_err_nad[xigdof[k],yigdof[k],j]/$
+                         map_dmdt_comp_nad[xigdof[k],yigdof[k]])^2d + $
+                        (msun/speryr*map_dmdt_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_vrad_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_vrad_comp_err_nad[xigdof[k],yigdof[k],j])^2d + $
+                        (3d*msun/speryr*map_dmdt_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_sig_comp_nad[xigdof[k],yigdof[k]]*$
+                         map_sig_comp_err_nad[xigdof[k],yigdof[k],j])^2d)
+               endfor
+            endfor
+
+            m_nad += 2d*total(map_m_comp_nad)
+            dmdt_nad += 2d*total(map_dmdt_comp_nad)
+            p_nad += 2d*total(map_p_comp_nad)
+            dpdt_nad += 2d*total(map_dpdt_comp_nad)
+            e_nad += 2d*total(map_e_comp_nad)
+            dedt_nad += 2d*total(map_dedt_comp_nad)
+
+;            Errors using median relative error across spaxels
+;            tmperrlo = map_m_comp_err_nad[*,*,0]
+;            tmperrhi = map_m_comp_err_nad[*,*,1]            
+;            m_errlo_arr_nad = [m_errlo_arr_nad,tmperrlo[igdof]/map_m_comp_nad[igdof]]
+;            m_errhi_arr_nad = [m_errhi_arr_nad,tmperrhi[igdof]/map_m_comp_nad[igdof]]
+;
+;            tmperrlo = map_dmdt_comp_err_nad[*,*,0]
+;            tmperrhi = map_dmdt_comp_err_nad[*,*,1]
+;            dmdt_errlo_arr_nad = [dmdt_errlo_arr_nad,tmperrlo[igdof]/map_dmdt_comp_nad[igdof]]
+;            dmdt_errhi_arr_nad = [dmdt_errhi_arr_nad,tmperrhi[igdof]/map_dmdt_comp_nad[igdof]]
+;
+;            tmperrlo = map_p_comp_err_nad[*,*,0]
+;            tmperrhi = map_p_comp_err_nad[*,*,1]
+;            p_errlo_arr_nad = [p_errlo_arr_nad,tmperrlo[igdof]/map_p_comp_nad[igdof]]
+;            p_errhi_arr_nad = [p_errhi_arr_nad,tmperrhi[igdof]/map_p_comp_nad[igdof]]
+;
+;            tmperrlo = map_dpdt_comp_err_nad[*,*,0]
+;            tmperrhi = map_dpdt_comp_err_nad[*,*,1]
+;            dpdt_errlo_arr_nad = [dpdt_errlo_arr_nad,tmperrlo[igdof]/map_dpdt_comp_nad[igdof]]
+;            dpdt_errhi_arr_nad = [dpdt_errhi_arr_nad,tmperrhi[igdof]/map_dpdt_comp_nad[igdof]]
+;
+;            Errors using usual error estimation
+            m_err_nad += total(total(map_m_comp_err_nad^2d,1),1)
+            dmdt_err_nad += total(total(map_dmdt_comp_err_nad^2d,1),1)
+            p_err_nad += total(total(map_p_comp_err_nad^2d,1),1)
+            dpdt_err_nad += total(total(map_dpdt_comp_err_nad^2d,1),1)
+            e_err_nad += total(total(map_e_comp_err_nad^2d,1),1)
+            dedt_err_nad += total(total(map_dedt_comp_err_nad^2d,1),1)
+
+
+         endif
+ 
+      endfor
+
+      m_err_nad = 2d*sqrt(m_err_nad)      
+      dmdt_err_nad = 2d*sqrt(dmdt_err_nad)
+      p_err_nad = 2d*sqrt(p_err_nad)
+      dpdt_err_nad = 2d*sqrt(dpdt_err_nad)
+      e_err_nad = 2d*sqrt(e_err_nad)
+      dedt_err_nad = 2d*sqrt(dedt_err_nad)
+;      m_err_nad = [median(m_errlo_arr_nad),median(m_errhi_arr_nad)]*m_nad
+;      dmdt_err_nad = [median(dmdt_errlo_arr_nad),median(dmdt_errhi_arr_nad)]*dmdt_nad
+;      p_err_nad = [median(p_errlo_arr_nad),median(p_errhi_arr_nad)]*p_nad
+;      dpdt_err_nad = [median(dpdt_errlo_arr_nad),median(dpdt_errhi_arr_nad)]*dpdt_nad
+      
+   endif  
+
+   if linelist.haskey('Halpha') then ofcompline = 'Halpha' $
+   else if linelist.haskey('Hbeta') then ofcompline = 'Hbeta' $
+   else begin
+      linelistkeys = linelist.keys()
+      ofcompline = linelistkeys[0]
+      message,'Halpha and Hbeta absent; setting OFCOMPLINE to random line.',/cont
+   endelse
+   if tag_exist(initmaps,'outflow_eml') then begin
 
       ;;;;;;;;;;;
       ; IONIZED ;
       ;;;;;;;;;;;
 
-;     Use CVDF to get outflow properties. Use Halpha if available, otherwise
+;;     Use CVDF to get outflow properties. Use Halpha if available, otherwise
+;;     Hbeta.
+;;     Blueshifted
+;      map_fha = ofpars[ofcompline].f
+;      igd = where(map_fha ne bad,ctgd)
+;;     Convert from flux/arcsec^2 back to straight flux if requested
+;      if ctgd gt 0 then map_fha[igd] *= initdat.platescale
+;      map_vha = ofpars[ofcompline].v50*1d5
+;      map_sigha = ofpars[ofcompline].sig*1d5
+;                                ; velocities in cm/s
+;
+;;     Redshifted
+;      mapr_fha = ofpars[ofcompline].fr
+;      igd = where(mapr_fha ne bad,ctgd)
+;;     Convert from flux/arcsec^2 back to straight flux if requested
+;      if ctgd gt 0 then mapr_fha[igd] *= initdat.platescale
+;      mapr_vha = ofpars[ofcompline].v50r*1d5
+;      mapr_sigha = ofpars[ofcompline].sigr*1d5
+;                                ; velocities in cm/s
+
+;     Use second component to get outflow properties. Use Halpha if available, otherwise
 ;     Hbeta.
 
-      if linelist.haskey('Halpha') then ofcompline = 'Halpha' $
-      else ofcompline = 'Hbeta'
-
 ;     Blueshifted
-      map_fha = ofpars[ofcompline].f
-      igd = where(map_fha ne bad,ctgd)
-;     Convert from flux/arcsec^2 back to straight flux if requested
-      if tag_exist(initmaps,'fluxunfactor') AND ctgd gt 0 then $
-         map_fha[igd] *= initmaps.fluxunfactor
-      map_vha = ofpars[ofcompline].v50*1d5
-      map_sigha = ofpars[ofcompline].sig*1d5
-                                ; velocities in cm/s
+      map_fha = emlflx['fc2',ofcompline]
+      map_fha_err = emlflxerr['fc2',ofcompline]
+      if tag_exist(initmaps,'ebv') then begin
+         if tag_exist(initmaps.ebv,'apply') then begin
+            map_fha = emlflxcor_pp['fc2',ofcompline]
+            map_fha_err = emlflxerrcor_pp['fc2',ofcompline]
+         endif
+      endif
+      map_vha = emlvel['v%50c2',ofcompline]
+      map_vha_err = emlvel['v%50c2err',ofcompline]
+      map_sigha = emlvel['vsigc2',ofcompline]
+      map_sigha_err = emlvel['vsigc2err',ofcompline]
+      igd = where(map_fha gt 0d AND map_fha ne bad AND $
+                  map_vha lt 0,ctgd)
+
+;     Convert from flux/arcsec^2 back to straight flux
+      if ctgd gt 0 then begin
+         map_fha[igd] *= initdat.platescale
+         map_fha_err[igd] *= initdat.platescale
+         Rmax_kpc_ha = max(map_rkpc_ifs[igd])
+;        Convert to Halpha flux using Case B
+         if ofcompline eq 'Hbeta' then begin
+            map_fha[igd] *= 2.86d
+            map_fha_err[igd] *= 2.86d
+         endif
+;        Velocities in cm/s
+         map_vha[igd] *= 1d5
+         map_vha_err[igd] *= 1d5
+         map_sigha[igd] *= 1d5
+         map_sigha_err[igd] *= 1d5
+      endif
 
 ;     Redshifted
-      mapr_fha = ofpars[ofcompline].fr
-      igd = where(mapr_fha ne bad,ctgd)
-;     Convert from flux/arcsec^2 back to straight flux if requested
-      if tag_exist(initmaps,'fluxunfactor') AND ctgd gt 0 then $
-         mapr_fha[igd] *= initmaps.fluxunfactor
-      mapr_vha = ofpars[ofcompline].v50r*1d5
-      mapr_sigha = ofpars[ofcompline].sigr*1d5
-                                ; velocities in cm/s
+      if tag_exist(initmaps.outflow_eml,'usered') then begin
+         mapr_fha = emlflx['fc2',ofcompline]
+         mapr_fha_err = emlflxerr['fc2',ofcompline]
+         if tag_exist(initmaps,'ebv') then begin
+            if tag_exist(initmaps.ebv,'apply') then begin
+               mapr_fha = emlflxcor_pp['fc2',ofcompline]
+               mapr_fha_err = emlflxerrcor_pp['fc2',ofcompline]
+            endif
+         endif
+         mapr_vha = emlvel['v%50c2',ofcompline]
+         mapr_vha_err = emlvel['v%50c2err',ofcompline]
+         mapr_sigha = emlvel['vsigc2',ofcompline]
+         mapr_sigha_err = emlvel['vsigc2err',ofcompline]
+         igd = where(mapr_fha gt 0d AND mapr_fha ne bad AND $
+                     mapr_vha ge 0,ctgd)
+         if ctgd gt 0 then begin
+            mapr_fha[igd] *= initdat.platescale
+            mapr_fha_err[igd] *= initdat.platescale
+            Rmax_kpc_ha_red = max(map_rkpc_ifs[igd])
+            Rmax_kpc_ha = Rmax_kpc_ha_red > Rmax_kpc_ha ? Rmax_kpc_ha_red : Rmax_kpc_ha
+            if ofcompline eq 'Hbeta' then begin
+               mapr_fha[igd] *= 2.86d
+               mapr_fha_err[igd] *= 2.86d
+            endif
+            mapr_vha[igd] *= 1d5
+            mapr_vha_err[igd] *= 1d5
+            mapr_sigha[igd] *= 1d5
+            mapr_sigha_err[igd] *= 1d5
+         endif
+      endif else begin
+         mapr_fha = map_fha*0d
+         mapr_vha = map_fha*0d
+         mapr_sigha = map_fha*0d
+         mapr_fha_err = map_fha*0d
+         mapr_vha_err = map_fha*0d
+         mapr_sigha_err = map_fha*0d
+      endelse
 
       ;;;;;;;;;;;;;;
       ; CRFW model ;
@@ -4726,7 +5097,16 @@ pro ifsf_makemaps,initproc
       map_dmdt_ha = dblarr(dx,dy)
       map_dpdt_ha = dblarr(dx,dy)
       map_dedt_ha = dblarr(dx,dy)
-      
+      map_l_err_ha = dblarr(dx,dy)
+      map_vrad_err_ha = dblarr(dx,dy)
+      map_sig_err_ha = dblarr(dx,dy)
+      map_m_err_ha = dblarr(dx,dy,2)
+      map_p_err_ha = dblarr(dx,dy,2)
+      map_e_err_ha = dblarr(dx,dy,2)
+      map_dmdt_err_ha = dblarr(dx,dy,2)
+      map_dpdt_err_ha = dblarr(dx,dy,2)
+      map_dedt_err_ha = dblarr(dx,dy,2)
+
 ;     Redshifted
       mapr_l_ha = dblarr(dx,dy)
       mapr_vrad_ha = dblarr(dx,dy)
@@ -4737,11 +5117,20 @@ pro ifsf_makemaps,initproc
       mapr_dmdt_ha = dblarr(dx,dy)
       mapr_dpdt_ha = dblarr(dx,dy)
       mapr_dedt_ha = dblarr(dx,dy)
+      mapr_l_err_ha = dblarr(dx,dy)
+      mapr_vrad_err_ha = dblarr(dx,dy)
+      mapr_sig_err_ha = dblarr(dx,dy)
+      mapr_m_err_ha = dblarr(dx,dy,2)
+      mapr_p_err_ha = dblarr(dx,dy,2)
+      mapr_e_err_ha = dblarr(dx,dy,2)
+      mapr_dmdt_err_ha = dblarr(dx,dy,2)
+      mapr_dpdt_err_ha = dblarr(dx,dy,2)
+      mapr_dedt_err_ha = dblarr(dx,dy,2)
 
 ;     Radius of wind in cm
-      Rcm_ha = 3.08567802d18 * initmaps.Rha * 1d3
+      Rcm_ha = 3.08567802d18 * initmaps.outflow_eml.R * 1d3
 ;     Radius of wind in spaxels
-      Rpix_ha = (initmaps.Rha / kpc_per_as)/initdat.platescale
+      Rpix_ha = (initmaps.outflow_eml.R / kpc_per_as)/initdat.platescale
   
 ; Solid angle subtended by pixel on a spherical wind, in units of
 ; radians. A solid angle element is sin(theta) * dphi * dtheta, where
@@ -4773,23 +5162,28 @@ pro ifsf_makemaps,initproc
 ; introduce an error of only half a pixel. OK if Rpix >> 1.
       igood_ha = where(map_r+0.5 lt Rpix_ha AND $
                        map_fha ne bad AND $
-                       map_fha gt 0,ctgood_ha)
+                       map_fha gt 0 AND $
+                       map_vha lt 0,ctgood_ha)
+      xyind = array_indices(map_r,igood_ha)
+      xigdof = xyind[0,*]
+      yigdof = xyind[1,*]
       igoodr_ha = where(map_r+0.5 lt Rpix_ha AND $
                         mapr_fha ne bad AND $
-                        mapr_fha gt 0,ctgood_ha)
+                        mapr_fha gt 0AND $
+                        mapr_vha gt 0,ctgoodr_ha)
 
 ; blueshifted
       map_vrad_ha[igood_ha] = abs(map_vha[igood_ha]) / $
                                   map_costheta_ha[igood_ha]
-; 1d-15 here is for Gemini default flux normalization; other 1d-7 is to go
-; from ergs/s to W
-      map_l_ha[igood_ha] = linelum(map_fha[igood_ha]*1d-22,ldist,/ergs)
+; 1d-7 converts from ergs/s to W
+      map_l_ha[igood_ha] = $
+         linelum(map_fha[igood_ha]*1d-7*initdat.fluxunits,ldist,/ergs)
       map_m_ha[igood_ha] = mumpsm * map_l_ha[igood_ha] / $
                            volemis / elecden
                                 ; in units of msun
 ; The following formula comes from dividing dM/dt^avg_thin by M_thin
 ; (eq. 7 and 8 in RVS05b). Note that this is basically equivalent to
-; dividing each pixel by its own dynamical time, tdyn ~ v/R.
+; dividing each pixel by its own dynamical time, tdyn ~ R/v.
       map_dmdt_ha[igood_ha] = map_m_ha[igood_ha] * $
                               map_vrad_ha[igood_ha] * speryr / Rcm_ha
                                 ; in units of msun/yr
@@ -4807,25 +5201,135 @@ pro ifsf_makemaps,initproc
                               (0.5d*map_vrad_ha[igood_ha]^2d + $
                                1.5d*map_sig_ha[igood_ha]^2d)
                                 ; in erg/s
+                                
+      map_vrad_err_ha[igood_ha] = abs(map_vha_err[igood_ha]) / $
+                                      map_costheta_ha[igood_ha]
+
+      map_l_err_ha[igood_ha] = $
+         linelum(map_fha_err[igood_ha]*1d-7*initdat.fluxunits,ldist,/ergs)
+         
+;      map_m_err_ha[igood_ha] = mumpsm * map_l_err_ha[igood_ha] / $
+;                               volemis / elecden
+      for j=0,1 do begin
+         xyind = array_indices(map_r,igood_ha)
+         xigdof = xyind[0,*]
+         yigdof = xyind[1,*]
+         for k=0,ctgood_ha-1 do begin
+            map_m_err_ha[xigdof[k],yigdof[k],j] = $
+               map_m_ha[xigdof[k],yigdof[k]]*$
+               sqrt((map_l_err_ha[xigdof[k],yigdof[k]]/$
+                     map_l_ha[xigdof[k],yigdof[k]])^2d + $
+                    (elecden_err[j]/elecden)^2d)
+            map_dmdt_err_ha[xigdof[k],yigdof[k],j] = $
+               map_dmdt_ha[xigdof[k],yigdof[k]] * $
+               sqrt((map_m_err_ha[xigdof[k],yigdof[k],j]/map_m_ha[xigdof[k],yigdof[k]])^2d + $
+                    (map_vrad_err_ha[xigdof[k],yigdof[k]]/map_vrad_ha[xigdof[k],yigdof[k]])^2d)
+            map_p_err_ha[xigdof[k],yigdof[k],j] = $
+               map_p_ha[xigdof[k],yigdof[k]] * $
+               sqrt((map_m_err_ha[xigdof[k],yigdof[k],j]/map_m_ha[xigdof[k],yigdof[k]])^2d + $
+                    (map_vrad_err_ha[xigdof[k],yigdof[k]]/map_vrad_ha[xigdof[k],yigdof[k]])^2d)
+            map_dpdt_err_ha[xigdof[k],yigdof[k],j] = $
+               map_dpdt_ha[xigdof[k],yigdof[k]] * $
+               sqrt((map_m_err_ha[xigdof[k],yigdof[k],j]/map_m_ha[xigdof[k],yigdof[k]])^2d + $
+                    2d*(map_vrad_err_ha[xigdof[k],yigdof[k]]/map_vrad_ha[xigdof[k],yigdof[k]])^2d)
+            map_e_err_ha[xigdof[k],yigdof[k],j] = $
+               sqrt($
+                    (map_e_ha[xigdof[k],yigdof[k]]*$
+                     map_m_err_ha[xigdof[k],yigdof[k],j]/$
+                     map_m_ha[xigdof[k],yigdof[k]])^2d + $
+                    (msun*map_m_ha[xigdof[k],yigdof[k]]*$
+                     map_vrad_ha[xigdof[k],yigdof[k]]*$
+                     map_vrad_err_ha[xigdof[k],yigdof[k]])^2d + $
+                    (3d*msun*map_m_ha[xigdof[k],yigdof[k]]*$
+                     map_sig_ha[xigdof[k],yigdof[k]]*$
+                     map_sig_err_ha[xigdof[k],yigdof[k]])^2d)
+            map_dedt_err_ha[xigdof[k],yigdof[k],j] = $
+               sqrt($
+                    (map_dedt_ha[xigdof[k],yigdof[k]]*$
+                     map_dmdt_err_ha[xigdof[k],yigdof[k],j]/$
+                     map_dmdt_ha[xigdof[k],yigdof[k]])^2d + $
+                    (msun/speryr*map_dmdt_ha[xigdof[k],yigdof[k]]*$
+                     map_vrad_ha[xigdof[k],yigdof[k]]*$
+                     map_vrad_err_ha[xigdof[k],yigdof[k]])^2d + $
+                    (3d*msun/speryr*map_dmdt_ha[xigdof[k],yigdof[k]]*$
+                     map_sig_ha[xigdof[k],yigdof[k]]*$
+                     map_sig_err_ha[xigdof[k],yigdof[k]])^2d)
+          endfor
+       endfor
 
 ; redshifted
-      mapr_vrad_ha[igoodr_ha] = abs(mapr_vha[igoodr_ha]) / $
-                                   map_costheta_ha[igoodr_ha]
-      mapr_l_ha[igoodr_ha] = linelum(mapr_fha[igoodr_ha]*1d-22,ldist,/ergs)
-      mapr_m_ha[igoodr_ha] = mumpsm * mapr_l_ha[igoodr_ha] / $
-                             volemis / elecden
-      mapr_dmdt_ha[igoodr_ha] = mapr_m_ha[igoodr_ha] * $
-                                mapr_vrad_ha[igoodr_ha] * speryr / Rcm_ha
-      mapr_p_ha[igoodr_ha] = mapr_m_ha[igoodr_ha] * msun * $
-                             mapr_vrad_ha[igoodr_ha]
-      mapr_dpdt_ha[igoodr_ha] = mapr_dmdt_ha[igoodr_ha] * msun / speryr * $
-                                mapr_vrad_ha[igoodr_ha] * c_cms / lsun
-      mapr_e_ha[igoodr_ha] = mapr_m_ha[igoodr_ha] * msun * $
-                             (0.5d*mapr_vrad_ha[igoodr_ha]^2d + $
-                              1.5d*mapr_sig_ha[igoodr_ha]^2d)
-      mapr_dedt_ha[igoodr_ha] = mapr_dmdt_ha[igoodr_ha] * msun / speryr * $
+      if ctgoodr_ha gt 0 then begin
+         mapr_vrad_ha[igoodr_ha] = abs(mapr_vha[igoodr_ha]) / $
+                                      map_costheta_ha[igoodr_ha]
+         mapr_l_ha[igoodr_ha] = $
+            linelum(mapr_fha[igoodr_ha]*1d-7*initdat.fluxunits,ldist,/ergs)
+         mapr_m_ha[igoodr_ha] = mumpsm * mapr_l_ha[igoodr_ha] / $
+                                volemis / elecden
+         mapr_dmdt_ha[igoodr_ha] = mapr_m_ha[igoodr_ha] * $
+                                   mapr_vrad_ha[igoodr_ha] * speryr / Rcm_ha
+         mapr_p_ha[igoodr_ha] = mapr_m_ha[igoodr_ha] * msun * $
+                                mapr_vrad_ha[igoodr_ha]
+         mapr_dpdt_ha[igoodr_ha] = mapr_dmdt_ha[igoodr_ha] * msun / speryr * $
+                                   mapr_vrad_ha[igoodr_ha] * c_cms / lsun
+         mapr_e_ha[igoodr_ha] = mapr_m_ha[igoodr_ha] * msun * $
                                 (0.5d*mapr_vrad_ha[igoodr_ha]^2d + $
                                  1.5d*mapr_sig_ha[igoodr_ha]^2d)
+         mapr_dedt_ha[igoodr_ha] = mapr_dmdt_ha[igoodr_ha] * msun / speryr * $
+                                   (0.5d*mapr_vrad_ha[igoodr_ha]^2d + $
+                                    1.5d*mapr_sig_ha[igoodr_ha]^2d)
+
+         mapr_vrad_err_ha[igoodr_ha] = abs(mapr_vha_err[igoodr_ha]) / $
+                                         map_costheta_ha[igoodr_ha]
+         mapr_l_err_ha[igoodr_ha] = $
+            linelum(mapr_fha_err[igoodr_ha]*1d-7*initdat.fluxunits,ldist,/ergs)
+ 
+         for j=0,1 do begin
+         xyind = array_indices(map_r,igoodr_ha)
+         xigdof = xyind[0,*]
+         yigdof = xyind[1,*]
+         for k=0,ctgoodr_ha-1 do begin
+            mapr_m_err_ha[xigdof[k],yigdof[k],j] = $
+               mapr_m_ha[xigdof[k],yigdof[k]]*$
+               sqrt((mapr_l_err_ha[xigdof[k],yigdof[k]]/$
+                     mapr_l_ha[xigdof[k],yigdof[k]])^2d + $
+                    (elecden_err[j]/elecden)^2d)
+            mapr_dmdt_err_ha[xigdof[k],yigdof[k],j] = $
+               mapr_dmdt_ha[xigdof[k],yigdof[k]] * $
+               sqrt((mapr_m_err_ha[xigdof[k],yigdof[k],j]/mapr_m_ha[xigdof[k],yigdof[k]])^2d + $
+                    (mapr_vrad_err_ha[xigdof[k],yigdof[k]]/mapr_vrad_ha[xigdof[k],yigdof[k]])^2d)
+            mapr_p_err_ha[xigdof[k],yigdof[k],j] = $
+               mapr_p_ha[xigdof[k],yigdof[k]] * $
+               sqrt((mapr_m_err_ha[xigdof[k],yigdof[k],j]/mapr_m_ha[xigdof[k],yigdof[k]])^2d + $
+                    (mapr_vrad_err_ha[xigdof[k],yigdof[k]]/mapr_vrad_ha[xigdof[k],yigdof[k]])^2d)
+            mapr_dpdt_err_ha[xigdof[k],yigdof[k],j] = $
+               mapr_dpdt_ha[xigdof[k],yigdof[k]] * $
+               sqrt((mapr_m_err_ha[xigdof[k],yigdof[k],j]/mapr_m_ha[xigdof[k],yigdof[k]])^2d + $
+                    2d*(mapr_vrad_err_ha[xigdof[k],yigdof[k]]/mapr_vrad_ha[xigdof[k],yigdof[k]])^2d)
+            mapr_e_err_ha[xigdof[k],yigdof[k],j] = $
+               sqrt($
+                    (mapr_e_ha[xigdof[k],yigdof[k]]*$
+                     mapr_m_err_ha[xigdof[k],yigdof[k],j]/$
+                     mapr_m_ha[xigdof[k],yigdof[k]])^2d + $
+                    (msun*mapr_m_ha[xigdof[k],yigdof[k]]*$
+                     mapr_vrad_ha[xigdof[k],yigdof[k]]*$
+                     mapr_vrad_err_ha[xigdof[k],yigdof[k]])^2d + $
+                    (3d*msun*mapr_m_ha[xigdof[k],yigdof[k]]*$
+                     mapr_sig_ha[xigdof[k],yigdof[k]]*$
+                     mapr_sig_err_ha[xigdof[k],yigdof[k]])^2d)
+            mapr_dedt_err_ha[xigdof[k],yigdof[k],j] = $
+               sqrt($
+                    (mapr_dedt_ha[xigdof[k],yigdof[k]]*$
+                     mapr_dmdt_err_ha[xigdof[k],yigdof[k],j]/$
+                     mapr_dmdt_ha[xigdof[k],yigdof[k]])^2d + $
+                    (msun/speryr*mapr_dmdt_ha[xigdof[k],yigdof[k]]*$
+                     mapr_vrad_ha[xigdof[k],yigdof[k]]*$
+                     mapr_vrad_err_ha[xigdof[k],yigdof[k]])^2d + $
+                    (3d*msun/speryr*mapr_dmdt_ha[xigdof[k],yigdof[k]]*$
+                     mapr_sig_ha[xigdof[k],yigdof[k]]*$
+                     mapr_sig_err_ha[xigdof[k],yigdof[k]])^2d)
+             endfor
+          endfor
+       endif
 
 
       m_ha = 2d*(total(map_m_ha)+total(mapr_m_ha))
@@ -4836,88 +5340,136 @@ pro ifsf_makemaps,initproc
       dedt_ha = 2d*(total(map_dedt_ha)+total(mapr_dedt_ha))
       omega_ha = 2d/4/!DPi*(total(map_domega_ha[igood_ha])+$
                  total(map_domega_ha[igoodr_ha]))
+                 
+      if ctgoodr_ha gt 0 then begin
+;         m_err_ha = m_ha * median([map_m_err_ha[igood_ha]/map_m_ha[igood_ha],$
+;                                   mapr_m_err_ha[igoodr_ha]/mapr_m_ha[igoodr_ha]])
+;         dmdt_err_ha = dmdt_ha * median([map_dmdt_err_ha[igood_ha]/map_dmdt_ha[igood_ha],$
+;                                         mapr_dmdt_err_ha[igoodr_ha]/mapr_dmdt_ha[igoodr_ha]])
+;         p_err_ha = p_ha * median([map_p_err_ha[igood_ha]/map_p_ha[igood_ha],$
+;                                   mapr_p_err_ha[igoodr_ha]/mapr_p_ha[igoodr_ha]])
+;         dpdt_err_ha = dpdt_ha * median([map_dpdt_err_ha[igood_ha]/map_dpdt_ha[igood_ha],$
+;                                         mapr_dpdt_err_ha[igoodr_ha]/mapr_dpdt_ha[igoodr_ha]])
+         m_err_ha = 2d*sqrt(total(total(map_m_err_ha^2d,1),1)+$
+                            total(total(mapr_m_err_ha^2d,1),1))
+         dmdt_err_ha = 2d*sqrt(total(total(map_dmdt_err_ha^2d,1),1)+$
+                               total(total(mapr_dmdt_err_ha^2d,1),1))
+         p_err_ha = 2d*sqrt(total(total(map_p_err_ha^2d,1),1)+$
+                            total(total(mapr_p_err_ha^2d,1),1))
+         dpdt_err_ha = 2d*sqrt(total(total(map_dpdt_err_ha^2d,1),1)+$
+                               total(total(mapr_dpdt_err_ha^2d,1),1))
+         e_err_ha = 2d*sqrt(total(total(map_e_err_ha^2d,1),1)+$
+                            total(total(mapr_e_err_ha^2d,1),1))
+         dedt_err_ha = 2d*sqrt(total(total(map_dedt_err_ha^2d,1),1)+$
+                               total(total(mapr_dedt_err_ha^2d,1),1))
+      endif else begin
+;         m_err_ha = m_ha * median(map_m_err_ha/map_m_ha)
+;         dmdt_err_ha = dmdt_ha * median(map_dmdt_err_ha/map_dmdt_ha)
+;         p_err_ha = p_ha * median(map_p_err_ha/map_p_ha)
+;         dpdt_err_ha = dpdt_ha * median(map_dpdt_err_ha/map_dpdt_ha)
+         m_err_ha = 2d*sqrt(total(total(map_m_err_ha^2d,1),1))
+         dmdt_err_ha = 2d*sqrt(total(total(map_dmdt_err_ha^2d,1),1))
+         p_err_ha = 2d*sqrt(total(total(map_p_err_ha^2d,1),1))
+         dpdt_err_ha = 2d*sqrt(total(total(map_dpdt_err_ha^2d,1),1))
+         e_err_ha = 2d*sqrt(total(total(map_e_err_ha^2d,1),1))
+         dedt_err_ha = 2d*sqrt(total(total(map_dedt_err_ha^2d,1),1))
 
-      ;;;;;;;;;;;
-      ; NEUTRAL ;
-      ;;;;;;;;;;;
-
-;     Sum over outflowing components to get outflow properties
-
-      if tag_exist(initdat,'donad') then begin
-
-         ;;;;;;;;;;;;;;
-         ; CRFW model ;
-         ;;;;;;;;;;;;;;
-  
-         Rcm_nad = 3.08567802d18 * initmaps.Rnad * 1d3
-            ; radius of wind in cm
-         Rpix_nad = (initmaps.Rnad / kpc_per_as)/initdat.platescale
-            ; radius of wind in spaxels
-         map_dphi_sintheta_nad = 1/Rpix_nad
-         map_dtheta_nad = asin((map_r+0.5)/Rpix_nad) - asin((map_r-0.5)/Rpix_nad)
-         map_domega_nad = map_dphi_sintheta_nad*map_dtheta_nad
-         map_costheta_nad = cos(asin(map_r/Rpix_nad))
-
-;        Cycle through components
-         for i=0,maxnadabsncomp_act do begin
-            cnh =  nadabscnh[*,*,i]
-            cf = nadabscf[*,*,i]
-            vel = nadabsvel[*,*,i]*1d5
-            sig = nadabssig[*,*,i]*1d5
-            igdof = where(cnh ne bad,ctgd)
-            if ctgd gt 0 then begin
-
-               map_vrad_comp_nad = dblarr(dx,dy)
-               map_sig_comp_nad = dblarr(dx,dy)
-               map_m_comp_nad = dblarr(dx,dy)
-               map_dmdt_comp_nad = dblarr(dx,dy)
-               map_p_comp_nad = dblarr(dx,dy)
-               map_dpdt_comp_nad = dblarr(dx,dy)
-               map_e_comp_nad = dblarr(dx,dy)
-               map_dedt_comp_nad = dblarr(dx,dy)
-
-               map_vrad_comp_nad[igdof] = $
-                  abs(vel[igdof]) / map_costheta_nad[igdof]
-               map_sig_comp_nad[igdof] = sig[igdof]
-               map_m_comp_nad[igdof] = $
-                  mumpsm*Rcm_nad^2d*cnh[igdof]*map_domega_nad[igdof]*cf[igdof]
-               map_dmdt_comp_nad[igdof] = $
-                  mumpsm*Rcm_nad*cnh[igdof]*map_vrad_comp_nad[igdof]*speryr*$
-                  map_domega_nad[igdof]*cf[igdof]
-               map_p_comp_nad[igdof] = $
-                  map_m_comp_nad[igdof] * msun * map_vrad_comp_nad[igdof]
-                  ; in dyne s
-               map_dpdt_comp_nad[igdof] = $
-                  map_dmdt_comp_nad[igdof] * msun / speryr * $
-                  map_vrad_comp_nad[igdof] * c_cms / lsun
-                  ; dp/dt*c, in Lsun
-               map_e_comp_nad[igdof] = $
-                  map_m_comp_nad[igdof] * msun * $
-                  (0.5d*map_vrad_comp_nad[igdof]^2d + $
-                  1.5d*map_sig_comp_nad[igdof]^2d)
-                  ; in erg
-               map_dedt_comp_nad[igdof] = $
-                  map_dmdt_comp_nad[igdof] * msun / speryr * $
-                  (0.5d*map_vrad_comp_nad[igdof]^2d + $
-                  1.5d*map_sig_comp_nad[igdof]^2d)
-                  ; in erg/s
-
-
-               m_nad += 2d*total(map_m_comp_nad)
-               dmdt_nad += 2d*total(map_dmdt_comp_nad)
-               p_nad += 2d*total(map_p_comp_nad)
-               dpdt_nad += 2d*total(map_dpdt_comp_nad)
-               e_nad += 2d*total(map_e_comp_nad)
-               dedt_nad += 2d*total(map_dedt_comp_nad)
-
-            endif
- 
-         endfor
-      
-      endif    
+      endelse
       
    endif
    
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Compute fluxes
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  fluxnorm = initdat.fluxunits * initdat.platescale^2d
+  emlflxsums = hash()
+  emlflxsums['tot_ext'] = hash()
+  emlflxsums['tot_unext_pp'] = hash()
+  emlflxsums['tot_unext_med'] = hash()
+  emlflxsums['comp_ext'] = hash()
+  emlflxsums['comp_unext_pp'] = hash()
+  emlflxsums['comp_unext_med'] = hash()
+  emlflxsums['of_ext'] = hash()
+  emlflxsums['of_unext_pp'] = hash()
+  emlflxsums['of_unext_med'] = hash()
+  foreach line,linelist.keys() do begin
+     emlflxsums['tot_ext',line] = 0d
+     emlflxsums['tot_unext_pp',line] = 0d
+     emlflxsums['tot_unext_med',line] = 0d
+     emlflxsums['comp_ext',line] = dblarr(initdat.maxncomp)
+     emlflxsums['comp_unext_pp',line] = dblarr(initdat.maxncomp)
+     emlflxsums['comp_unext_med',line] = dblarr(initdat.maxncomp)
+     emlflxsums['of_ext',line] = 0d
+     emlflxsums['of_unext_pp',line] = 0d
+     emlflxsums['of_unext_med',line] = 0d
+     for icomp=0,initdat.maxncomp-1 do begin
+        stric = string(icomp+1,format='(I0)')
+        igdflx = where(emlflx['fc'+stric,line] ne bad,ctgdflx)
+        if line eq ofcompline AND $
+           icomp eq 1 AND $
+           tag_exist(initmaps,'outflow_eml') then begin
+           if tag_exist(initmaps.outflow_eml,'usered') then begin
+              igdblue = where(emlvel['v%50c'+stric,ofcompline] lt 0d AND $
+                              map_rkpc_ifs lt initmaps.outflow_eml.R,ctgdblue)
+              igdred = where(emlvel['v%50c'+stric,ofcompline] ne bad AND $
+                             emlvel['v%50c'+stric,ofcompline] ge 0 AND $
+                             map_rkpc_ifs lt initmaps.outflow_eml.R,ctgdred)
+              if ctgdblue gt 0 then igdflx_of = [igdblue,igdred] $
+              else igdflx_of = igdred
+           endif else begin
+              igdflx_of = where(emlvel['v%50c'+stric,ofcompline] lt 0d AND $
+                                map_rkpc_ifs lt initmaps.outflow_eml.R,ctgdflx_of)
+           endelse
+        endif
+        if ctgdflx gt 0 then begin
+           emlflxsums['comp_ext',line,icomp] = $
+              total(emlflx['fc'+stric,line,igdflx]) * fluxnorm
+           if line eq ofcompline AND $
+              icomp eq 1 AND $
+              tag_exist(initmaps,'outflow_eml') then $
+                 emlflxsums['of_ext',line] = $
+                    total(emlflx['fc'+stric,line,igdflx_of]) * fluxnorm
+           emlflxsums['tot_ext',line] += $
+              emlflxsums['comp_ext',line,icomp]
+           if tag_exist(initmaps,'ebv') then begin
+              if tag_exist(initmaps.ebv,'apply') then begin
+                 emlflxsums['comp_unext_pp',line,icomp] = $
+                    total(emlflxcor_pp['fc'+stric,line,igdflx]) * fluxnorm
+                 emlflxsums['comp_unext_med',line,icomp] = $
+                    total(emlflxcor_med['fc'+stric,line,igdflx]) * fluxnorm
+                 if line eq ofcompline AND $
+                    icomp eq 1 AND $
+                    tag_exist(initmaps,'outflow_eml') then begin
+                    emlflxsums['of_unext_pp',line] = $
+                       total(emlflxcor_pp['fc'+stric,line,igdflx_of]) * fluxnorm
+                    emlflxsums['of_unext_med',line] = $
+                       total(emlflxcor_med['fc'+stric,line,igdflx_of]) * fluxnorm
+                 endif
+                 emlflxsums['tot_unext_pp',line] += $
+                    emlflxsums['comp_unext_pp',line,icomp]
+                 emlflxsums['tot_unext_med',line] += $
+                    emlflxsums['comp_unext_med',line,icomp]
+              endif
+           endif
+        endif
+     endfor
+  endforeach
+
+; Outflow flux
+  e_of_flx = 0
+  if tag_exist(initmaps,'outflow_eml') then begin
+     usekey = 'of_ext'
+     if tag_exist(initmaps,'ebv') then $
+        if tag_exist(initmaps.ebv,'apply') then $
+           usekey = 'of_unext_pp'
+     e_of_flx = emlflxsums[usekey,ofcompline]
+     if ofcompline eq 'Hbeta' then e_of_flx *= 2.86d
+  endif
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; TABLE AND STRUCTURE OUTPUTS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -4969,11 +5521,9 @@ pro ifsf_makemaps,initproc
    did_distance_intro = 0b
    if dohst then begin
       if tag_exist(initmaps.hst,'fithstpeak') then begin
-         printf,lun_stats,'-----','------------','--------','--------','--------',$
-                          '--------','--------','-----',format='(A-5,A12,5A8,A5)'
+         printf,lun_stats,lineofdashes
          printf,lun_stats,'Distances between assumed peak and actual (fitted) peak'
-         printf,lun_stats,'-----','------------','--------','--------','--------',$
-                          '--------','--------','-----',format='(A-5,A12,5A8,A5)'
+         printf,lun_stats,lineofdashes
          did_distance_intro = 1b
          printf,lun_stats,'  HST image (rotated, trimmed to IFS FOV)'
          printf,lun_stats,'    In HST pixels: ',$
@@ -4987,11 +5537,9 @@ pro ifsf_makemaps,initproc
       endif
       if tag_exist(initmaps.ct,'fitifspeak') AND dohstsm then begin
          if not did_distance_intro then begin
-            printf,lun_stats,'-----','------------','--------','--------','--------',$
-                             '--------','--------','-----',format='(A-5,A12,5A8,A5)'
+            printf,lun_stats,lineofdashes
             printf,lun_stats,'Distances between assumed peak and actual (fitted) peak'
-            printf,lun_stats,'-----','------------','--------','--------','--------',$
-                                '--------','--------','-----',format='(A-5,A12,5A8,A5)'
+            printf,lun_stats,lineofdashes
          endif
          printf,lun_stats,'  HST image (rotated, trimmed, convolved, rebinned)'
          printf,lun_stats,'    In pixels: ',$
@@ -5008,11 +5556,9 @@ pro ifsf_makemaps,initproc
    if tag_exist(initmaps,'ct') then begin
       if tag_exist(initmaps.ct,'fitifspeak') then begin
          if not did_distance_intro then begin
-            printf,lun_stats,'-----','------------','--------','--------','--------',$
-                             '--------','--------','-----',format='(A-5,A12,5A8,A5)'
+            printf,lun_stats,lineofdashes
             printf,lun_stats,'Distances between assumed peak and actual (fitted) peak'
-            printf,lun_stats,'-----','------------','--------','--------','--------',$
-                             '--------','--------','-----',format='(A-5,A12,5A8,A5)'
+            printf,lun_stats,lineofdashes
          endif
          printf,lun_stats,'  IFS continuum'
          printf,lun_stats,'    In pixels: ',$
@@ -5037,192 +5583,363 @@ pro ifsf_makemaps,initproc
             
       endif
    endif
- 
-   if tag_exist(initdat,'donad') then begin
 
-   printf,lun_stats,'-----','------------','--------','--------','--------',$
-          '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-   printf,lun_stats,'ABSORPTION'
-   printf,lun_stats,'-----','------------','--------','--------','--------',$
-          '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-   printf,lun_stats,'#Cmp','Quantity','Mean','Median','Min','Max','StdDev','#',$
-          format='(A-5,A12,5A8,A5)'
-   printf,lun_stats,'-----','------------','--------','--------','--------',$
-          '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-   icomp = 0
-   arr = cvd_nad_pars.v50
-   igd = where(arr ne bad,ctgd)
-   arr = arr[igd]
-   printf,lun_stats,string(icomp,format='(I0)'),'Vel',mean(arr),median(arr),$
-          min(arr),max(arr),stddev(arr),ctgd,$
-          format='(A-5,A12,5D8.0,I5)'
-   a_vel_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
-   arr = cvd_nad_pars.sig
-   igd = where(arr ne bad)
-   arr = arr[igd] * 2d * sqrt(2d*alog(2d))
-   printf,lun_stats,string(icomp,format='(I0)'),'FWHM',mean(arr),median(arr),$
-          min(arr),max(arr),stddev(arr),ctgd,$
-          format='(A-5,A12,5D8.0,I5)'
-   a_fwhm_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
-   arr = cvd_nad_pars.v98
-   igd = where(arr ne bad)
-   arr = arr[igd]
-   printf,lun_stats,string(icomp,format='(I0)'),'V98',mean(arr),median(arr),$
-          min(arr),max(arr),stddev(arr),ctgd,$
-          format='(A-5,A12,5D8.0,I5)'
-   a_v98_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
 
-   if tag_exist(initmaps,'compof') then begin
-      printf,lun_stats,$
-             '-----','------------','--------','--------','--------',$
-             '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-      printf,lun_stats,'CRFW model'
-      printf,lun_stats,$
-             '-----','------------','--------','--------','--------','--------',$
-             '--------','-----',format='(A-5,A12,5A8,A5)'
-      printf,lun_stats,$
-             'Total mass: ',string(m_nad,format='(E0.2)'),' M_sun'
-      printf,lun_stats,$
-             'Total mass outflow rate: ',string(dmdt_nad,format='(E0.2)'),$
-             ' M_sun/yr'
-      printf,lun_stats,$
-             'Total momentum: ',string(m_nad,format='(E0.2)'),' dyne s'
-      printf,lun_stats,$
-             'Total momentum outflow rate * c: ',$
-             string(dpdt_nad,format='(E0.2)'),' Lsun'
-      printf,lun_stats,$
-             'Total energy: ',string(e_nad,format='(E0.2)'),' erg'
-      printf,lun_stats,$
-             'Total energy outflow rate: ',$
-             string(dedt_nad,format='(E0.2)'),' erg/s'
-   endif
-
-   endif else begin
-      
-      a_vel_stats = dblarr(6)+bad
-      a_fwhm_stats = dblarr(6)+bad
-      a_v98_stats = dblarr(6)+bad
-      
-   endelse
-
-   if ~ tag_exist(initmaps,'ofparline') then ofparline='Halpha' $
-   else ofparline=initmaps.ofparline
-
-   if ~ tag_exist(initdat,'noemlinfit') then begin
-
-   printf,lun_stats,'-----','------------','--------','--------','--------',$
-                    '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-   printf,lun_stats,'EMISSION'
-   printf,lun_stats,'-----','------------','--------','--------','--------',$
-                    '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-   printf,lun_stats,'CVDF: total'
-   printf,lun_stats,'-----','------------','--------','--------','--------',$
-                    '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-   icomp = 0
-   arr = linspecpars[ofparline].v50
-   igd = where(arr ne bad,ctgd)
-   arr = arr[igd]
-   printf,lun_stats,string(icomp,format='(I0)'),'Vel',mean(arr),median(arr),$
-          min(arr),max(arr),stddev(arr),ctgd,format='(A-5,A12,5D8.0,I5)'
-   e_vel_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
-   arr = linspecpars[ofparline].sig
-   igd = where(arr ne bad,ctgd)
-   arr = arr[igd] * 2d * sqrt(2d*alog(2d))
-   printf,lun_stats,string(icomp,format='(I0)'),'FWHM',mean(arr),median(arr),$
-          min(arr),max(arr),stddev(arr),ctgd,format='(A-5,A12,5D8.0,I5)'
-   e_fwhm_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
-   arr = linspecpars[ofparline].v98
-   igd = where(arr ne bad,ctgd)
-   arr = arr[igd]
-   printf,lun_stats,string(icomp,format='(I0)'),'V98',mean(arr),median(arr),$
-          min(arr),max(arr),stddev(arr),ctgd,format='(A-5,A12,5D8.0,I5)'
-   e_v98_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
-
-   if tag_exist(initmaps,'compof') then begin
-      printf,lun_stats,'-----','------------','--------','--------','--------',$
-                       '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-      printf,lun_stats,'CVDF: outflow only'
-      printf,lun_stats,'-----','------------','--------','--------','--------',$
-                       '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-      icomp = 0
-      arr = ofpars[ofparline].v50
-      igd = where(arr ne bad,ctgd)
-      arr = arr[igd]
-      printf,lun_stats,string(icomp,format='(I0)'),'Vel',mean(arr),median(arr),$
-             min(arr),max(arr),stddev(arr),ctgd,format='(A-5,A12,5D8.0,I5)'
-      e_vel_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
-      arr = ofpars[ofparline].sig
-      igd = where(arr ne bad,ctgd)
-      arr = arr[igd] * 2d * sqrt(2d*alog(2d))
-      printf,lun_stats,string(icomp,format='(I0)'),'FWHM',mean(arr),median(arr),$
-             min(arr),max(arr),stddev(arr),ctgd,format='(A-5,A12,5D8.0,I5)'
-      e_fwhm_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
-      arr = ofpars[ofparline].v98
-      igd = where(arr ne bad,ctgd)
-      arr = arr[igd]
-      printf,lun_stats,string(icomp,format='(I0)'),'V98',mean(arr),median(arr),$
-             min(arr),max(arr),stddev(arr),ctgd,format='(A-5,A12,5D8.0,I5)'
-      e_v98_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
-  
-      printf,lun_stats,$
-             '-----','------------','--------','--------','--------',$
-             '--------','--------','-----',format='(A-5,A12,5A8,A5)'
-      printf,lun_stats,'CRFW model'
-      printf,lun_stats,$
-             '-----','------------','--------','--------','--------','--------',$
-             '--------','-----',format='(A-5,A12,5A8,A5)'
-      printf,lun_stats,$
-             'Total mass: ',string(m_ha,format='(E0.2)'),' M_sun'
-      printf,lun_stats,$
-             'Total mass outflow rate: ',string(dmdt_ha,format='(E0.2)'),$
-             ' M_sun/yr'
-      printf,lun_stats,$
-             'Total momentum: ',string(p_ha,format='(E0.2)'),' dyne s'
-      printf,lun_stats,$
-             'Total momentum outflow rate * c: ',$
-             string(dpdt_ha,format='(E0.2)'),' Lsun'
-      printf,lun_stats,$
-             'Total energy: ',string(e_ha,format='(E0.2)'),' erg'
-      printf,lun_stats,$
-             'Total energy outflow rate: ',$
-             string(dedt_ha,format='(E0.2)'),' erg/s'
-   endif else begin
-            
-      e_vel_stats = dblarr(6)+bad
-      e_fwhm_stats = dblarr(6)+bad
-      e_v98_stats = dblarr(6)+bad
-      e_vel_stats_all = dblarr(6)+bad
-      e_fwhm_stats_all = dblarr(6)+bad
-      e_v98_stats_all = dblarr(6)+bad
-      
-   endelse
-
-   endif else begin
-
+   a_vel_stats = dblarr(6)+bad
+   a_fwhm_stats = dblarr(6)+bad
+   a_v98_stats = dblarr(6)+bad
    e_vel_stats = dblarr(6)+bad
    e_fwhm_stats = dblarr(6)+bad
    e_v98_stats = dblarr(6)+bad
+   a_vel_stats_all = dblarr(6)+bad
+   a_fwhm_stats_all = dblarr(6)+bad
+   a_v98_stats_all = dblarr(6)+bad
    e_vel_stats_all = dblarr(6)+bad
    e_fwhm_stats_all = dblarr(6)+bad
    e_v98_stats_all = dblarr(6)+bad
 
-   endelse
+   map_of_abs = bytarr(dx,dy)
+   a_of_meanxy = dblarr(2)+bad
+   a_of_meanr = bad
+   a_of_meanpa = bad
+   a_of_meanxy_wtv50 = dblarr(2)+bad
+   a_of_meanr_wtv50 = bad
+   a_of_meanpa_wtv50 = bad
+   a_of_meanxy_wtv98 = dblarr(2)+bad
+   a_of_meanr_wtv98 = bad
+   a_of_meanpa_wtv98 = bad
+   a_of_meanxy_wtweq = dblarr(2)+bad
+   a_of_meanr_wtweq = bad
+   a_of_meanpa_wtweq = bad
+   map_of_eml = bytarr(dx,dy)
+   e_of_meanxy = dblarr(2)+bad
+   e_of_meanr = bad
+   e_of_meanpa = bad
+   e_of_meanxy_wtv50 = dblarr(2)+bad
+   e_of_meanr_wtv50 = bad
+   e_of_meanpa_wtv50 = bad
+   e_of_meanxy_wtv98 = dblarr(2)+bad
+   e_of_meanr_wtv98 = bad
+   e_of_meanpa_wtv98 = bad
+   e_of_meanxy_wtflx = dblarr(2)+bad
+   e_of_meanr_wtflx = bad
+   e_of_meanpa_wtflx = bad
+
+   statformat = '(A-5,A12,5D8.0,I5)'
+   if tag_exist(initdat,'donad') then begin
+
+      printf,lun_stats,lineofdashes
+      printf,lun_stats,'ABSORPTION'
+      printf,lun_stats,lineofdashes
+      printf,lun_stats,'All Velocities'
+      printf,lun_stats,lineofdashes
+      printf,lun_stats,'#Cmp','Quantity','Mean','Median','Min','Max','StdDev','#',$
+             format='(A-5,A12,5A8,A5)'
+      printf,lun_stats,lineofdashes
+      icomp = 0
+      arr = abscvdfvals['v%50']
+      igd = where(arr ne bad,ctgd)
+      arr = arr[igd]
+      printf,lun_stats,string(icomp,format='(I0)'),'Vel',mean(arr),median(arr),$
+             min(arr),max(arr),stddev(arr),ctgd,format=statformat
+      a_vel_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+      arr = abscvdfvals['vsig']
+      igd = where(arr ne bad)
+      arr = arr[igd] * 2d * sqrt(2d*alog(2d))
+      printf,lun_stats,string(icomp,format='(I0)'),'FWHM',mean(arr),median(arr),$
+             min(arr),max(arr),stddev(arr),ctgd,format=statformat
+      a_fwhm_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+      arr = abscvdfvals['v%98']
+      igd = where(arr ne bad)
+      arr = arr[igd]
+      printf,lun_stats,string(icomp,format='(I0)'),'V98',mean(arr),median(arr),$
+             min(arr),max(arr),stddev(arr),ctgd,format=statformat
+      a_v98_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+
+      if tag_exist(initmaps,'outflow_abs') then begin
+
+         arr = abscvdfvals['v%50']
+         igd = where(abscvdfvals['v%50'] lt 0 AND $
+                     map_rkpc_ifs lt initmaps.outflow_abs.R,ctgd)
+
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,'Blueshifted Only'
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,'#Cmp','Quantity','Mean','Median','Min','Max','StdDev','#',$
+                format='(A-5,A12,5A8,A5)'
+         printf,lun_stats,lineofdashes
+         icomp = 0
+         arr = abscvdfvals['v%50']
+         igd = where(abscvdfvals['v%50'] lt 0 AND $
+                     map_rkpc_ifs lt initmaps.outflow_abs.R,ctgd)
+         arr = arr[igd]
+         printf,lun_stats,string(icomp,format='(I0)'),'Vel',mean(arr),median(arr),$
+                min(arr),max(arr),stddev(arr),ctgd,format=statformat
+         a_vel_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+         arr = abscvdfvals['vsig']
+         arr = arr[igd] * 2d * sqrt(2d*alog(2d))
+         printf,lun_stats,string(icomp,format='(I0)'),'FWHM',mean(arr),median(arr),$
+                min(arr),max(arr),stddev(arr),ctgd,format=statformat
+         a_fwhm_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+         arr = abscvdfvals['v%98']
+         arr = arr[igd]
+         printf,lun_stats,string(icomp,format='(I0)'),'V98',mean(arr),median(arr),$
+                min(arr),max(arr),stddev(arr),ctgd,format=statformat
+         a_v98_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+      
+;        map of outflow spaxels
+         map_of_abs = bytarr(dx,dy)
+         map_of_abs[igd] = 1b
+
+;        Outflow coordinates
+         a_of_meanxy = [mean(map_x[igd])-center_axes[0],$
+                        mean(map_y[igd])-center_axes[1]]*kpc_per_pix
+         a_of_meanr = sqrt((mean(map_x[igd])-center_axes[0])^2d + $
+                           (mean(map_y[igd])-center_axes[1])^2d)*kpc_per_pix
+         a_of_meanpa = ifsf_pa(mean(map_x[igd])-center_axes[0],$
+                               mean(map_y[igd])-center_axes[1])
+         printf,lun_stats,icomp,'        PAof',a_of_meanpa,format='(I-0,A12,I5)'
+
+         wtv50 = abscvdfvals['v%50',igd]^2d/total(abscvdfvals['v%50',igd]^2d)
+         a_of_meanxy_wtv50 = [mean((map_x[igd]-center_axes[0])*wtv50),$
+                              mean((map_y[igd]-center_axes[1])*wtv50)]*kpc_per_pix*ctgd
+         a_of_meanr_wtv50 = sqrt((mean((map_x[igd]-center_axes[0])*wtv50))^2d + $
+                                 (mean((map_y[igd]-center_axes[1])*wtv50))^2d)*kpc_per_pix*ctgd
+         a_of_meanpa_wtv50 = ifsf_pa(mean((map_x[igd]-center_axes[0])*wtv50),$
+                                     mean((map_y[igd]-center_axes[1])*wtv50))
+         printf,lun_stats,icomp,'       PAv50',a_of_meanpa_wtv50,format='(I-0,A12,I5)'
+
+         wtv98 = abscvdfvals['v%98',igd]^2d/total(abscvdfvals['v%98',igd]^2d)
+         a_of_meanxy_wtv98 = [mean((map_x[igd]-center_axes[0])*wtv98),$
+                              mean((map_y[igd]-center_axes[1])*wtv98)]*kpc_per_pix*ctgd
+         a_of_meanr_wtv98 = sqrt((mean((map_x[igd]-center_axes[0])*wtv98))^2d + $
+                                 (mean((map_y[igd]-center_axes[1])*wtv98))^2d)*kpc_per_pix*ctgd
+         a_of_meanpa_wtv98 = ifsf_pa(mean((map_x[igd]-center_axes[0])*wtv98),$
+                                     mean((map_y[igd]-center_axes[1])*wtv98))
+         printf,lun_stats,icomp,'       PAv98',a_of_meanpa_wtv98,format='(I-0,A12,I5)'
+
+         wtweq = map_nadabs_fitweq[igd]/total(map_nadabs_fitweq[igd])
+         a_of_meanxy_wtweq = [mean((map_x[igd]-center_axes[0])*wtweq),$
+                              mean((map_y[igd]-center_axes[1])*wtweq)]*kpc_per_pix*ctgd
+         a_of_meanr_wtweq = sqrt((mean((map_x[igd]-center_axes[0])*wtweq))^2d + $
+                                 (mean((map_y[igd]-center_axes[1])*wtweq))^2d)*kpc_per_pix*ctgd
+         a_of_meanpa_wtweq = ifsf_pa(mean((map_x[igd]-center_axes[0])*wtweq),$
+                                     mean((map_y[igd]-center_axes[1])*wtweq))
+         printf,lun_stats,icomp,'       PAweq',a_of_meanpa_wtweq,format='(I-0,A12,I5)'
+
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,'CRFW model'
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,$
+                'Rmax(obs)=',string(Rmax_kpc_nad,format='(D0.2)'),' kpc'         
+         printf,lun_stats,$
+                'Rmax(use)=',string(initmaps.outflow_abs.R,format='(D0.2)'),' kpc'
+         printf,lun_stats,$
+                '     M = ',string(m_nad,format='(E0.2)'),' M_sun'
+         printf,lun_stats,$
+                ' dM/dt = ',string(dmdt_nad,format='(E0.2)'),' M_sun/yr'
+         printf,lun_stats,$
+                '     p = ',string(p_nad,format='(E0.2)'),' dyne s'
+         printf,lun_stats,$
+                'dp/dt*c= ',string(dpdt_nad,format='(E0.2)'),' Lsun'
+         printf,lun_stats,$
+                '     E = ',string(e_nad,format='(E0.2)'),' erg'
+         printf,lun_stats,$
+                ' dE/dt = ',string(dedt_nad,format='(E0.2)'),' erg/s'
+
+      endif
+
+   endif
+   if ~ tag_exist(initdat,'noemlinfit') then begin
+
+      printf,lun_stats,lineofdashes
+      printf,lun_stats,'EMISSION'
+      printf,lun_stats,lineofdashes
+      printf,lun_stats,'#Cmp','Quantity','Mean','Median','Min','Max','StdDev','#',$
+        format='(A-5,A12,5A8,A5)'
+
+      for icomp=1,initdat.maxncomp do begin
+         stric = string(icomp,format='(I0)')
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,'Component ',stric
+         printf,lun_stats,lineofdashes
+         arr = emlvel['v%50c'+stric,ofcompline]
+         igd = where(arr ne bad,ctgd)
+         arr = arr[igd]
+         printf,lun_stats,stric,'v%50',mean(arr),median(arr),$
+                min(arr),max(arr),stddev(arr),ctgd,format=statformat
+         if tag_exist(initmaps,'outflow_eml') AND icomp eq 2 then $
+            e_vel_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+         arr = emlvel['vsigc'+stric,ofcompline]
+         igd = where(arr ne bad,ctgd)
+         arr = arr[igd] * 2d * sqrt(2d*alog(2d))
+         printf,lun_stats,string(icomp,format='(I0)'),'FWHM',mean(arr),median(arr),$
+                min(arr),max(arr),stddev(arr),ctgd,format=statformat
+         if tag_exist(initmaps,'outflow_eml') AND icomp eq 2 then $
+            e_fwhm_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+         arr = emlvel['v%98c'+stric,ofcompline]
+         igd = where(arr ne bad,ctgd)
+         arr = arr[igd]
+         printf,lun_stats,string(icomp,format='(I0)'),'V98',mean(arr),median(arr),$
+                min(arr),max(arr),stddev(arr),ctgd,format=statformat
+         if tag_exist(initmaps,'outflow_eml') AND icomp eq 2 then $
+            e_v98_stats_all = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+
+         if tag_exist(initmaps,'outflow_eml') AND icomp eq 2 then begin
+          
+            stric = string(icomp,format='(I0)')
+            printf,lun_stats,lineofdashes
+            printf,lun_stats,'Component ',stric,', Outflow Only'
+            printf,lun_stats,lineofdashes
+            arrv50 = emlvel['v%50c'+stric,ofcompline]
+            arrv98 = emlvel['v%98c'+stric,ofcompline]
+            if tag_exist(initmaps.outflow_eml,'usered') then begin
+               igdblue = where(arrv50 lt 0 AND $
+                               map_rkpc_ifs lt initmaps.outflow_eml.R,ctgdblue)
+               igdred = where(arrv50 ne bad AND arrv50 ge 0 AND $
+                              map_rkpc_ifs lt initmaps.outflow_eml.R,ctgdred)
+               if ctgdred gt 0 then begin
+                  arrv50[igdred] *= -1d
+                  arrv98[igdred] *= -1d
+               endif
+               if ctgdblue gt 0 then igd = [igdblue,igdred] else igd = igdred
+            endif else begin
+               igd = where(arrv50 lt 0 AND $
+                           map_rkpc_ifs lt initmaps.outflow_eml.R,ctgd)
+            endelse
+            arr = arrv50
+            arr = arr[igd]
+            printf,lun_stats,stric,'v%50',mean(arr),median(arr),$
+                   min(arr),max(arr),stddev(arr),ctgd,format=statformat
+            e_vel_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+            arr = emlvel['vsigc'+stric,ofcompline]
+            arr = arr[igd] * 2d * sqrt(2d*alog(2d))
+            printf,lun_stats,string(icomp,format='(I0)'),'FWHM',mean(arr),median(arr),$
+                   min(arr),max(arr),stddev(arr),ctgd,format=statformat
+            e_fwhm_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+            arr = arrv98            
+            arr = arr[igd]
+            printf,lun_stats,string(icomp,format='(I0)'),'V98',mean(arr),median(arr),$
+                   min(arr),max(arr),stddev(arr),ctgd,format=statformat
+            e_v98_stats = [mean(arr),median(arr),stddev(arr),min(arr),max(arr),ctgd]
+
+
+;           Show blueshifted outflow only
+            if tag_exist(initmaps.outflow_eml,'usered') then begin
+               igd = igdblue
+               ctgd = ctgdblue
+            endif
+            
+;           Outflow coordinates
+            e_of_meanxy = [mean(map_x[igd])-center_axes[0],$
+                           mean(map_y[igd])-center_axes[1]]*kpc_per_pix
+            e_of_meanr = sqrt((mean(map_x[igd])-center_axes[0])^2d + $
+                              (mean(map_y[igd])-center_axes[1])^2d)*kpc_per_pix
+            e_of_meanpa = ifsf_pa(mean(map_x[igd])-center_axes[0],$
+                                  mean(map_y[igd])-center_axes[1])
+            printf,lun_stats,icomp,'        PAof',e_of_meanpa,format='(I-0,A12,I5)'
+
+            wtv50 = emlvel['v%50c'+stric,ofcompline,igd]^2d/$
+                    total(emlvel['v%50c'+stric,ofcompline,igd]^2d)
+            e_of_meanxy_wtv50 = [mean((map_x[igd]-center_axes[0])*wtv50),$
+                                 mean((map_y[igd]-center_axes[1])*wtv50)]*kpc_per_pix*ctgd
+            e_of_meanr_wtv50 = sqrt((mean((map_x[igd]-center_axes[0])*wtv50))^2d + $
+                                    (mean((map_y[igd]-center_axes[1])*wtv50))^2d)*kpc_per_pix*ctgd
+            e_of_meanpa_wtv50 = ifsf_pa(mean((map_x[igd]-center_axes[0])*wtv50),$
+                                        mean((map_y[igd]-center_axes[1])*wtv50))
+            printf,lun_stats,icomp,'       PAv50',e_of_meanpa_wtv50,format='(I-0,A12,I5)'
+
+            wtv98 = emlvel['v%98c'+stric,ofcompline,igd]^2d/$
+                    total(emlvel['v%98c'+stric,ofcompline,igd]^2d)
+            e_of_meanxy_wtv98 = [mean((map_x[igd]-center_axes[0])*wtv98),$
+                                 mean((map_y[igd]-center_axes[1])*wtv98)]*kpc_per_pix*ctgd
+            e_of_meanr_wtv98 = sqrt((mean((map_x[igd]-center_axes[0])*wtv98))^2d + $
+                                    (mean((map_y[igd]-center_axes[1])*wtv98))^2d)*kpc_per_pix*ctgd
+            e_of_meanpa_wtv98 = ifsf_pa(mean((map_x[igd]-center_axes[0])*wtv98),$
+                                        mean((map_y[igd]-center_axes[1])*wtv98))
+            printf,lun_stats,icomp,'       PAv98',e_of_meanpa_wtv98,format='(I-0,A12,I5)'
+            
+            wtflx = emlflx['fc'+stric,ofcompline,igd]/$
+                    total(emlflx['fc'+stric,ofcompline,igd])
+            e_of_meanxy_wtflx = [mean((map_x[igd]-center_axes[0])*wtflx),$
+                                 mean((map_y[igd]-center_axes[1])*wtflx)]*kpc_per_pix*ctgd
+            e_of_meanr_wtflx = sqrt((mean((map_x[igd]-center_axes[0])*wtflx))^2d + $
+                                    (mean((map_y[igd]-center_axes[1])*wtflx))^2d)*kpc_per_pix*ctgd
+            e_of_meanpa_wtflx = ifsf_pa(mean((map_x[igd]-center_axes[0])*wtflx),$
+                                        mean((map_y[igd]-center_axes[1])*wtflx))
+            printf,lun_stats,icomp,'       PAflx',e_of_meanpa_wtflx,format='(I-0,A12,I5)'
+
+
+;           map of outflow spaxels
+            map_of_eml = bytarr(dx,dy)
+            map_of_eml[igd] = 1b
+            
+         endif
+
+      endfor
+
+      if tag_exist(initmaps,'outflow_eml') then begin
+
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,'CRFW model'
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,$
+                'Rmax(obs)=',string(Rmax_kpc_ha,format='(D0.2)'),' kpc'         
+         printf,lun_stats,$
+                'Rmax(use)=',string(initmaps.outflow_eml.R,format='(D0.2)'),' kpc'
+         printf,lun_stats,$
+                '      M = ',string(m_ha,format='(E0.2)'),' M_sun'
+         printf,lun_stats,$
+                '  dM/dt = ',string(dmdt_ha,format='(E0.2)'),' M_sun/yr'
+         printf,lun_stats,$
+                '      p = ',string(p_ha,format='(E0.2)'),' dyne s'
+         printf,lun_stats,$
+                ' dp/dt*c= ',string(dpdt_ha,format='(E0.2)'),' Lsun'
+         printf,lun_stats,$
+                '      E = ',string(e_ha,format='(E0.2)'),' erg'
+         printf,lun_stats,$
+                '  dE/dt = ',string(dedt_ha,format='(E0.2)'),' erg/s'
+
+      endif
+
+
+      if linelist.haskey('Halpha') then line = 'Halpha' $
+      else if linelist.haskey('Hbeta') then line = 'Hbeta' $
+      else line = ''
+      if line ne '' then begin
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,'Emission line fluxes [log(erg/s/cm^-2)]'
+         printf,lun_stats,lineofdashes
+         printf,lun_stats,line,'total',alog10(emlflxsums['tot_ext',line]),$
+                alog10(emlflxsums['tot_unext_pp',line]),$
+                alog10(emlflxsums['tot_unext_med',line]),$
+                format='(2A10,3D8.2)'             
+         printf,lun_stats,line,'outflow',alog10(emlflxsums['of_ext',line]),$
+                alog10(emlflxsums['of_unext_pp',line]),$
+                alog10(emlflxsums['of_unext_med',line]),$
+                format='(2A10,3D8.2)'
+      endif
+
+   endif
 
    free_lun,lun_stats
+   if tag_exist(initmaps,'outflow_eml') then nem = 0 else nem = -1
 
-   if tag_exist(initmaps,'compof') then nem = 0 else nem = -1
    windstr = {$
               nem: nem,$
 ;             Statistics
               a_vel_stats: a_vel_stats,$
               a_fwhm_stats: a_fwhm_stats,$
               a_v98_stats: a_v98_stats, $
-              e_vel_stats_all: e_vel_stats_all,$
-              e_fwhm_stats_all: e_fwhm_stats_all,$
-              e_v98_stats_all: e_v98_stats_all,$
               e_vel_stats: e_vel_stats,$
               e_fwhm_stats: e_fwhm_stats,$
               e_v98_stats: e_v98_stats,$
+              a_vel_stats_all: a_vel_stats_all,$
+              a_fwhm_stats_all: a_fwhm_stats_all,$
+              a_v98_stats_all: a_v98_stats_all, $
+              e_vel_stats_all: e_vel_stats_all,$
+              e_fwhm_stats_all: e_fwhm_stats_all,$
+              e_v98_stats_all: e_v98_stats_all,$
 ;             CRFW results
               a_m:m_nad,$
               a_dmdt:dmdt_nad,$
@@ -5230,12 +5947,71 @@ pro ifsf_makemaps,initproc
               a_dpdt:dpdt_nad,$
               a_e:e_nad,$
               a_dedt:dedt_nad,$
+              a_m_err:m_err_nad,$
+              a_dmdt_err:dmdt_err_nad,$
+              a_p_err:p_err_nad,$
+              a_dpdt_err:dpdt_err_nad,$
+              a_e_err:e_err_nad,$
+              a_dedt_err:dedt_err_nad,$
+              a_Rmax:Rmax_kpc_nad,$
               e_m:m_ha,$
               e_dmdt:dmdt_ha,$
               e_p:p_ha,$
               e_dpdt:dpdt_ha,$
               e_e:e_ha,$
-              e_dedt:dedt_ha $
+              e_dedt:dedt_ha, $
+              e_m_err:m_err_ha,$
+              e_dmdt_err:dmdt_err_ha,$
+              e_p_err:p_err_ha,$
+              e_dpdt_err:dpdt_err_ha,$
+              e_e_err:e_err_ha,$
+              e_dedt_err:dedt_err_ha,$
+              e_Rmax:Rmax_kpc_ha,$
+;             Misc
+              ofcompline: ofcompline,$
+              e_of_flx: e_of_flx,$
+;             Coordinates
+              a_of: map_of_abs,$
+              a_of_meanxy: a_of_meanxy,$
+              a_of_meanr: a_of_meanr,$
+              a_of_meanpa: a_of_meanpa,$
+              a_of_meanxy_wtv50: a_of_meanxy_wtv50,$
+              a_of_meanr_wtv50: a_of_meanr_wtv50,$
+              a_of_meanpa_wtv50: a_of_meanpa_wtv50,$
+              a_of_meanxy_wtv98: a_of_meanxy_wtv98,$
+              a_of_meanr_wtv98: a_of_meanr_wtv98,$
+              a_of_meanpa_wtv98: a_of_meanpa_wtv98,$
+              a_of_meanxy_wtweq: a_of_meanxy_wtweq,$
+              a_of_meanr_wtweq: a_of_meanr_wtweq,$
+              a_of_meanpa_wtweq: a_of_meanpa_wtweq,$
+              e_of: map_of_eml,$
+              e_of_meanxy: e_of_meanxy,$
+              e_of_meanr: e_of_meanr,$
+              e_of_meanpa: e_of_meanpa,$
+              e_of_meanxy_wtv50: e_of_meanxy_wtv50,$
+              e_of_meanr_wtv50: e_of_meanr_wtv50,$
+              e_of_meanpa_wtv50: e_of_meanpa_wtv50,$
+              e_of_meanxy_wtv98: e_of_meanxy_wtv98,$
+              e_of_meanr_wtv98: e_of_meanr_wtv98,$
+              e_of_meanpa_wtv98: e_of_meanpa_wtv98,$
+              e_of_meanxy_wtflx: e_of_meanxy_wtflx,$
+              e_of_meanr_wtflx: e_of_meanr_wtflx,$
+              e_of_meanpa_wtflx: e_of_meanpa_wtflx,$
+;             Maps
+              a_vel: nadabsvel, $
+              a_v98: nadabsv98, $
+              ibd_nadabs_fitweq: ibd_nadabs_fitweq,$
+              igd_nadabs_fitweq: igd_nadabs_fitweq,$
+              e_vel: emlvel, $
+              e_flx: emlflx, $
+              ebv: ebv, $
+              ebverr: ebverr, $
+              dx: dx,$
+              dy: dy,$
+              xran_kpc: xran_kpc,$
+              yran_kpc: yran_kpc,$
+              center_nuclei_kpc_x: center_nuclei_kpc_x,$
+              center_nuclei_kpc_y: center_nuclei_kpc_y $
              }
    save,windstr,file=initdat.mapdir+initdat.label+'.xdr'
 
@@ -5256,8 +6032,8 @@ pro ifsf_makemaps,initproc
                center_nuclei: center_nuclei,$
                center_nuclei_kpc_x: center_nuclei_kpc_x,$
                center_nuclei_kpc_y: center_nuclei_kpc_y,$
-               aspectrat: aspectrat,$
-               xsec_endpoints: xsec_endpoints}
+               aspectrat: aspectrat}
+;               xsec_endpoints: xsec_endpoints}
 
    if tag_exist(initmaps,'fcn_oplots') then begin
       if tag_exist(initmaps,'tags_oplots') then begin
@@ -5273,7 +6049,5 @@ pro ifsf_makemaps,initproc
          call_procedure,initmaps.fcn_oplots,initdat,initmaps,plotinfo
       endelse
    endif
-
-badinput:
 
 end
