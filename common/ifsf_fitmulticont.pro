@@ -1,4 +1,3 @@
-; docformat = 'rst'
 ;
 ;+
 ;
@@ -90,10 +89,15 @@ function ifsf_fitmulticont,lambda,flux,weight,template_lambdaz,$
       tmplambda = lambda[jlo:jhi]
       tmpflux = flux[jlo:jhi]
       tmpweight = weight[jlo:jhi]
+      if template_lambdaz ne !NULL then $
+         tmp_template_lambdaz = template_lambdaz[jlo:jhi]
+      if template_flux ne !NULL then $
+         tmp_template_flux = template_flux[jlo:jhi]
       tmpindex = index[where(index ge jlo AND index le jhi)]
       tmpindex -= jlo
       tmpcont = call_function(fitfcn[i],tmplambda,tmpflux,tmpweight,$
-                              template_flux,tmpindex,ct_coeff,quiet=quiet,$
+                              tmp_template_lambdaz,tmp_template_flux,tmpindex,$
+                              ct_coeff,quiet=quiet,$
                               _extra=fitargs[string('reg',i+1,format='(A0,I0)')])
       continuum[jlo:jhi] = tmpcont
    endfor

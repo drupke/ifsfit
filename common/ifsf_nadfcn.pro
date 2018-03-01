@@ -53,6 +53,8 @@
 ;                       outputs; added optional computation of Weq and emission
 ;                       line flux
 ;      2016nov03, DSNR, added convolution with spectral resolution
+;      2017may18, DSNR, upsample spectra to avoid undersampling model in case of
+;                       v. narrow components
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014--2016 David S. N. Rupke
@@ -77,6 +79,8 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
                       cont=cont, specres=specres, wavnadabs=wavnadabs, $
                       wavhei=wavhei
 
+
+
    c = 299792.458d
    fwhmtosig = 2d*sqrt(2d*alog(2d))
 ;  NaD wavelength ratio (red to blue)
@@ -87,21 +91,44 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    nnadabs = param[1]
    nnadem = param[2]
 
+;  Upsample wave
    nwave = n_elements(wave)
+;  [Upsample must be odd.] This is the factor by which to "upsample" the 
+;  spectra (opposite of bin!) for the model computation. Problem for cases 
+;  where sigma << spectral resolution.
+;  Factor here should be high enough that model contains say ~10 points within
+;  mean +/- 2.5 sigma (99.8% of area). So if minimum possible sigma = 5 km/s,
+;  upsample = 7, native dispersion = 0.44 (as for WiFeS), and a line at 6000 A,
+;  then there is a point every 3 km/s, vs. 5-sigma = 25 km/s for the line.
+   fac_upsample = 7
+   waveuse = rebin(reform(wave,nwave),nwave*fac_upsample)
+   nwaveuse = n_elements(waveuse)
+;   waveuse = waveuse[0:nwaveuse-fac_upsample]
+;   nwaveuse -= fac_upsample-1
+
    dwave = wave[1:nwave-1] - wave[0:nwave-2]
+   dwaveuse = waveuse[1:nwaveuse-1] - waveuse[0:nwaveuse-2]
+
+;  Indices for downsampling back to original resolution
+   dslo = ceil(double(fac_upsample)/2d)
+   dshi = nwaveuse-(1+floor(double(fac_upsample)/2d))
 
 ;  HeI emission
-   modflux = dblarr(nwave)+1d
+   modflux = dblarr(nwaveuse)+1d
    if nhei gt 0 then begin
       wavhei=dblarr(nhei)
+      modheiuse=dblarr(nwaveuse,nhei)+1d
       modhei=dblarr(nwave,nhei)+1d
       for i=0,nhei-1 do begin
          wavhei[i]=param[3+i*3]
-         arg = ((wave-param[3+i*3])/$
-               (2d*param[3+i*3]*param[4+i*3]/c))^2d
+;         sigma = sqrt((param[3+i*3]*param[4+i*3]/c)^2d + specres^2d)
+         sigma = sqrt((param[3+i*3]*param[4+i*3]/c)^2d)
+         arg = ((waveuse-param[3+i*3])/(2d*sigma))^2d
          mask = (arg lt 80)
-         modhei[*,i]+=param[5+i*3]*mask*exp(-arg*mask)
+         modheiuse[*,i]+=param[5+i*3]*mask*exp(-arg*mask)
          modflux+=param[5+i*3]*mask*exp(-arg*mask)
+         modtmphei = rebin(modheiuse[dslo:dshi,i],nwave-1)
+         modhei[*,i] = [modtmphei[0],modtmphei]
       endfor
    endif else begin
       wavhei=0
@@ -109,31 +136,42 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    endelse
 ;  NaD emission
    ilo = 3+nhei*3+nnadabs*4
-   if nnadem gt 0 then modnadem=dblarr(nwave,nnadem)+1d else modnadem=0
+   if nnadem gt 0 then begin
+      modnademuse=dblarr(nwaveuse,nnadem)+1d
+      modnadem=dblarr(nwave,nnadem)+1d
+   endif else modnadem=0d
    for i=0,nnadem-1 do begin
-      arg1 = ((wave-param[ilo+i*4])/$
-             (2d*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
-      arg2 = ((lratio * wave-param[ilo+i*4])/$
-             (2d*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
+;      sigma = sqrt((param[ilo+i*4]*param[1+ilo+i*4]/c)^2d + specres^2d)
+      sigma = sqrt((param[ilo+i*4]*param[1+ilo+i*4]/c)^2d)
+      arg1 = ((waveuse-param[ilo+i*4])/(2d*sigma))^2d
+      arg2 = ((lratio * waveuse-param[ilo+i*4])/(2d*sigma))^2d
       mask1 = (arg1 lt 80)
       mask2 = (arg2 lt 80)
-      modnadem[*,i]+=param[2+ilo+i*4]*(mask1*exp(-arg1*mask1) + $
-                                       param[3+ilo+i*4]*mask2*exp(-arg2*mask2))
+      modnademuse[*,i]+=param[2+ilo+i*4]*(mask1*exp(-arg1*mask1) + $
+                                          param[3+ilo+i*4]*mask2*exp(-arg2*mask2))
       modflux+=param[2+ilo+i*4]*(mask1*exp(-arg1*mask1) + $
-                                 param[3+ilo+i*4]*mask2*exp(-arg2*mask2))      
+                                 param[3+ilo+i*4]*mask2*exp(-arg2*mask2))
+      modtmpnadem = rebin(modnademuse[dslo:dshi,i],nwave-1)
+      modnadem[*,i] = [modtmpnadem[0],modtmpnadem]
    endfor
 ;  NaD absorption
    ilo = 3+nhei*3
    if nnadabs gt 0 then begin
+      modnadabsuse = dblarr(nwaveuse,nnadabs)+1d
       modnadabs = dblarr(nwave,nnadabs)+1d
       wavnadabs = dblarr(nnadabs)
+      modtmpuse = dblarr(nwaveuse)+1d
       modtmp = dblarr(nwave)+1d
       for i=0,nnadabs-1 do begin
          wavnadabs[i] = param[ilo+i*4+2]
-         modnadabs[*,i]*=ifsf_cmpnad(wave,param[ilo+i*4:ilo+(i+1)*4-1])
-         modtmp*=ifsf_cmpnad(wave,param[ilo+i*4:ilo+(i+1)*4-1])
+         modnadabsuse[*,i]*=ifsf_cmpnad(waveuse,param[ilo+i*4:ilo+(i+1)*4-1])
+         modtmpuse*=ifsf_cmpnad(waveuse,param[ilo+i*4:ilo+(i+1)*4-1])
+         modtmpnadabs = rebin(modnadabsuse[dslo:dshi,i],nwave-1)
+         modnadabs[*,i] = [modtmpnadabs[0],modtmpnadabs]
       endfor
-      modflux *= modtmp
+      modflux *= modtmpuse
+      modtmptmp = rebin(modtmpuse[dslo:dshi],nwave-1)
+      modtmp = [modtmptmp[0],modtmptmp]
    endif else begin
       wavnadabs=0
       modnadabs=0
@@ -158,7 +196,6 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
       weq = {em: emweq,abs: absweq}
    endif
    if keyword_set(nademflux) AND keyword_set(cont) then begin
-      dwave = wave[1:nwave-1] - wave[0:nwave-2]
       if nnadem gt 0 then begin
          nademflux = dblarr(nnadem+1)
          for i=0,nnadem-1 do $
@@ -169,12 +206,16 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    endif else nademflux=0d
 
 ;  Convolve model with line spread function, represented by a Gaussian
-   fwhm_pix = specres*fwhmtosig/mean(dwave)
+   fwhm_pix = specres*fwhmtosig/mean(dwaveuse)
    npix = fix(fwhm_pix*5d)
    if not npix then npix++
    kernel = psf_gaussian(npix=npix,ndim=1,/double,fwhm=fwhm_pix)
    modflux_con = convol(modflux,kernel,/normalize,/edge_mirror)
-
-   return,modflux_con
+   
+;  Downsample back to original resolution
+   modflux_con_ds = rebin(modflux_con[dslo:dshi],nwave-1)
+   modflux_con_ds = [modflux_con_ds[0],modflux_con_ds]
+   
+   return,modflux_con_ds
 
 end

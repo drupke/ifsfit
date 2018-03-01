@@ -124,7 +124,9 @@
 ;-
 function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
                        hstrefcoords,scllim,hstps=hstps,ifsbounds=ifsbounds,$
-                       fov=fov,sclargs=sclargs,noscl=noscl
+                       fov=fov,sclargs=sclargs,noscl=noscl,badmask=badmask
+                       
+   bad = 1d99
                        
 ;  HST platescale, in arcseconds
    if ~ keyword_set(hstps) then hstps = 0.05d
@@ -219,8 +221,13 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
 ;     is in zero-offset coordinates but I tested it.) Rotation can't be 
 ;     around a non-integer pixel center. The pivot keyword is unnecessary
 ;     since we've defined rsc_hs to be the center of the subimage.
-      hst_subim = rot(hst_subim,ifspa,1d,rsc_hs[0],rsc_hs[1],cubic=-0.5,$
-                      /pivot)
+;     Do nearest-neighbor interpolation if it's a bad pixel mask.
+      if keyword_set(badmask) then $
+         hst_subim = rot(hst_subim,ifspa,1d,rsc_hs[0],rsc_hs[1],$
+                         /pivot) $
+      else $
+         hst_subim = rot(hst_subim,ifspa,1d,rsc_hs[0],rsc_hs[1],cubic=-0.5,$
+                         /pivot)
 
 ;     Rotated coordinates
       ric_hsrr = rotmatcw # ric_hsr
@@ -249,7 +256,11 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
       shift = -(ric_hsrrr - double(round(ric_hsrrr)))
       if not round(ifsdims_hstpix[0]) then shift[0]-=0.5d
       if not round(ifsdims_hstpix[1]) then shift[1]-=0.5d
-      hst_subim = sshiftrotate(hst_subim,0d,xshift=shift[0],yshift=shift[1])
+      if keyword_set(badmask) then $
+         hst_subim = sshiftrotate(hst_subim,0d,xsh=round(shift[0]),$
+                                  ysh=round(shift[1])) $
+      else $
+        hst_subim = sshiftrotate(hst_subim,0d,xsh=shift[0],ysh=shift[1])
       ric_hsrrrs = ric_hsrrr + shift
          
 ;7. Extract IFS field from subimage.
@@ -283,6 +294,9 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
          ifsps/hstps*rotmatccw # ([0d,double(ifsdims[1])]-0.5d - rref_i) + rref_h - $
          double([subimcrd[0],subimcrd[2]])
    endif
+
+;  Make sure it's a byte scaled image if requested
+   if ~ keyword_set(noscl) then hst_subim = byte(hst_subim)
 
    return,hst_subim
    

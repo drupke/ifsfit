@@ -63,7 +63,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitspline,lambda,flux,weight,template_flux,index,$
+function ifsf_fitspline,lambda,flux,weight,template_wave,template_flux,index,$
                         ct_coeff,quiet=quiet,refit=refit,argsbkpts=argsbkpts
                         
 

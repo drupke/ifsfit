@@ -90,6 +90,11 @@ function ifsf_doubletfcn, wave, param,$
          LogLF = 2.136d -1.834d
          tratio = 10d^LogLF
          lratio = 1037.6167d/1031.9261d
+      endif else if doubletname eq 'PV' then begin
+;        Data from Morton 2003
+         LogLF = 2.722d -2.420d
+         tratio = 10d^LogLF
+         lratio = 1128.0078d/1117.9774d
       endif
    endif else begin
       doubletname = 'NV'

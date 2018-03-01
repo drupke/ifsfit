@@ -75,13 +75,16 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_linelist,inlines,linelab=linelab,all=all
+function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
 
 ;  Associated line labels:
    lines = hash()
 
 ;  IR lines (vacuum)
    lines['Paa'] = 18756d
+   lines['Pab'] = 12821.578d
+   lines['Pag'] = 10941.17d
+   lines['Pad'] = 10052.6d
    lines['Brg'] = 21661d
    lines['Brd'] = 19451d
    lines['Bre'] = 18181d
@@ -92,6 +95,19 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
    lines['H2_10_S5'] = 18358d
    lines['HeI206'] = 20587d
    lines['HeI187'] = 18691d
+   lines['HeI108'] = 10833d
+   lines['HeI108a'] = 10832.057472d
+   lines['HeI108b'] = 10833.216751d
+   lines['HeI108c'] = 10833.306444d
+   lines['[ArIII]7138'] = 7137.77d
+   lines['[ArIII]7753'] = 7753.19d
+   lines['[SIII]9071'] = 9071.1d
+   lines['[SIII]9533'] = 9533.2d   
+   lines['[SII]103'] = 10329d
+   lines['[SII]103a'] = 10289.55d
+   lines['[SII]103b'] = 10323.32d
+   lines['[SII]103c'] = 10329.24d
+   lines['[SII]103d'] = 10373.33d
    lines['[SiVI]196'] = 19646d
    
 ;  Optical lines
@@ -107,6 +123,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
    lines['HeI7065'] = 7065.19d
    lines['HeII4686'] = 4686.7d
    lines['[NeIII]3869'] = 3868.76d
+   lines['[NeIII]3967'] = 3967.47d
    lines['[NI]5198'] = 5197.90d
    lines['[NI]5200'] = 5200.26d
    lines['[NI]5198+[NI]5200'] = (5197.90d + 5200.26d)/2d
@@ -266,8 +283,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
    lines['PII1301'] = 1301.87d
    lines['PIII917'] = 917.120d
    lines['PIV950'] = 950.655d ; added by DSNR; high f_jk
-   lines['PV1117'] = 1117.98d
-   lines['PV1128'] = 1128.01d
+   lines['PV1117'] = 1117.9774d
+   lines['PV1128'] = 1128.0078d
    
 ;  Includes all S lines from P01 up to lambda = 1600 A
    lines['SII1250'] = 1250.578d
@@ -293,11 +310,118 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
    
 ;   lines['SnII1400'] = 1400.454d ; T only
  
+;  Lines seen in
+;     Vestergaard & Wilkes 01
+;     Veilleux 02 ASP Conf. Ser.
+;     Vanden Berk+01
+;  Wavelengths in vacuum from NIST ASD
+
+;  add HeI lines ...
+   lines['HeII1640'] = 1640.4d ; several lines
+   ; (up to 7? from 1640.33 to 1640.53), according to NIST ASD
+   lines['HeII2734'] = 2734.1d ; several lines
+   ; (up to 13? from 2733.99 to 2734.16), according to NIST ASD
+
+;  check whether allowed or intercombination or forbidden
+   lines['NIII1747'] = 1747.848d
+   lines['NIII1751a'] = 1751.218d
+   lines['NIII1751b'] = 1751.657d
+
+;  add CII] lines ...
+   lines['[CIII]1906'] = 1906.683d
+   lines['CIII]1908'] = 1908.734d
+
+;  add [NeIV] 1601 lines ...
+   lines['[NeIV]2422'] = 2422.561d ; [M1] or [E2]
+   lines['[NeIV]2425'] = 2425.139d ; [M1+E2]
+
+   lines['[SiIII]1883'] = 1882.7d ; from Laor+97
+   lines['SiIII]1892'] = 1892.03d ; from http://astronomy.nmsu.edu/drewski/tableofemissionlines.html
+
+;  check wavelengths
+   lines['[OII]2470'] = 2470.966d
+   lines['[OII]2471'] = 2471.088d
+
+;  add [OIII] lines
+
+   lines['[FeIV]2568a'] = 2568.17d ; A = 3.8e-2 [M1]
+   lines['[FeIV]2568b'] = 2568.38d ; A = 5.1e-2 [M1]
+   lines['[FeIV]2830'] = 2830.19d ; A = 8.8e-1 [M1]
+   lines['[FeIV]2836'] = 2836.57 ; A = 1.4 [M1]
+   lines['[FeV]2708'] = 2708.2d ; A = 2.5e-1 [M1]
+   lines['[FeVI]2145'] = 2145.75d ; A = 2.2e-1 [M1]; 4.5e-3 [E2]
+   lines['[FeVI]2163'] = 2163.69d ; A = 6.6e-4 [E2]
+   lines['[FeXI]2649'] = 2649.50d ; A = 92 [M1] ; 1.5e-1 [E2]
+   lines['[FeXII]2405'] = 2405.8d ; A = 48 [M1]; 4.0e-2 [E2]
+
+;  check wavelengths
+   lines['[MgVI]1805'] = 1805.96d ; a guess!
+   lines['[MgVII]2509'] = 2509.2d ; a guess! lower level close to but not at ground state
+   lines['[MgVII]2629'] = 2629.1d ; a guess! lower level close to but not at ground state
+   lines['[MgV]2782'] = 2782.7d 
+   lines['[MgV]2928'] = 2928.0d ; a guess! lower level close to but not at ground state
+
+;  check wavelengths
+   lines['[ArIV]2853'] = 2853.67d
+   lines['[ArIV]2868'] = 2868.21d
+
+;  check wavelengths
+   lines['[CaVI]2214'] = 2214.51d
+   lines['[CaVI]2242'] = 2242.13d
+
+;  add NaV lines ...
+
+;  resonant lines
+;  from P01 -- wavelengths from NIST ASD, f values from P01
+   lines['MgI2025'] = 2025.824d ; f = 0.112 (~16 times smaller than 2852 line)
+   lines['MgII2795'] = 2795.528d ; f = 0.6123
+   lines['MgII2802'] = 2802.704d ; f = 0.3054
+   lines['MgI2852'] = 2852.127d ; f = 1.81
+;  UV3
+   lines['FeII2343'] = 2343.4948d ; f = 0.1140 (~2 times smaller than 2599 line)
+;  UV2
+   lines['FeII2373'] = 2373.73528d; f = 0.0313 (~8 times smaller than 2599 line)
+   lines['FeII2382'] = 2382.03733d; f = 0.320 (larger than 2599 line)
+;  UV1
+   lines['FeII2585'] = 2585.87560d ; f = 0.0691 (~3.5 times smaller than 2599 line)
+   lines['FeII2599'] = 2599.39515d ; f = 0.239
+;  non-resonant lines from Finley+17
+;  UV3
+   lines['FeII*2364'] = 2364.8278d ; goes with 2343
+   lines['FeII*2380'] = 2380.76131d ; goes with 2343
+;  UV2
+   lines['FeII*2395'] = 2395.62504d ; goes with 2373
+;  UV1
+   lines['FeII*2611'] = 2611.87336d ; goes with 2585
+   lines['FeII*2631'] = 2631.32292d ; goes with 2585
+   lines['FeII*2625'] = 2625.66685d ; goes with 2599
+
+;  Al lines from P01 ... check wavelengths and what type of line
+;  add Al II at 2660/2669
+   lines['AlII1670'] = 1670.7874d
+   lines['AlIII1854'] = 1854.7164d
+   lines['AlIII1862'] = 1862.7895d
+
+;  other resonant lines and connected non-resonant lines
+;  see Laha, Keenan, Ferland+16a,b for info. on SiII multiplet
+   lines['SiII1808']  = 1808.00d ; A = 2.54e6
+   lines['SiII*1816'] = 1816.92d ; A = 2.65e6
+   lines['SiII*1817'] = 1817.45d ; A = 3.23e5
+   lines['SiII2329']  = 2329.23d ; A = 2.35e1
+   lines['SiII2335']  = 2335.12d ; A = 5.51e3
+   lines['SiII*2335'] = 2335.33d ; A = 2.44e3
+   lines['SiII*2344'] = 2344.92d ; A = 1.31e3
+   lines['SiII*2350'] = 2350.89d ; A = 4.70e3
+
+
    if keyword_set(linelab) then begin
       linelab = hash()
 
 ;     IR lines
       linelab['Paa'] = 'P$\alpha$'
+      linelab['Pab'] = 'P$\beta$'
+      linelab['Pag'] = 'P$\gamma$'
+      linelab['Pad'] = 'P$\delta$'
       linelab['Brg'] = 'Br$\gamma$'
       linelab['Brd'] = 'Br$\delta$'
       linelab['Bre'] = 'Br$\epsilon$'
@@ -308,6 +432,19 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
       linelab['H2_10_S5'] = 'H$\down2$(1-0) S(5)'
       linelab['HeI206'] = 'HeI 2.06$\mu$m'
       linelab['HeI187'] = 'HeI 1.87$\mu$m'
+      linelab['HeI108'] = 'HeI 1.08$\mu$m'
+      linelab['HeI108a'] = 'HeI 1.08320$\mu$m'
+      linelab['HeI108b'] = 'HeI 1.08332$\mu$m'
+      linelab['HeI108c'] = 'HeI 1.08333$\mu$m'
+      linelab['[ArIII]7138'] = '[ArIII] 7138'
+      linelab['[ArIII]7753'] = '[ArIII] 7753'
+      linelab['[SIII]9071'] = '[SIII] 9071'
+      linelab['[SIII]9533'] = '[SIII] 9533'
+      linelab['[SII]103'] = '[SII] 1.03$\mu$m'
+      linelab['[SII]103a'] = '[SII] 1.0289$\mu$m'
+      linelab['[SII]103b'] = '[SII] 1.0323$\mu$m'
+      linelab['[SII]103c'] = '[SII] 1.0329$\mu$m'
+      linelab['[SII]103d'] = '[SII] 1.0373$\mu$m'
       linelab['[SiVI]196'] = '[SiVI] 1.96$\mu$m'
 
 ;     Optical lines
@@ -323,6 +460,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
       linelab['HeI7065'] = 'HeI 7065'
       linelab['HeII4686'] = 'HeII 4686'
       linelab['[NeIII]3869'] = '[NeIII] 3869'
+      linelab['[NeIII]3967'] = '[NeIII] 3967'
       linelab['[NI]5198'] = '[NI] 5198'
       linelab['[NI]5200'] = '[NI] 5200'
       linelab['[NI]5198+[NI]5200'] = '[NI] 5198, 5200'
@@ -346,6 +484,14 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
       linelab['Mg1b5184'] = 'MgI 5184'
       linelab['NaD2'] = 'NaI 5890'
       linelab['NaD1'] = 'NaI 5896'
+      linelab['OH6287a'] = ''
+      linelab['OH6287b'] = ''
+      linelab['OH6306a'] = ''
+      linelab['OH6306b'] = ''
+      linelab['OH6329a'] = ''
+      linelab['OH6329b'] = ''
+      linelab['OH6356a'] = ''
+      linelab['OH6356b'] = ''
       linelab['OH8344'] = ''
       linelab['OH8399'] = ''
       linelab['OH8430'] = ''
@@ -461,9 +607,90 @@ function ifsf_linelist,inlines,linelab=linelab,all=all
       linelab['SiIV1393'] = 'SiIV 1393'
       linelab['SiIV1402'] = 'SiIV 1402'
 
-;      lines['SnII1400'] = 'SnII 1400'
+      linelab['HeII1640'] = 'HeII 1640'
+      linelab['HeII2734'] = 'HeII 2734'
+
+      linelab['NIII1747'] = 'NIII] 1747'
+      linelab['NIII1751a'] = 'NIII] 1751'
+      linelab['NIII1751b'] = 'NIII] 1751'
+
+      linelab['[CIII]1906'] = '[CIII] 1906'
+      linelab['CIII]1908'] = 'CIII] 1908'
+
+      linelab['[SiIII]1883'] = '[SiIII] 1883'
+      linelab['SiIII]1892'] = 'SiIII] 1892'
+
+      linelab['[NeIV]2422'] = '[NeIV] 2422'
+      linelab['[NeIV]2425'] = '[NeIV] 2425'
+
+      linelab['[OII]2470'] = '[OII] 2470'
+      linelab['[OII]2471'] = '[OII] 2471'
+
+      linelab['[FeIV]2568a'] = '[FeIV] 2568a'
+      linelab['[FeIV]2568b'] = '[FeIV] 2568b'
+      linelab['[FeIV]2830'] = '[FeIV] 2830'
+      linelab['[FeIV]2836'] = '[FeIV] 2836'
+      linelab['[FeV]2708'] = '[FeV] 2708'
+      linelab['[FeVI]2145'] = '[FeVI] 2145'
+      linelab['[FeVI]2163'] = '[FeVI] 2163'
+      linelab['[FeXI]2649'] = '[FeXI] 2649'
+      linelab['[FeXII]2405'] = '[FeXII] 2405'
+
+      linelab['[MgVI]1805'] = '[MgVI] 1805'
+      linelab['[MgVII]2509'] = '[MgVII] 2509'
+      linelab['[MgVII]2629'] = '[MgVII] 2629'
+      linelab['[MgV]2782'] = '[MgV] 2782'
+      linelab['[MgV]2928'] = '[MgV] 2928'
+
+      linelab['[ArIV]2853'] = '[ArIV] 2853'
+      linelab['[ArIV]2868'] = '[ArIV] 2868'
+
+      linelab['[CaVI]2214'] = '[CaVI]2214'
+      linelab['[CaVI]2242'] = '[CaVI]2242'
+
+      linelab['MgI2025'] = 'MgI 2025'
+      linelab['MgII2795'] = 'MgII 2795'
+      linelab['MgII2802'] = 'MgII 2802'
+      linelab['MgI2852'] = 'MgI 2852'
+      linelab['FeII2343'] = 'FeII 2343'
+      linelab['FeII2373'] = 'FeII 2373'
+      linelab['FeII2382'] = 'FeII 2382'
+      linelab['FeII2585'] = 'FeII 2585'
+      linelab['FeII2599'] = 'FeII 2599'
+      linelab['FeII*2364'] = 'FeII* 2364'
+      linelab['FeII*2380'] = 'FeII* 2380'
+      linelab['FeII*2395'] = 'FeII* 2395'
+      linelab['FeII*2611'] = 'FeII* 2611'
+      linelab['FeII*2625'] = 'FeII* 2625'
+      linelab['FeII*2631'] = 'FeII* 2631'
+
+      linelab['AlII1670'] = 'AlII 1670'
+      linelab['AlIII1854'] = 'AlIII 1854'
+      linelab['AlIII1862'] = 'AlIII 1862'
+
+      linelab['SiII1808'] = 'SiII 1808'
+      linelab['SiII*1816'] = 'SiII* 1816'
+      linelab['SiII*1817'] = 'SiII* 1817'
+      linelab['SiII2329'] = 'SiII* 2329'
+      linelab['SiII2335'] = 'SiII 2335'
+      linelab['SiII*2335'] = 'SiII* 2335'
+      linelab['SiII*2344'] = 'SiII* 2344'
+      linelab['SiII*2350'] = 'SiII* 2350'
 
     endif
+
+;  Make sure every line has a label, and vice versa!
+   if keyword_set(linelab) then begin
+      foreach key,lines.keys() do $
+         if ~ linelab.haskey(key) then $
+            print,'IFSF_LINELIST: WARNING: Line ',key,' has no label.'
+      foreach key,linelab.keys() do $
+         if ~ lines.haskey(key) then $
+            print,'IFSF_LINELIST: WARNING: Line label ',key,' has no wavelength.'
+   endif
+   
+   if keyword_set(waveunit) then $
+      foreach key,lines.keys() do lines[key] *= waveunit
 
    if keyword_set(all) then outlines = lines $
    else begin

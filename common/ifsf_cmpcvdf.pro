@@ -74,7 +74,7 @@ function ifsf_cmpcvdf,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
    minexp = alog(min)
 
    modvelran = [-1d4,1d4]
-   modvelstep = 10d
+   modvelstep = 1d
    nmod = (round(modvelran[1]-modvelran[0])/modvelstep)+1
    modvel = dindgen(nmod)
    modvel*=modvelstep

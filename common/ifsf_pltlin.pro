@@ -85,6 +85,10 @@ pro ifsf_pltlin,instr,pltpar,outfile
       !X.tickinterval /= 0.5d4
       !X.minor /= 0.5d4
    endif
+   if tag_exist(pltpar,'meter') then begin
+      !X.tickinterval /= 0.5d10
+      !X.minor /= 0.5d10
+   endif
    pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
                   oxmar=[22,0],oymar=[10,0],xgap=20,ygap=6)
 
@@ -109,7 +113,8 @@ pro ifsf_pltlin,instr,pltpar,outfile
 
   zbase = instr.zstar
 
-   if tag_exist(pltpar,'micron') then wave /= 10000d
+   if tag_exist(pltpar,'micron') then wave /= 1d4
+;   if tag_exist(pltpar,'meter') then wave /= 1d10
 
 ;  Find masked regions during continuum fit
    nmasked = 0 ; # of masked regions
@@ -202,6 +207,8 @@ pro ifsf_pltlin,instr,pltpar,outfile
 
   if tag_exist(pltpar,'micron') then $
     xtit = 'Observed Wavelength ($\mu$m)' $
+  else if tag_exist(pltpar,'meter') then $
+    xtit = 'Observed Wavelength (m)' $
   else $
      xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
   cgtext,0.5,0.02,xtit,/norm,align=0.5,charsize=2,charthick=2

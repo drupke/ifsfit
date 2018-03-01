@@ -157,6 +157,7 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
                         functargs=fcnargs,/noderiv,parinfo=parinfo,$
                         quiet=quiet,status=status,errmsg=errmsg,$
                         itmax=10000,tol=fittol)
+   
    if status eq 0 OR status eq -16 then message,'MPFIT: '+errmsg
    if status eq 5 then message,'MPFIT: Max. iterations reached.',/cont
 

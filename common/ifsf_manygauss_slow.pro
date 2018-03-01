@@ -18,9 +18,12 @@
 ;      Wavelengths
 ;    param: in, required, type=dblarr
 ;      Best-fit parameter array output by MPFIT.
-;
+;    
 ; :Keywords:
-; 
+;    specresarr: in, optional, type=dblarr(M,2)
+;      Array containing spectral resolution look-up table (FWHM as R = lam/dlam).
+;      First column is wavelength, second is R.
+;      
 ; :Author:
 ;    David S. N. Rupke::
 ;      Rhodes College
@@ -35,9 +38,10 @@
 ;      2010nov05, DSNR, added sigma in velocity space
 ;      2013nov13, DSNR, switched default sigma to velocity space
 ;      2013nov13, DSNR, documented, renamed, added license and copyright 
+;      2018feb22, DSNR, now accepts spectral resolution look-up table
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013--2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -54,7 +58,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_manygauss_slow, wave, param
+function ifsf_manygauss_slow, wave, param, specresarr=specresarr
 
   c = 299792.458d
   
@@ -73,6 +77,11 @@ function ifsf_manygauss_slow, wave, param
 
   dwave = rrwave-refwaves
   sigslam = sigs/c*refwaves
+  if keyword_set(specresarr) then begin
+     wsr = value_locate(specresarr[*,0],param[wind])
+     srsigslam = rebin(reform(param[wind]/specresarr[wsr,1]/2.35d,1,nline),nwave,nline)
+     sigslam = sqrt(sigslam^2d + srsigslam^2d)
+  endif
   yvals = fluxes*EXP(-dwave*dwave/sigslam/sigslam/2d)
 
   ysum = total(yvals,2)

@@ -33,6 +33,7 @@
 ;      Subtract fitted continuum instead of dividing.
 ;    snavg_thresh: in, optional, type=double
 ;      Average flux/err in fit region below which spaxel is rejected.
+;    nosncut: in, optional, type=byte
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -54,9 +55,11 @@
 ;      2016may03, DSNR, added trigger to deal with very noisy data or data
 ;                       where continuum goes below 0
 ;      2016sep02, DSNR, fixed bug where fitting order was too small by 1
+;      2017apr24, DSNR, keyword to ignore S/N cut; useful for continuum-
+;                       subtracted data
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2017 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -75,7 +78,7 @@
 ;-
 function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
                       fitranlo=fitranlo,fitranhi=fitranhi,subtract=subtract,$
-                      snavg_thresh=snavg_thresh
+                      snavg_thresh=snavg_thresh,nosncut=nosncut
 
    if ~ keyword_set(fitord) then fitord=2
    if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
@@ -94,7 +97,7 @@ function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
       
       snavg = mean(flux[ifit]/err[ifit])
       if ~ keyword_set(snavg_thresh) then snavg_thresh = 1d
-      if snavg ge snavg_thresh then begin
+      if snavg ge snavg_thresh OR keyword_set(nosncut) then begin
 
          parinfo = replicate({value:0d},fitord+1)
          pars = mpfitfun('poly',wave[ifit],flux[ifit],err[ifit],$

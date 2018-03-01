@@ -86,7 +86,7 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
       tratio = 10d^LogLF
       lratio = 1037.6167d/1031.9261d
       linename = 'OVI1037'
-   endif else begin
+   endif else if doublet eq 'NV' then begin
 ;     Data from Morton 2003
 ;     optical depth ratio
       LogLF = 2.286d -1.985d
@@ -94,6 +94,14 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
 ;     corresponding wavelength ratio
       lratio = 1242.804d/1238.821d      
       linename = 'NV1242'
+   endif else if doublet eq 'PV' then begin
+      LogLF = 2.722d -2.420d
+      tratio = 10d^LogLF
+      lratio = 1128.0078d/1117.9774d
+      linename = 'PV1128'
+   endif else begin
+      print,'IFSF_INITDOUBLET: Error -- doublet not specified.'
+      stop
    endelse
     
    c = 299792.458d

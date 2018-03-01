@@ -174,11 +174,12 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
    
 ;  Compute line ratios
 
-   linrats = ['n2ha','o1ha','s2ha','o3hb']
+   linrats = ['n2ha','o1ha','s2ha','o3hb','s2']
    lrlines = [['[NII]6583','Halpha'],$
               ['[OI]6300','Halpha'],$
               ['[SII]6716+[SII]6731','Halpha'],$
-              ['[OIII]5007','Hbeta']]
+              ['[OIII]5007','Hbeta'],$
+              ['[SII]6716','[SII]6731']]
 
    if ~ keyword_set(ebvonly) then begin
       for i=0,n_elements(linrats)-1 do begin

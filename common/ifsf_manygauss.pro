@@ -58,7 +58,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_manygauss, wave, param
+function ifsf_manygauss, wave, param, specresarr=specresarr
 
   c = 299792.458d
 
@@ -71,8 +71,14 @@ function ifsf_manygauss, wave, param
   sind = find + 2
 
   dispersion = wave[1] - wave[0]
+  if keyword_set(specresarr) then begin
+     wsr = value_locate(specresarr[*,0],param[wind])
+     srsigslam = param[wind]/specresarr[wsr,1]/2.35d
+  endif else begin
+     srsigslam = dblarr(nline)+param[2]
+  endelse
 ; resolution in wavelength space [sigma] assumed to be in third element of PARAM
-  sigs = sqrt((param[sind]/c * param[wind])^2d + param[2]^2d)
+  sigs = sqrt((param[sind]/c * param[wind])^2d + srsigslam^2d)
   maxsig = max(sigs)
 
   nsubwave = round(10d * maxsig / dispersion)

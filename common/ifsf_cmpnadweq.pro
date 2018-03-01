@@ -95,11 +95,12 @@
 function ifsf_cmpnadweq,wave,flux,err,$
                         autowavelim=autowavelim,emflux=emflux,emul=emul,$
                         smoothkernel=smoothkernel,snflux=snflux,unerr=unerr,$
-                        wavelim=wavelim,emwid=emwid
+                        wavelim=wavelim,emwid=emwid,snrabsthresh=snrabsthresh,$
+                        snremthresh=snremthresh
 
 ;  Thresholds for line detection   
-   snrabsthresh=1.6d
-   snremthresh=-1.6d
+   if ~ keyword_set(snrabsthresh) then snrabsthresh=1.6d
+   if ~ keyword_set(snremthresh) then snremthresh=-1.6d
    
    if ~ keyword_set(smoothkernel) then smoothkernel=5l
    if ~ keyword_set(iabsoff) then iabsoff = 4l

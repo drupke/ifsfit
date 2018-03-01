@@ -71,7 +71,7 @@ function ifsf_cmpcvdf_abs,abswav,abswaverr,abssig,abssigerr,abstau,abstauerr,$
    minexp = alog(min)
 
    modvelran = [-1d4,1d4]
-   modvelstep = 10d
+   modvelstep = 1d
    nmod = (round(modvelran[1]-modvelran[0])/modvelstep)+1
    modvel = dindgen(nmod)
    modvel*=modvelstep
@@ -99,7 +99,9 @@ function ifsf_cmpcvdf_abs,abswav,abswaverr,abssig,abssigerr,abstau,abstauerr,$
       rbmodwaves = rebin(reform(modwaves,1,1,nmod),$
                          size_cube[1],size_cube[2],nmod)
       inz = where(rbsigmas gt 0 AND rbsigmas ne bad AND $
-                  rbsigmaerrs gt 0 AND rbsigmaerrs ne bad AND $
+                  rbsigmaerrs ne bad AND $
+; If sigma fits at lower limit then errors may be 0. Should not exclude these points.
+;                  rbsigmaerrs gt 0 AND rbsigmaerrs ne bad AND $
                   rbpkwaves gt 0 AND rbpkwaves ne bad AND $
                   rbpkwaveerrs gt 0 AND rbpkwaveerrs ne bad AND $
                   rbpktaus gt 0 AND rbpktaus ne bad AND $

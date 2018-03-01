@@ -109,9 +109,11 @@
 ;      2016sep22, DSNR, adjusted quasar/host decomposition to account for new
 ;                       quasar fitting options
 ;      2016oct10, DSNR, added option to combine doublet fluxes
+;      2018feb08, DSNR, updated call to IFSF_READCUBE
+;      2018feb23, DSNR, write host spectrum with wavelength extension
 ;
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -183,8 +185,13 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
   if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
 
   header=1b
-  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,header=header,$
-                       datext=datext,varext=varext,dqext=dqext)
+  if tag_exist(initdat,'argsreadcube') then $
+     cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,header=header,$
+                          datext=datext,varext=varext,dqext=dqext,$
+                          _extra=initdat.argsreadcube) $
+  else $
+     cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,header=header,$
+                          datext=datext,varext=varext,dqext=dqext)                     
 
   if tag_exist(initdat,'vormap') then begin
      vormap=initdat.vormap
@@ -279,6 +286,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
      rows = fix(rows)
      for j=rows[0]-1,rows[1]-1 do begin
 
+        novortile=0b
         if oned then begin
            flux = cube.dat[*,i]
            err = sqrt(abs(cube.var[*,i]))
@@ -289,19 +297,24 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            if keyword_set(verbose) then $
               print,'  Row ',j+1,' of ',cube.nrows,format='(A,I0,A,I0)'
            if tag_exist(initdat,'vormap') then begin
-              iuse = vorcoords[initdat.vormap[i,j]-1,0]
-              juse = vorcoords[initdat.vormap[i,j]-1,1]
-              print,'Reference coordinate: [col,row]=[',iuse+1,',',juse+1,']',$
-                    format='(A0,I0,A0,I0,A0)'
+              if finite(initdat.vormap[i,j]) AND $
+                        initdat.vormap[i,j] ne bad then begin
+                 iuse = vorcoords[initdat.vormap[i,j]-1,0]
+                 juse = vorcoords[initdat.vormap[i,j]-1,1]
+              endif else begin
+                 novortile=1b
+              endelse
            endif else begin
               iuse = i
               juse = j
            endelse
-           flux = reform(cube.dat[iuse,juse,*],cube.nz)
-           err = reform(sqrt(abs(cube.var[iuse,juse,*])),cube.nz)
-           dq = reform(cube.dq[iuse,juse,*],cube.nz)
-           labin = string(iuse+1,'_',juse+1,format='(I04,A,I04)')
-           labout = string(i+1,'_',j+1,format='(I04,A,I04)')
+           if ~ novortile then begin
+              flux = reform(cube.dat[iuse,juse,*],cube.nz)
+              err = reform(sqrt(abs(cube.var[iuse,juse,*])),cube.nz)
+              dq = reform(cube.dq[iuse,juse,*],cube.nz)
+              labin = string(iuse+1,'_',juse+1,format='(I04,A,I04)')
+              labout = string(i+1,'_',j+1,format='(I04,A,I04)')
+           endif
         endelse
 
 ;;       Apply flux calibration
@@ -316,12 +329,21 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
 ;       Restore fit, after a couple of sanity checks
 ;       TODO: Mark zero-ed spectra as bad earlier!
-        infile = initdat.outdir+initdat.label+'_'+labin+'.xdr'
-        outfile = initdat.outdir+initdat.label+'_'+labout
-        nodata = where(flux ne 0d,ct)
-        if ~ file_test(infile) OR ct le 0 then begin
-           message,'No data for '+string(i+1,format='(I0)')+$
-                   ', '+string(j+1,format='(I0)')+'.',/cont
+        if ~ novortile then begin
+           infile = initdat.outdir+initdat.label+'_'+labin+'.xdr'
+           outfile = initdat.outdir+initdat.label+'_'+labout
+           nodata = where(flux ne 0d,ct)
+           filepresent = file_test(infile)
+        endif else begin
+           filepresent = 0b
+           ct = 0d
+        endelse
+        nofit = 0b
+        if ~ filepresent OR ct le 0 then begin
+           nofit = 1b
+           badmessage = 'No data for '+string(i+1,format='(I0)')+$
+                        ', '+string(j+1,format='(I0)')+'.'
+           message,badmessage,/cont
         endif else begin
          
         restore,file=infile
@@ -364,60 +386,6 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         ifsf_printfitpar,fitlun,i+1,j+1,struct
 
         if ~ struct.noemlinfit then begin
-;          Save fit parameters to an array
-;           messagesent = 0b
-;           foreach line,lines_with_doublets do begin
-;;             Sort.
-;              indices = lindgen(initdat.maxncomp)
-;              sigtmp = linepars.sigma[line,*]
-;              fluxtmp = linepars.flux[line,*]
-;              igd = where(sigtmp ne 0d AND sigtmp ne bad AND $
-;                          fluxtmp ne 0d AND fluxtmp ne bad,ctgd)
-;              if tag_exist(initdat,'flipsort') then begin
-;                 if flipsort[i,j] AND ctgd lt 2 then begin
-;                    if not messagesent then $
-;                       message,'Flipsort set for spaxel ['+$
-;                               string(i+1,format='(I0)')+','+$
-;                               string(j+1,format='(I0)')+'] but '+$
-;                               'only 1 component. Setting to 2 components and '+$
-;                               'flipping anyway.',/cont $
-;                    else messagesent = 1b
-;                    igd = [0,1]
-;                    ctgd = 2
-;                 endif
-;              endif
-;              if ctgd gt 0 then begin
-;                 emlflx['ftot',line,i,j]=tflux.tflux[line]
-;                 emlflxerr['ftot',line,i,j]=tflux.tfluxerr[line]
-;                 if not tag_exist(initdat,'sorttype') then $
-;                    isort = sort(sigtmp[igd]) $
-;                 else if initdat.sorttype eq 'flux' then $
-;                    isort = sort(linepars.flux[line,igd]) $
-;                 else if initdat.sorttype eq 'fluxpk' then $
-;                    isort = sort(linepars.fluxpk[line,igd]) $
-;                 else if initdat.sorttype eq 'wave' then $
-;                    isort = sort(linepars.wave[line,igd]) $
-;                 else if initdat.sorttype eq 'reversewave' then $
-;                    isort = reverse(sort(linepars.wave[line,igd]))
-;                 if tag_exist(initdat,'flipsort') then $
-;                    if flipsort[i,j] then isort = reverse(isort)
-;                 sindices = indices[igd]
-;                 sindices = sindices[isort]
-;                 kcomp = 1
-;                 foreach sindex,sindices do begin
-;                    cstr='c'+string(kcomp,format='(I0)')
-;                    emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
-;                    emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
-;                    emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
-;                    emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
-;                    emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
-;                    emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
-;                    emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
-;                    emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
-;                    kcomp++
-;                 endforeach
-;              endif
-;           endforeach
 ;          First get correct number of components in this spaxel
            thisncomp = 0
            thisncompline = ''
@@ -518,7 +486,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                   err: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   dq:  dblarr(cube.ncols,cube.nrows,cube.nz) $
                  }
-           endif
+           endif else begin
+              contcube = $
+                 {stel_z: dblarr(cube.ncols,cube.nrows)+bad}
+           endelse
            firstcontproc=0
         endif
         if tag_exist(initdat,'decompose_ppxf_fit') then begin
@@ -561,8 +532,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;              contcube.cont_fit_poly_nad_pct[i,j] = $
 ;                 contcube.cont_fit_poly_nad[i,j] / cont_fit_nad
 ;           endif
-        endif
-        if tag_exist(initdat,'decompose_qso_fit') then begin
+        endif else if tag_exist(initdat,'decompose_qso_fit') then begin
            if initdat.fcncontfit eq 'ifsf_fitqsohost' then begin
 ;              if tag_exist(initdat.argscontfit,'fitord') then $
 ;                 fitord=initdat.argscontfit.fitord else fitord=0b
@@ -643,7 +613,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                        struct.ct_coeff[n_elements(struct.ct_coeff)-1]
               hostmod = struct.cont_fit - qsomod
            endif
-        endif
+        endif else begin
+           contcube.stel_z[i,j] = struct.zstar
+        endelse
+
 
 ;       Print PPXF results to STDOUT
         if tag_exist(initdat,'decompose_ppxf_fit') OR $
@@ -806,7 +779,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               normnadem = ifsf_normnad(struct.wave,$
                                        struct.emlin_dat,$
                                        struct.spec_err,$
-                                       struct.zstar,fitpars_normnadem,/subtract,$
+                                       struct.zstar,fitpars_normnadem,$
+                                       /nosncut,/subtract,$
                                        _extra=initnad.argsnormnad)
               normnadstel = ifsf_normnad(struct.wave,$
                                          nadnormstel,$
@@ -827,7 +801,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               normnadem = ifsf_normnad(struct.wave,$
                                        struct.emlin_dat,$
                                        struct.spec_err,$
-                                       struct.zstar,fitpars_normnadem,/subtract)
+                                       struct.zstar,fitpars_normnadem,$
+                                       /nosncut,/subtract)
               normnadstel = ifsf_normnad(struct.wave,$
                                          nadnormstel,$
                                          struct.spec_err,$
@@ -968,16 +943,21 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         endforeach
      endif
 ;    Compute CVDFs
-     emlcvdf = ifsf_cmpcvdf(emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
-                            initdat.maxncomp,linelist_with_doublets,$
-                            initdat.zsys_gas)
-     save,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,emlcvdf,$
-          file=initdat.outdir+initdat.label+'.lin.xdr'
+     if not tag_exist(initdat,'nocvdf') then begin
+        emlcvdf = ifsf_cmpcvdf(emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
+                               initdat.maxncomp,linelist_with_doublets,$
+                               initdat.zsys_gas)
+        save,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,emlcvdf,$
+             file=initdat.outdir+initdat.label+'.lin.xdr'
+     endif else begin
+        save,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
+           file=initdat.outdir+initdat.label+'.lin.xdr'
+     endelse
   endif
 
-  if tag_exist(initdat,'decompose_ppxf_fit') OR $
-     tag_exist(initdat,'decompose_qso_fit') then $
-     save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
+  ;  if tag_exist(initdat,'decompose_ppxf_fit') OR $
+  ;     tag_exist(initdat,'decompose_qso_fit') then $
+  save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
 
    if tag_exist(initdat,'decompose_qso_fit') AND $
       tag_exist(initdat,'host') then begin
@@ -1003,14 +983,30 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          writefits,initdat.host.dat_fits,$
                    reform(hostcube.dat,n_elements(hostcube.dat)),$
                    newheader_dat,/append
-         writefits,initdat.host.dat_fits,$
-                   reform(hostcube.err,n_elements(hostcube.dat))^2d,$
-                   newheader_var,/append
-         writefits,initdat.host.dat_fits,$
-                   reform(hostcube.dq,n_elements(hostcube.dat)),$
-                   newheader_dq,/append
+         if dqext eq 2 AND varext eq 3 then begin
+            writefits,initdat.host.dat_fits,$
+                      reform(hostcube.dq,n_elements(hostcube.dat)),$
+                      newheader_dq,/append
+            writefits,initdat.host.dat_fits,$
+                      reform(hostcube.err,n_elements(hostcube.dat))^2d,$
+                      newheader_var,/append
+         endif else begin
+            writefits,initdat.host.dat_fits,$
+                      reform(hostcube.err,n_elements(hostcube.dat))^2d,$
+                      newheader_var,/append
+            writefits,initdat.host.dat_fits,$
+                      reform(hostcube.dq,n_elements(hostcube.dat)),$
+                      newheader_dq,/append
+         endelse
       endif else begin
 ;     These lines are for producing a host spectrum in the third dimension.
+;        Check to see if wave extension needs to be added. Note that it is added
+;        as the last extension, regardless of what wave extension is specified
+;        in the input file.
+         writewaveext=0b
+         if tag_exist(initdat,'argsreadcube') then $
+            if tag_exist(initdat.argsreadcube,'waveext') then $
+               writewaveext=1b
          sxaddpar,newheader_dat,'CRVAL3',cube.wave[0]
          sxaddpar,newheader_var,'CRVAL3',cube.wave[0]
          sxaddpar,newheader_dq,'CRVAL3',cube.wave[0]
@@ -1019,8 +1015,15 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          sxaddpar,newheader_dq,'CRPIX3',1
          writefits,initdat.host.dat_fits,cube.phu,header.phu
          writefits,initdat.host.dat_fits,hostcube.dat,newheader_dat,/append
-         writefits,initdat.host.dat_fits,hostcube.err^2d,newheader_var,/append
-         writefits,initdat.host.dat_fits,hostcube.dq,newheader_dq,/append
+         if dqext eq 2 AND varext eq 3 then begin
+            writefits,initdat.host.dat_fits,hostcube.dq,newheader_dq,/append
+            writefits,initdat.host.dat_fits,hostcube.err^2d,newheader_var,/append
+         endif else begin
+            writefits,initdat.host.dat_fits,hostcube.err^2d,newheader_var,/append
+            writefits,initdat.host.dat_fits,hostcube.dq,newheader_dq,/append
+         endelse
+         if writewaveext then $
+            writefits,initdat.host.dat_fits,cube.wave,header.wave,/append
       endelse
    endif
 

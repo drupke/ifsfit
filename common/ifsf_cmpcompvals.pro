@@ -61,7 +61,9 @@ function ifsf_cmpcompvals,emlwav,emlsig,emlflx,zref,emlwaverr=emlwaverr,$
    foreach c,comps do begin
       emlcompvel['vsig'+c] = hash()
       emlcompvel['v%02'+c] = hash()
+      emlcompvel['v%16'+c] = hash()
       emlcompvel['v%50'+c] = hash()
+      emlcompvel['v%84'+c] = hash()
       emlcompvel['v%98'+c] = hash()
       if keyword_set(emlwaverr) then emlcompvel['v%50'+c+'err'] = hash()
       if keyword_set(emlsigerr) then emlcompvel['vsig'+c+'err'] = hash()
@@ -97,7 +99,9 @@ function ifsf_cmpcompvals,emlwav,emlsig,emlflx,zref,emlwaverr=emlwaverr,$
 
             emlcompvel['vsig'+c,line]=dblarr(size_cube[1],size_cube[2])+bad
             emlcompvel['v%02'+c,line]=dblarr(size_cube[1],size_cube[2])+bad
+            emlcompvel['v%16'+c,line]=dblarr(size_cube[1],size_cube[2])+bad
             emlcompvel['v%50'+c,line]=dblarr(size_cube[1],size_cube[2])+bad
+            emlcompvel['v%84'+c,line]=dblarr(size_cube[1],size_cube[2])+bad
             emlcompvel['v%98'+c,line]=dblarr(size_cube[1],size_cube[2])+bad
 ;            if keyword_set(emlwaverr) AND keyword_set(emlsigerr) then begin
 ;              emlcompvel['v%02'+c+'err',line] = dblarr(size_cube[1],size_cube[2])
@@ -119,12 +123,20 @@ function ifsf_cmpcompvals,emlwav,emlsig,emlflx,zref,emlwaverr=emlwaverr,$
             endif
 ;           figure out red and blue sides for using v%02/98
             redblue02 = dblarr(ctgd) + 2d
+            redblue16 = dblarr(ctgd) + 1d
+            redblue84 = dblarr(ctgd) - 1d
             redblue98 = dblarr(ctgd) - 2d
             ired = where(vel[igd] ge 0)
             redblue02[ired] *= -1d
+            redblue16[ired] *= -1d
+            redblue84[ired] *= -1d
             redblue98[ired] *= -1d
             emlcompvel['v%02'+c,line,xyindices[0,*],xyindices[1,*]]=$
                vel[igd] + redblue02*emlsig[c,line,xyindices[0,*],xyindices[1,*]]
+            emlcompvel['v%16'+c,line,xyindices[0,*],xyindices[1,*]]=$
+               vel[igd] + redblue16*emlsig[c,line,xyindices[0,*],xyindices[1,*]]
+            emlcompvel['v%84'+c,line,xyindices[0,*],xyindices[1,*]]=$
+               vel[igd] + redblue84*emlsig[c,line,xyindices[0,*],xyindices[1,*]]
             emlcompvel['v%98'+c,line,xyindices[0,*],xyindices[1,*]]=$
                vel[igd] + redblue98*emlsig[c,line,xyindices[0,*],xyindices[1,*]]
 

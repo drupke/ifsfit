@@ -178,6 +178,8 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
      if ~ tag_exist(initdat,'keepstarz') then $
         templatelambdaz *= 1d + zstar
      if vacuum then airtovac,templatelambdaz
+     if tag_exist(initdat,'waveunit') then $
+        templatelambdaz *= initdat.waveunit
   endif else begin
      templatelambdaz = lambda
   endelse
@@ -508,8 +510,8 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   testsize = size(parinit)
   if testsize[0] eq 0 then begin
      message,'Bad initial parameter guesses.'
-;     outstr = 0
-;     goto,finish
+   ;     outstr = 0
+   ;     goto,finish
   endif
 
   specfit = DBLARR(npix)

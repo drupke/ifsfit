@@ -136,7 +136,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
          ncomp = hash(initdat.lines)
          foreach line,initdat.lines do $
             if oned then ncomp[line] = (initdat.ncomp)[line,i] $
-            else beginncomp[line] = (initdat.ncomp)[line,i,j]
+            else ncomp[line] = (initdat.ncomp)[line,i,j]
       endif
 
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -336,7 +336,8 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 
       endwhile
 
-   endif
+   endif else $
+      print,'IFSF_FITLOOP: No good data. Aborting.'
    
    if keyword_set(logfile) then $
       if logfile[ispax] ne '' then $

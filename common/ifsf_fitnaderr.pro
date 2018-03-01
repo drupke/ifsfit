@@ -353,7 +353,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          dat = heipar[*,1,i]
          cghistoplot,dat,pos=pos[*,1],missing=bad,/noerase,ytit='',$
                      xtit='$\sigma$ (km/s)',histdata=h,$
-                     locations=loc,binsize=bins,xticks=2
+                     locations=loc,binsize=bins,xticks=2,$
+                     mininput=0d,min_value=0d,xran=[0,max(dat)]
          binc = loc + (bins/2d)
          yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
          cgoplot,binc,yfit
@@ -364,14 +365,16 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          errors[i*3+1,*]=[stat[1],stat[2]]
       endif else cghistoplot,heipar[*,1,i],pos=pos[*,1],missing=bad,/noerase,$
                              ytit='',xtit='$\sigma$ (km/s)',nbins=1,binsize=1d,$
-                             xticks=2
+                             xticks=2,$
+                             mininput=0d,min_value=0d
 ;     peak flux
       if ~ heifix[i,2] then begin
          bins=[]
          dat = heipar[*,2,i]
          cghistoplot,dat,pos=pos[*,2],missing=bad,/noerase,ytit='',$
                      xtit='F$\down\\lambda$ (peak)',histdata=h,$
-                     locations=loc,binsize=bins,xticks=3
+                     locations=loc,binsize=bins,xticks=3,$
+                     mininput=0d,min_value=0d,xran=[0,max(dat)]
          binc = loc + (bins/2d)
          yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
          cgoplot,binc,yfit
@@ -382,7 +385,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          errors[i*3+2,*]=[stat[1],stat[2]]
       endif else $
          cghistoplot,heipar[*,2,i],pos=pos[*,2],missing=bad,/noerase,ytit='',$
-                     xtit='F$\down\\lambda$ (peak)',nbins=1,binsize=1d,xticks=3
+                     xtit='F$\down\\lambda$ (peak)',nbins=1,binsize=1d,xticks=3,$
+                     mininput=0d,min_value=0d
       cgtext,0.5,0.98,'HeI em., c'+string(i+1,format='(I0)'),/norm
    endfor
 ;
@@ -392,8 +396,9 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
 ;     covering factor x optical depth
       if (~ nadabsfix[i,0] OR ~ nadabsfix[i,1]) then begin
          dat = abspar[*,0,i]*abspar[*,1,i]
-         cghistoplot,abspar[*,0,i]*abspar[*,1,i],pos=pos[*,0],missing=bad*bad,$
-                     ytit='',xtit='C$\down$f x $\tau$',xticks=2,histdata=h
+         cghistoplot,dat,pos=pos[*,0],missing=bad*bad,$
+                     ytit='',xtit='C$\down$f x $\tau$',xticks=2,histdata=h,$
+                     mininput=0d,min_value=0d,xran=[0,max(dat)]
          stat = ifsf_lohisig(dat)
          cgoplot,[stat[0],stat[0]],[0,max(h)]
          cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
@@ -402,9 +407,11 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
       endif else $
          cghistoplot,abspar[*,0,i]*abspar[*,1,i],pos=pos[*,0],missing=bad*bad,$
                      ytit='',xtit='C$\down$f x $\tau$',xticks=2,nbins=1,$
-                     bins=0.1d
+                     bins=0.1d,$
+                     mininput=0d,min_value=0d
 ;     optical depth
-      if ~ nadabsfix[i,1] then begin
+      isame = uniq(float(abspar[*,1,i]))
+      if ~ nadabsfix[i,1] AND n_elements(isame) ne 1  then begin
          dat_tmp = abspar[*,1,i]
          igd_tmp = where(dat_tmp ne 0 AND dat_tmp ne bad)
          dat = alog10(dat_tmp[igd_tmp])
@@ -417,7 +424,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          errors[ncomp[0]*3+i*4+1,*]=[stat[1],stat[2]]
       endif else $
          cghistoplot,dat,pos=pos[*,1],/noerase,missing=bad,$
-                     ytit='',xtit='log($\tau$)',xticks=2,nbins=1,bins=0.1d
+                     ytit='',xtit='log($\tau$)',xticks=2,nbins=1,bins=0.1d,$
+                     mininput=0d,min_value=0d
 ;     wavelength
       if ~ nadabsfix[i,2] then begin
          bins=[]
@@ -442,7 +450,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          dat = abspar[*,3,i]
          cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
                      xtit='$\sigma$ (km/s)',xticks=2,histdata=h,$
-                     locations=loc,binsize=bins
+                     locations=loc,binsize=bins,$
+                     mininput=0d,min_value=0d,xran=[0,max(dat)]
          binc = loc + (bins/2d)
          yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
          cgoplot,binc,yfit
@@ -453,7 +462,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          errors[ncomp[0]*3+i*4+3,*]=[stat[1],stat[2]]
       endif else $
          cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
-                     xtit='$\sigma$ (km/s)',xticks=2,nbins=1,bins=10d
+                     xtit='$\sigma$ (km/s)',xticks=2,nbins=1,bins=10d,$
+                     mininput=0d,min_value=0d
 ;
       cgtext,0.5,0.98,'NaI D abs., c'+string(i+1,format='(I0)'),/norm
    endfor
@@ -481,11 +491,13 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
                      xtit='$\lambda$ ($\Angstrom$)',xticks=2,nbins=1,binsize=1d
 ;     sigma
       bins=[]
-      if ~ nademfix[i,1] then begin
+      isame = uniq(float(empar[*,1,i])) ; float deals with machine precision issues
+      if ~ nademfix[i,1] AND n_elements(isame) ne 1 then begin
          dat = empar[*,1,i]
          cghistoplot,dat,pos=pos[*,1],missing=bad,/noerase,ytit='',$
                      xtit='$\sigma$ (km/s)',xticks=2,histdata=h,$
-                     locations=loc,binsize=bins
+                     locations=loc,binsize=bins,$
+                     mininput=0d,min_value=0d,xran=[0,max(dat)]
          binc = loc + (bins/2d)
          yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
          cgoplot,binc,yfit
@@ -496,14 +508,17 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          errors[ncomp[0]*3+ncomp[1]*4+i*4+1,*]=[stat[1],stat[2]]
       endif else $
          cghistoplot,empar[*,1,i],pos=pos[*,1],missing=bad,/noerase,ytit='',$
-                     xtit='$\sigma$ (km/s)',xticks=2,nbins=1,binsize=10d
+                     xtit='$\sigma$ (km/s)',xticks=2,nbins=1,binsize=10d,$
+                     mininput=0d,min_value=0d
 ;     peak flux
       bins=[]
-      if ~ nademfix[i,2] then begin
+      inonzero = where(empar[*,2,i] ne 0d,ctnonzero)
+      if ~ nademfix[i,2] AND ctnonzero gt 0 then begin
          dat = empar[*,2,i]
          cghistoplot,dat,pos=pos[*,2],missing=bad,/noerase,ytit='',$
                      xtit='F$\down\\lambda$ (peak)',histdata=h,$
-                     locations=loc,binsize=bins,xticks=3
+                     locations=loc,binsize=bins,xticks=3,$
+                     mininput=0d,min_value=0d,xran=[0,max(dat)]
          binc = loc + (bins/2d)
          yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
          cgoplot,binc,yfit
@@ -514,10 +529,12 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          errors[ncomp[0]*3+ncomp[1]*4+i*4+2,*]=[stat[1],stat[2]]
       endif else $
          cghistoplot,empar[*,2,i],pos=pos[*,2],missing=bad,/noerase,ytit='',$
-                     xtit='F$\down\\lambda$ (peak)',xticks=3,nbins=1,binsize=0.1d
+                     xtit='F$\down\\lambda$ (peak)',xticks=3,nbins=1,binsize=0.1d,$
+                     mininput=0d,min_value=0d
 ;     flux ratio
       bins=[]
-      if ~ nademfix[i,3] then begin
+      isame = uniq(float(empar[*,3,i])) ; float deals with machine precision issues
+      if ~ nademfix[i,3] AND n_elements(isame) ne 1 then begin
          dat = empar[*,3,i]
          cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
                      xtit='F$\down2$/F$\down1$',xticks=2,histdata=h,$
@@ -546,7 +563,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          dat = weq[*,0]
          cghistoplot,dat,pos=pos[*,0],missing=bad,ytit='',$
                   xtit='W$\downeq$ (abs, $\Angstrom$)',xticks=2,histdata=h,$
-                  locations=loc,binsize=bins
+                  locations=loc,binsize=bins,$
+                  mininput=0d,min_value=0d,xran=[0,max(dat)]
          binc = loc + (bins/2d)
          yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
          cgoplot,binc,yfit
@@ -561,31 +579,45 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
 ;        equivalent width
          bins=[]
          dat = weq[*,1]
-         cghistoplot,dat,pos=pos[*,2],missing=bad,noerase=em_noerase,ytit='',$
-                  xtit='W$\downeq$ (em, $\Angstrom$)',xticks=2,histdata=h,$
-                  locations=loc,binsize=bins
-         binc = loc + (bins/2d)
-         yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
-         cgoplot,binc,yfit
-         stat = ifsf_lohisig(dat)
-         cgoplot,[stat[0],stat[0]],[0,max(h)]
-         cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
-         cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
-         weqerr[1,*]=[stat[1],stat[2]]
+         inonzero = where(dat ne 0d,ctnonzero)
+         if ctnonzero gt 0 then begin
+            cghistoplot,dat,pos=pos[*,2],missing=bad,noerase=em_noerase,ytit='',$
+                        xtit='W$\downeq$ (em, $\Angstrom$)',xticks=2,histdata=h,$
+                        locations=loc,binsize=bins,$
+                        maxinput=0d,max_value=0d,xran=[min(dat),0]
+            binc = loc + (bins/2d)
+            yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
+            cgoplot,binc,yfit
+            stat = ifsf_lohisig(dat)
+            cgoplot,[stat[0],stat[0]],[0,max(h)]
+            cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
+            cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
+            weqerr[1,*]=[stat[1],stat[2]]
+         endif else $
+            cghistoplot,dat,pos=pos[*,2],missing=bad,noerase=em_noerase,ytit='',$
+                     xtit='W$\downeq$ (em, $\Angstrom$)',xticks=2,nbins=1,binsize=0.1d,$
+                     maxinput=0d,max_value=0d
 ;        flux
          bins=[]
          dat = nademflux
-         cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
-                  xtit='Flux (em)',xticks=2,histdata=h,$
-                  locations=loc,binsize=bins
-         binc = loc + (bins/2d)
-         yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
-         cgoplot,binc,yfit
-         stat = ifsf_lohisig(dat)
-         cgoplot,[stat[0],stat[0]],[0,max(h)]
-         cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
-         cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
-         nademfluxerr=[stat[1],stat[2]]
+         inonzero = where(dat ne 0d,ctnonzero)
+         if ctnonzero gt 0 then begin
+            cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
+                        xtit='Flux (em)',xticks=2,histdata=h,$
+                        locations=loc,binsize=bins,$
+                        mininput=0d,min_value=0d,xran=[0,max(dat)]
+            binc = loc + (bins/2d)
+            yfit = mpfitpeak(binc,h,a,nterms=3,errors=sqrt(h))
+            cgoplot,binc,yfit
+            stat = ifsf_lohisig(dat)
+            cgoplot,[stat[0],stat[0]],[0,max(h)]
+            cgoplot,[stat[0]-stat[1],stat[0]-stat[1]],[0,max(h)],linesty=2
+            cgoplot,[stat[0]+stat[2],stat[0]+stat[2]],[0,max(h)],linesty=2
+            nademfluxerr=[stat[1],stat[2]]
+         endif else $
+            cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
+                     xtit='Flux (em)',xticks=2,nbins=1,binsize=0.1d,$
+                     mininput=0d,min_value=0d   
       endif
       
    endif

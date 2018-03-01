@@ -90,6 +90,12 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
     w_doublet1 = linelist['OVI1031']*(1d +zsys)
     w_doublet2 = linelist['OVI1037']*(1d +zsys)
   END
+  IF (doublet eq 'PV') THEN BEGIN
+     linelist = ifsf_linelist(['PV1117','PV1128'])
+     ; Observed-frame wavelengths
+     w_doublet1 = linelist['PV1117']*(1d +zsys)
+     w_doublet2 = linelist['PV1128']*(1d +zsys)
+  END
   moddoubletabs=1
   moddoubletem=1
   modflux = ifsf_doubletfcn(wave,param,doubletname=doublet,$

@@ -56,31 +56,11 @@
 ;
 ; :History:
 ;    ChangeHistory::
-;      2009jun01, DSNR, created
-;      2009jun08, DSNR, added multiple components
-;      2010may27, DSNR, re-written to fit in observed frame
-;      2013sep13, DSNR, re-written to allow more than one common redshift
-;      2013dec12, DSNR, documented, renamed, added license and copyright 
-;      2014jan13, DSNR, updated to use hashes, and to add parname, line, and 
-;                       comp tags into output parinfo structure
-;      2014apr10, DSNR, added if statements to remove IEEE exceptions
-;      2014apr17, DSNR, adjusted upper limits for Ha/Hb and [NII]/Ha
-;      2014apr23, DSNR, added SIGFIX keyword
-;      2014jun05, DSNR, added LRATFIX keyword
-;      2015jan20, DSNR, added check for both lines in line ratio constraints
-;      2015may12, DSNR, added option to model BLR for a certain velocity 
-;                       component by setting all lines to 0 except those
-;                       specified; see BLRCOMP and BLRLINES
-;      2016feb04, DSNR, added [OII] line ratio
-;      2016sep26, DSNR, added SPECRES as a keyword and a parameter
-;      2016oct05, DSNR, added SIGMAWAVE_TIE and FLUX_TIE to PARINFO
-;      2016oct08, DSNR, turned off Ha/Hb limits b/c of issues with estimating
-;                       Hbeta error in a noisy spectrum when pegged at lower
-;                       limit
+;      2018feb08  DSNR  copied from IFSF_GMOS
 ;      2018feb22, DSNR, added NeIII line ratio
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2018 David S. N. Rupke
+;    Copyright (C) 2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -97,10 +77,10 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_gmos,linelist,linelistz,linetie,$
+function ifsf_manga,linelist,linelistz,linetie,$
                    initflux,initsig,maxncomp,ncomp,$
                    lratfix=lratfix,siglim=siglim,sigfix=sigfix,$
-                   blrcomp=blrcomp,blrlines=blrlines,specres=specres
+                   blrcomp=blrcomp,blrlines=blrlines
 
   bad = 1d99
   c = 299792.458d
@@ -108,11 +88,6 @@ function ifsf_gmos,linelist,linelistz,linetie,$
      blrlines = ['Halpha','Hbeta','Hgamma','Hdelta','Hepsilon',$
                  'H8','H9','H10','H11']
 
-; Estimated spectral resolution for B600 grating based on measurements.
-; Website says R = 1688 at 4610 A for 0.5" slit, with IFU 0.31" eff. slit.
-; This gives 1.69 A FWHM. I measure sometimes closer to 1.5-1.6.
-; Sigma is then in the range 0.64 -- 0.72. Use the latter for flexibility.
-  if ~ keyword_set(specres) then specres = 0.64d
 ; A reasonable lower limit of 5d for physicality ... Assume line is resolved.
   if ~ keyword_set(siglim) then siglim=[5d,2000d]
   if ~ keyword_set(blrcomp) then blrcomp = -1
@@ -130,7 +105,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
                        limits:[0d,0d], step:0d, mpprint:0b, mpside:2, $
                        parname:'', line:'', comp:0d, sigmawave_tie:'', $
                        flux_tie:''}, $
-                      ppoff+maxncomp*(nline*3))
+                       ppoff+maxncomp*(nline*3))
 
 ; Number of initial parameters before Gaussian parameters begin
   parinfo[0].value = ppoff
@@ -143,7 +118,7 @@ function ifsf_gmos,linelist,linelistz,linetie,$
   parinfo[1].parname = 'Maximum no. of velocity components'
 
 ; Spectral resolution
-  parinfo[2].value = specres
+  parinfo[2].value = 0d
   parinfo[2].fixed = 1B
   parinfo[2].parname = 'Spectral resolution in wavelength space [sigma]'
 
@@ -585,15 +560,15 @@ function ifsf_gmos,linelist,linelistz,linetie,$
 ;      Make sure initial value is correct
        parinfo[foff+linea*3].value = parinfo[foff+lineb*3].value/3.0d
     endif
-
-    linea = where(lines_arr eq '[NeIII]3967',cta)
-    lineb = where(lines_arr eq '[NeIII]3869',ctb)
-    if cta gt 0 AND ctb gt 0 then begin
+     
+     linea = where(lines_arr eq '[NeIII]3967',cta)
+     lineb = where(lines_arr eq '[NeIII]3869',ctb)
+     if cta gt 0 AND ctb gt 0 then begin
        parinfo[foff+linea*3].tied = 'P['+ $
-          string(foff+lineb*3,$
-          format='(I0)')+']/3.0d'
+                                    string(foff+lineb*3,$
+                                           format='(I0)')+']/3.0d'
        parinfo[foff+linea*3].flux_tie = '[NeIII]3869'
-       ;      Make sure initial value is correct
+;      Make sure initial value is correct
        parinfo[foff+linea*3].value = parinfo[foff+lineb*3].value/3.0d
     endif
     

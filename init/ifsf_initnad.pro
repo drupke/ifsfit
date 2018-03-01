@@ -85,7 +85,7 @@
 ;-
 function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
                       taumax=taumax,heifix=heifix,siglimhei=siglimhei,$
-                      nadabsfix=nadabsfix,nademfix=nademfix
+                      nadabsfix=nadabsfix,nademfix=nademfix,wavelimhei=wavelimhei
                       
 
    c = 299792.458d
@@ -93,6 +93,7 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
    tratio = 2.0093d
 
    if not keyword_set(taumax) then taumax=5d
+   if not keyword_set(wavelimhei) then wavelimhei = [-10d,10d]
 
 ;  Get numbers of components
    size_hei = size(inithei)
@@ -136,8 +137,8 @@ function ifsf_initnad,inithei,initnadabs,initnadem,siglimnadabs,siglimnadem,$
       parinfo[ind_f].limits[0]  = 0d
       parinfo[ind_w].limited[0] = 1B
       parinfo[ind_w].limited[1] = 1B
-      parinfo[ind_w].limits[0] = inithei[*,0]-10d
-      parinfo[ind_w].limits[1]  = inithei[*,0]+10d
+      parinfo[ind_w].limits[0] = inithei[*,0]+wavelimhei[0]
+      parinfo[ind_w].limits[1]  = inithei[*,0]+wavelimhei[1]
       parinfo[ind_s].limited[0] = 1B
       parinfo[ind_s].limited[1] = 1B
       if ~ keyword_set(siglimhei) then siglimhei=[5d,1000d]

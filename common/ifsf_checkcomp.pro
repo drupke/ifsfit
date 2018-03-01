@@ -29,6 +29,8 @@
 ;      2015dec14, DSNR, added test for pegging on upper limit of sigma
 ;      2016oct08, DSNR, changed flux peak sigma cutoff to total flux cutoff, now
 ;                       that total flux errors are correctly computed
+;      2017aug10, DSNR, will now accept components that hit lower limit in sigma
+;                       (previously had to be above lower limit)
 ;
 ; :Copyright:
 ;    Copyright (C) 2014--2016 David S. N. Rupke
@@ -84,7 +86,7 @@ function ifsf_checkcomp,linepars,linetie,ncomp,newncomp,siglim,$
                igd = where((linepars.flux)[line,0:ncomp[line]-1] ge $
                            sigcut*(linepars.fluxerr)[line,0:ncomp[line]-1] AND $
                            (linepars.fluxerr)[line,0:ncomp[line]-1] gt 0 AND $
-                           (linepars.sigma)[line,0:ncomp[line]-1] gt siglim[0] AND $
+                           (linepars.sigma)[line,0:ncomp[line]-1] ge siglim[0] AND $
                            (linepars.sigma)[line,0:ncomp[line]-1] lt siglim[1],$
                            ctgd)
                if keyword_set(blrcomp) AND keyword_set(blrlines) then begin

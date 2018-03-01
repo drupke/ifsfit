@@ -100,6 +100,7 @@ pro ifsf_fitdoublet,table,dir,galshort,doublet,$
 
    IF (doublet eq 'NV') THEN linename = 'NV1242'
    IF (doublet eq 'OVI') THEN linename = 'OVI1037'
+   IF (doublet eq 'PV') THEN linename = 'PV1128'
 
    starttime = systime(1)
    time = 0
@@ -127,7 +128,7 @@ pro ifsf_fitdoublet,table,dir,galshort,doublet,$
    ; Get linelist
    linelist = $
       ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
-                     'NV1238','NV1242'])
+                     'NV1238','NV1242','PV1117','PV1128'])
 
    if tag_exist(initstr,'taumax') then taumax=initstr.taumax $
    else taumax = 5d

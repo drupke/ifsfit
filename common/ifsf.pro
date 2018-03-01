@@ -80,9 +80,10 @@
 ;                       to a single loop; moved loop commands to IFSF_FITLOOP
 ;                       to enable multicore processing
 ;      2016sep20, DSNR, implemented multicore processing
+;      2018feb08, DSNR, updated call to IFSF_READCUBE
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -116,7 +117,9 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,ncores=ncores,$
   
 ; Get linelist
   if tag_exist(initdat,'lines') then begin
-     linelist = ifsf_linelist(initdat.lines)
+     if tag_exist(initdat,'waveunit') then $
+        linelist = ifsf_linelist(initdat.lines,waveunit=initdat.waveunit) $
+     else linelist = ifsf_linelist(initdat.lines)
      nlines = linelist.count()
   endif else begin
      linelist = hash()
@@ -131,9 +134,14 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,ncores=ncores,$
   if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
   
   if tag_exist(initdat,'vormap') then vormap=initdat.vormap else vormap=0b
-  cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
-                       datext=datext,varext=varext,dqext=dqext,$
-                       vormap=vormap)
+  if tag_exist(initdat,'argsreadcube') then $
+     cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
+                          datext=datext,varext=varext,dqext=dqext,$
+                          vormap=vormap,_extra=initdat.argsreadcube) $
+  else $
+     cube = ifsf_readcube(initdat.infile,quiet=quiet,oned=oned,$
+                          datext=datext,varext=varext,dqext=dqext,$
+                          vormap=vormap)
                        
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels

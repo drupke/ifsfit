@@ -1,6 +1,7 @@
 - = to do
 + = done
 
+- Use newer stellar models (like in arxiv/1712.04450 -- see Appendix)
 + Read PPXF paper.
 + Rename and finish documenting each routine (32 of 32 completed; last
   worked on 2013nov25).
@@ -19,8 +20,8 @@
 + Get rid of instances of readcol300 (--> readcol).
 + Update README.txt.
 + Update Na D fitting.
-- Speed up IFSF by implementing multi-core parallel iterations using
++ Speed up IFSF by implementing multi-core parallel iterations using
   SPLIT_FOR.
-- Speed up PPXF by loading precompiled version of BVLS/NNLS.
++ Speed up PPXF by loading precompiled version of BVLS/NNLS.
 - Write routine to do second-pass fitting.
 - Cut off edges of fit range after convolution of template?
