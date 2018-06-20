@@ -29,7 +29,11 @@
 ;      Returns doublet absorption spectrum.
 ;    moddoubletem: in, optional, type=dblarr(4,ndoubletem)
 ;      Returns doublet emission spectrum.
-;    weq: in, optional, type=structure
+;    vels: in, optional, type=dblarr(N)
+;      Velocity array w.r.t. the red, low-tau line of the doublet.
+;    vwtabs: out, optional, type=dblarr(2)
+;      The depth-weighted average velocity and velocity RMS.
+;    weq: out, optional, type=structure
 ;      Returns equivalent widths. Structure tags are 'em' and 'abs,' and each is
 ;      an array with the first element being the total equivalent width and 
 ;      subsequent elements being the equivalent widths of separate components.
@@ -51,9 +55,11 @@
 ;                       line flux
 ;      2015xxxYY, AT, adapted for UV doublets
 ;      2016aug15, DSNR, code clean up for general doublet case
+;      2018jun05, DSNR, added measurements of depth-weighted velocity and 
+;                       RMS
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2016 David S. N. Rupke
+;    Copyright (C) 2014--2018 David S. N. Rupke, Anthony To
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -74,7 +80,8 @@ function ifsf_doubletfcn, wave, param,$
                           cont=cont,doubletname=doubletname,weq=weq,$
                           moddoubletabs=moddoubletabs, $
                           moddoubletem=moddoubletem, $
-                          doubletemflux=doubletemflux
+                          doubletemflux=doubletemflux, $
+                          vels=vels,vwtabs=vwtabs
 
 ;  Default to NV unless otherwise specified
    if keyword_set(doubletname) then begin
@@ -172,7 +179,35 @@ function ifsf_doubletfcn, wave, param,$
          doubletemflux[0] = total(doubletemflux[1:ndoubletem])
       endif else doubletemflux=0d
    endif else doubletemflux=0d
-   
+
+;  Weighted average velocity and weighted RMS width
+;  Trump et al. 2006, ApJS, 165, 1
+;  Section 4.5
+   if keyword_set(vwtabs) AND keyword_set(vels) AND ndoubletabs gt 0 then begin
+;     Compute singlet version of profile
+      ilo = 2
+      modtmp = dblarr(nwave)+1d
+      for i=0,ndoubletabs-1 do $
+         modtmp*=ifsf_cmpsinglet(wave,param[ilo+i*4:ilo+(i+1)*4-1],$
+                                 tratio,lratio)
+;      igdvels = where(vels lt 0 AND vels gt -2.9d4,ctgdvels)
+;      gdvels = abs(vels[igdvels])
+      igdvels = where(vels gt -2.9d4,ctgdvels)
+      gdvels = vels[igdvels]
+      gdmod = modtmp[igdvels]
+;      dgdvels = gdvels[0:ctgdvels-2] - gdvels[1:ctgdvels-1]
+      dgdvels = gdvels[1:ctgdvels-1] - gdvels[0:ctgdvels-2]
+      AIabs = total((1d - gdmod[1:ctgdvels-1])*dgdvels)
+      if AIabs gt 0d then begin
+         vwtavgabs = total((1d - gdmod[1:ctgdvels-1])*dgdvels*gdvels)/AIabs
+         vwtrmsabs = sqrt(total((1d - gdmod[1:ctgdvels-1])*dgdvels*(gdvels-vwtavgabs)^2)/AIabs)
+      endif else begin
+         vwtavgabs = 0d
+         vwtrmsabs = 0d
+      endelse
+      vwtabs = [vwtavgabs,vwtrmsabs]
+   endif
+
    return,modflux
    
 end

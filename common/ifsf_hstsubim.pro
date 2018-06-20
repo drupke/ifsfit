@@ -193,7 +193,6 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
    subimcrd_h[3] = rsc_h[1] + (subimsize_pix_half[1] -0.5d)
 ;  to make sure result is an integer and not v. close to an integer
    subimcrd = round(subimcrd_h)
-
 ;  Create subimage and byte scale
    hst_subim = temporary(image[subimcrd[0]:subimcrd[1],$
                                subimcrd[2]:subimcrd[3]])

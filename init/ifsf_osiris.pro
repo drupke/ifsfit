@@ -69,7 +69,8 @@
 ;-
 function ifsf_osiris,linelist,linelistz,linetie,$
                      initflux,initsig,maxncomp,ncomp,$
-                     lratfix=lratfix,siglim=siglim,sigfix=sigfix
+                     lratfix=lratfix,siglim=siglim,sigfix=sigfix,$
+                     specres=specres
 
   bad = 1d99
   c = 299792.458d
@@ -83,12 +84,13 @@ function ifsf_osiris,linelist,linelistz,linetie,$
   lines_arr = (linelist->keys())->toarray()
   
 ; Number of initial parameters before Gaussian parameters begin
-  ppoff0 = 2
+  ppoff0 = 3
   ppoff = ppoff0
   
   parinfo = REPLICATE({value:0d, fixed:0b, limited:[0B,0B], tied:'', $
                        limits:[0d,0d], step:0d, mpprint:0b, mpside:2, $
-                       parname:'', line:'', comp:0d}, $
+                       parname:'', line:'', comp:0d, sigmawave_tie:'', $
+                       flux_tie:''}, $}, $
                       ppoff+maxncomp*(nline*3))
 
 ; Number of initial parameters before Gaussian parameters begin
@@ -100,6 +102,11 @@ function ifsf_osiris,linelist,linelistz,linetie,$
   parinfo[1].value = maxncomp
   parinfo[1].fixed = 1B
   parinfo[1].parname = 'Maximum no. of velocity components'
+
+  ; Spectral resolution
+  parinfo[2].value = specres
+  parinfo[2].fixed = 1B
+  parinfo[2].parname = 'Spectral resolution in wavelength space [sigma]'
 
 ; cycle through velocity components
   for i=0,maxncomp-1 do begin
@@ -164,6 +171,8 @@ function ifsf_osiris,linelist,linelistz,linetie,$
                            format='(D0.2,A0,D0.2,A0,I0,A0)') 
                  parinfo[isoff].tied = $
                     string('P[',soff+indtie*3,']',format='(A0,I0,A0)')   
+                 parinfo[iwoff].sigmawave_tie = linetie[line]
+                 parinfo[isoff].sigmawave_tie = linetie[line]
               endelse
 ;             fixed/free
               if keyword_set(sigfix) then $

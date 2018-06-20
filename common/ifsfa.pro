@@ -416,9 +416,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     isort = [1,0]
                  endif
               endif
-           endif else if thisncomp eq 2 then begin
+           endif else if thisncomp ge 2 then begin
 ;             Sort components
-              igd = [0,1]
+              igd = dindgen(thisncomp)
               indices = lindgen(initdat.maxncomp)
               sigtmp = linepars.sigma[thisncompline,*]
               fluxtmp = linepars.flux[thisncompline,*]
@@ -431,26 +431,27 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               if tag_exist(initdat,'flipsort') then $
                  if flipsort[i,j] then isort = reverse(isort)
            endif
-           foreach line,lines_with_doublets do begin
-              kcomp = 1
-              foreach sindex,isort do begin
-                 cstr='c'+string(kcomp,format='(I0)')
-                 emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
-                 emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
-                 emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
-                 emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
-                 emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
-                 emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
-                 emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
-                 emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
-                 kcomp++
+           if thisncomp gt 0 then begin
+             foreach line,lines_with_doublets do begin
+                kcomp = 1
+                foreach sindex,isort do begin
+                   cstr='c'+string(kcomp,format='(I0)')
+                   emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
+                   emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
+                   emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
+                   emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
+                   emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
+                   emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
+                   emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
+                   emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
+                   kcomp++
+                 endforeach
               endforeach
-           endforeach
-;          Print line fluxes to a text file
-           if not linepars.nolines then $ 
-              ifsf_printlinpar,lines_with_doublets,linlun,i+1,j+1,$
-                               initdat.maxncomp,linepars
-
+;             Print line fluxes to a text file
+              if not linepars.nolines then $ 
+                 ifsf_printlinpar,lines_with_doublets,linlun,i+1,j+1,$
+                                  initdat.maxncomp,linepars
+           endif
         endif
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Process and plot continuum data
@@ -468,7 +469,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                   poly_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
                   poly_mod_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_sigma: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_z: dblarr(cube.ncols,cube.nrows)+bad $
+                  stel_sigma_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad $
                  }
            endif else if tag_exist(initdat,'decompose_qso_fit') then begin
               contcube = $
@@ -479,7 +484,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                   poly_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   npts: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_sigma: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_z: dblarr(cube.ncols,cube.nrows)+bad $
+                  stel_sigma_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad $
                  }
               hostcube = $
                  {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
@@ -488,7 +497,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                  }
            endif else begin
               contcube = $
-                 {stel_z: dblarr(cube.ncols,cube.nrows)+bad}
+                 {stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad $
+                 }
            endelse
            firstcontproc=0
         endif
@@ -518,7 +531,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            contcube.poly_mod_tot_pct[i,j] = $
               contcube.poly_mod_tot[i,j] / cont_fit_tot
            contcube.stel_sigma[i,j] = struct.ct_ppxf_sigma
+           contcube.stel_sigma_err[i,j] = struct.ct_ppxf_sigma_err
            contcube.stel_z[i,j] = struct.zstar
+           contcube.stel_z_err[i,j] = struct.zstar_err
 ;;          Total flux near NaD in different components
 ;           ilow = value_locate(struct.wave,5850d*(1d + struct.zstar))
 ;           ihigh = value_locate(struct.wave,5950d*(1d + struct.zstar))
@@ -561,18 +576,24 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               if tag_exist(initdat.argscontfit,'refit') then begin
                  par_qsohost = struct.ct_coeff.qso_host
                  par_stel = struct.ct_coeff.stel
-                 par_poly = struct.ct_coeff.poly
                  log_rebin,[struct.wave[0],$
                             struct.wave[n_elements(struct.wave)-1]],$
                             struct.spec,$
                             dumy_log,wave_log
                  xnorm = cap_range(-1d,1d,n_elements(wave_log))
-                 polymod_log = 0d ; Additive polynomial
-                 for k=0,add_poly_degree do $
-                    polymod_log += legendre(xnorm,k)*par_poly[k]
-                 polymod_refit=interpol(polymod_log,wave_log,ALOG(struct.wave))
+                 if add_poly_degree ge 0 then begin
+                   par_poly = struct.ct_coeff.poly
+                   polymod_log = 0d ; Additive polynomial
+                   for k=0,add_poly_degree do $
+                      polymod_log += legendre(xnorm,k)*par_poly[k]
+                   polymod_refit=interpol(polymod_log,wave_log,ALOG(struct.wave))
+                 endif else begin
+                    polymod_refit = dblarr(n_elements(struct.wave))
+                 endelse
                  contcube.stel_sigma[i,j] = struct.ct_coeff.ppxf_sigma
+                 contcube.stel_sigma_err[i,j] = struct.ct_coeff.ppxf_sigma_err
                  contcube.stel_z[i,j] = struct.zstar
+                 contcube.stel_z_err[i,j] = struct.zstar_err
               endif else begin
                  par_qsohost = struct.ct_coeff
                  polymod_refit = 0d
@@ -615,7 +636,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif
         endif else begin
            contcube.stel_z[i,j] = struct.zstar
+           contcube.stel_z_err[i,j] = struct.zstar_err
         endelse
+        contcube.stel_ebv[i,j] = struct.ct_ebv
+        contcube.stel_rchisq[i,j] = struct.ct_rchisq
 
 
 ;       Print PPXF results to STDOUT
@@ -944,14 +968,18 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
      endif
 ;    Compute CVDFs
      if not tag_exist(initdat,'nocvdf') then begin
+        if tag_exist(initdat,'cvdf_vlimits') then vlimits=initdat.cvdf_vlimits $
+        else vlimits=0
+        if tag_exist(initdat,'cvdf_vstep') then vstep=initdat.cvdf_vstep $
+        else vstep=0
         emlcvdf = ifsf_cmpcvdf(emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
                                initdat.maxncomp,linelist_with_doublets,$
-                               initdat.zsys_gas)
+                               initdat.zsys_gas,vlimits=vlimits,vstep=vstep)
         save,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,emlcvdf,$
              file=initdat.outdir+initdat.label+'.lin.xdr'
      endif else begin
         save,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
-           file=initdat.outdir+initdat.label+'.lin.xdr'
+             file=initdat.outdir+initdat.label+'.lin.xdr'
      endelse
   endif
 

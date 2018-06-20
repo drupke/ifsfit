@@ -70,9 +70,11 @@
 ;    ChangeHistory::
 ;      2015jul01, AT, began work on adapting from ifs_fitdoublet
 ;      2016aug08, DSNR, added option to examine initial guess
+;      2018jun05, DSNR, added measurements of depth-weighted velocity and
+;                       RMS
 ;    
 ; :Copyright:
-;    Copyright (C) 2015--2016 Anthony To, David S. N. Rupke
+;    Copyright (C) 2015--2018 Anthony To, David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -312,8 +314,13 @@ pro ifsf_fitdoublet,table,dir,galshort,doublet,$
 ;        Compute model equivalent widths
          weq=1
          doubletemflux=1
+         vwtabs=1
+;        Velocity array
+         delz = doubletcube.wave/(linelist[linename]*(1d + redshift)) - 1d
+         veltmp = c*((delz+1d)^2d -1d)/((delz+1d)^2d +1d)
          modspec = ifsf_doubletfcn(doubletcube.wave,param,doubletname=doublet,$
-                                   weq=weq,doubletemflux=doubletemflux)
+                                   weq=weq,doubletemflux=doubletemflux,$
+                                   vels=veltmp,vwtabs=vwtabs)
 
 ;;        Compute errors in fit
 ;         if ~ keyword_set(noerr) then begin
@@ -436,6 +443,9 @@ finish:
       openw, lun, output, /GET_LUN
       printf, lun, param[0], '[Number of Absorption Components]',FORMAT='(I-3,A0)'
       printf, lun, param[1], '[Number of Emission Components]',FORMAT='(I-3,A0)'
+      printf, lun, weq.abs[0], ' [Total equivalent width in A]',FORMAT='(D0.4,A0)'
+      printf, lun, vwtabs[0], ' [Weighted avg. vel. in km/s]',FORMAT='(D0.2,A0)'
+      printf, lun, vwtabs[1], ' [Weighted RMS vel. in km/s]',FORMAT='(D0.2,A0)'
       printf, lun,'Covering Factor','Optical Depth',$
               'Wavelength(A)','Sigma(km/s)','Velocity(km/s)',$
               FORMAT='(A-20,A-20,A-20,A-20,A-20)'

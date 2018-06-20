@@ -75,6 +75,7 @@ function ifsf_checkcomp,linepars,linetie,ncomp,newncomp,siglim,$
          goodcomp = intarr(ncomp[key])
 ;        Loop through lines tied to each anchor, looking for good components
          foreach line,tiedlist do begin
+            ctgd = 0
             doignore=0b
             if keyword_set(ignore) then $
                foreach ignoreline,ignore do $

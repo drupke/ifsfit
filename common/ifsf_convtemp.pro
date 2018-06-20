@@ -11,8 +11,6 @@
 ; :Params:
 ;
 ; :Keywords:
-;    waveext: in, optional, type=integer
-;      The extention number of a wavelength array.
 ;
 ; :Author:
 ;    David S. N. Rupke::
@@ -24,12 +22,10 @@
 ;
 ; :History:
 ;    ChangeHistory::
-;      2016dec14, DSNR, created
-;      2018feb08, DSNR, added WAVEEXT keyword
-;      2018may24, DSNR, added DATEXT keyword
+;      2018mar05, DSNR, created
 ;
 ; :Copyright:
-;    Copyright (C) 2016--2018 David S. N. Rupke
+;    Copyright (C) 2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -46,16 +42,9 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_makeqsotemplate,infits,outxdr,datext=datext,dqext=dqext,waveext=waveext
+function ifsf_convtemp,templam,temp,sres
 
-   if ~ keyword_set(datext) then datext=1
-   if datext eq -1 then datext=0
-   if ~ keyword_set(dqext) then dqext=3
-   if ~ keyword_set(waveext) then waveext=0
+   
 
-   spec = ifsr_readspec(infits,ext=datext,waveext=waveext)
-   dq = ifsr_readspec(infits,ext=dqext)
-   qsotemplate = {wave: double(spec[*,0]), flux: double(spec[*,1]), dq: dq[*,1]}
-   save,qsotemplate,file=outxdr
-
+   return,newtemp
 end

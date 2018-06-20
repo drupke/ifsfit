@@ -136,8 +136,11 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['[OII]3726'] = 3726.032d
    lines['[OII]3729'] = 3728.815d
    lines['[OII]3726+[OII]3729'] = (3726.032d + 3728.815d)/2d
+   lines['[OIII]4363'] = 4363.209d
    lines['[OIII]4959'] = 4958.91d
    lines['[OIII]5007'] = 5006.84d
+   lines['[SII]4068'] = 4068.60d
+   lines['[SII]4076'] = 4076.35d
    lines['[SII]6716'] = 6716.44d
    lines['[SII]6731'] = 6730.82d
    lines['[SII]6716+[SII]6731'] = (6716.44d + 6730.82d)/2d
@@ -158,6 +161,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['OH8344'] = 8344.602d
    lines['OH8399'] = 8399.160d
    lines['OH8430'] = 8430.170d
+   lines['[ArIV]4740'] = 4740.12d
    lines['[CaV]5309'] = 5309.11d
    lines['[FeVII]5159'] = 5158.89d
    lines['[FeVII]5276'] = 5276.38d
@@ -473,8 +477,11 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
       linelab['[OII]3726'] = '[OII] 3726'
       linelab['[OII]3729'] = '[OII] 3729'
       linelab['[OII]3726+[OII]3729'] = '[OII] 3726, 3729'
+      linelab['[OIII]4363'] = '[OIII] 4363'
       linelab['[OIII]4959'] = '[OIII] 4959'
       linelab['[OIII]5007'] = '[OIII] 5007'
+      linelab['[SII]4068'] = '[SII] 4068'
+      linelab['[SII]4076'] = '[SII] 4076'
       linelab['[SII]6716'] = '[SII] 6716'
       linelab['[SII]6731'] = '[SII] 6731'
       linelab['[SII]6716+[SII]6731'] = '[SII] 6716, 6731'
@@ -495,6 +502,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
       linelab['OH8344'] = ''
       linelab['OH8399'] = ''
       linelab['OH8430'] = ''
+      linelab['[ArIV]4740'] = '[ArIV] 4740'
       linelab['[CaV]5309'] = '[CaV] 5309'
       linelab['[FeVII]5159'] = '[FeVII] 5159'
       linelab['[FeVII]5276'] = '[FeVII] 5276'

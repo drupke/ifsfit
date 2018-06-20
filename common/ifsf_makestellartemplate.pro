@@ -23,6 +23,7 @@
 ; :History:
 ;    ChangeHistory::
 ;      2016dec14, DSNR, created
+;      2018may11, DSNR, added option for non-GD05 templates
 ;
 ; :Copyright:
 ;    Copyright (C) 2016 David S. N. Rupke
@@ -42,10 +43,14 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_makestellartemplate,inxdr,outxdr,refit=refit
+pro ifsf_makestellartemplate,inxdr,outxdr,refit=refit,$
+                             stellartemplates=stellartemplates
 
-   startempfile = '/Users/drupke/Documents/stellar_models/'+$
-                  'gonzalezdelgado/SSPGeneva_z020.sav'
+   if keyword_set(stellartemplates) then $
+      startempfile = stellartemplates $
+   else $
+     startempfile = '/Users/drupke/Documents/stellar_models/'+$
+                    'gonzalezdelgado/SSPGeneva_z020.sav'
    restore,startempfile
    restore,inxdr
    if keyword_set(refit) then stelspec = template.flux # struct.ct_coeff.stel $

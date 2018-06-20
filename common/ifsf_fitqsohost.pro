@@ -199,6 +199,8 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
            degree=add_poly_degree,polyweights=polyweights,quiet=quiet,$
            weights=ct_coeff_refit
 
+      if add_poly_degree lt 0 then polyweights = 0d
+
 ;;     un-normalize
 ;      continuum_log *= fluxmed
 ;      polyweights *= fluxmed

@@ -88,6 +88,8 @@ function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
                 (wave ge fitranhi[0] AND wave le fitranhi[1]))
    igd = where(wave ge fitranlo[0] AND wave le fitranhi[1],ctgd)
 
+   if wave[n_elements(wave)-1] lt fitranhi[1] then ctgd=0
+
 ;  Check to make sure data is OK
    if ctgd gt 0 then begin
       

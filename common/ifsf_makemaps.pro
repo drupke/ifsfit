@@ -373,7 +373,8 @@ pro ifsf_makemaps,initproc
    dx = size_tmp[1]
    dy = size_tmp[2]
    dz = size_tmp[3]
-   if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]
+;  defined so that center of spaxel at bottom left has coordinates [1,1] 
+   if center_axes[0] eq -1 then center_axes = [double(dx)/2d,double(dy)/2d]+0.5d
    if center_nuclei[0] eq -1 then center_nuclei = center_axes
    if tag_exist(initmaps,'vornorm') then begin
       datacube.dat /= rebin(initmaps.vornorm,dx,dy,dz)
@@ -397,6 +398,9 @@ pro ifsf_makemaps,initproc
       if tag_exist(initmaps.hstbl,'platescale') then $
          hstpsbl = initmaps.hstbl.platescale $
       else hstpsbl = 0.05d
+      if tag_exist(initmaps.hstbl,'refcoords') then $
+         hstrefcoords = initmaps.hstbl.refcoords $
+      else hstrefcoords = initmaps.hst.refcoords
       if tag_exist(initmaps.hst,'subim_sm') AND $
          tag_exist(initmaps.hstbl,'sclargs_sm') then begin
          hst_sm_ifsfov = dblarr(4,2)
@@ -404,7 +408,7 @@ pro ifsf_makemaps,initproc
                                  initmaps.hst.subim_sm],$
                                  [dx,dy],initdat.platescale,$
                                  initdat.positionangle,center_nuclei,$
-                                 initmaps.hst.refcoords,$
+                                 hstrefcoords,$
                                  initmaps.hstbl.scllim,$
                                  sclargs=initmaps.hstbl.sclargs_sm,$
                                  ifsbounds=hst_sm_ifsfov,hstps=hstpsbl)
@@ -413,19 +417,19 @@ pro ifsf_makemaps,initproc
                                initmaps.hst.subim_big],$
                                [dx,dy],initdat.platescale,$
                                initdat.positionangle,center_nuclei,$
-                               initmaps.hst.refcoords,$
+                               hstrefcoords,$
                                initmaps.hstbl.scllim,$
                                sclargs=initmaps.hstbl.sclargs_big,$
                                ifsbounds=hst_big_ifsfov,hstps=hstpsbl)
       bhst_fov = ifsf_hstsubim(hstbl,[0,0],[dx,dy],initdat.platescale,$
                                initdat.positionangle,center_nuclei,$
-                               initmaps.hst.refcoords,$
+                               hstrefcoords,$
                                initmaps.hstbl.scllim,$
                                sclargs=initmaps.hstbl.sclargs_fov,$
                                /fov,hstps=hstpsbl)
       bhst_fov_ns = ifsf_hstsubim(hstbl,[0,0],[dx,dy],initdat.platescale,$
                                   initdat.positionangle,center_nuclei,$
-                                  initmaps.hst.refcoords,[0,0],/noscl,/fov,$
+                                  hstrefcoords,[0,0],/noscl,/fov,$
                                   hstps=hstpsbl)
       if tag_exist(initmaps,'hstblsm') then begin
          dohstsm=1
@@ -436,9 +440,9 @@ pro ifsf_makemaps,initproc
             map_x_tmp = rebin(dindgen(size_tmp[1]),size_tmp[1],size_tmp[2])
             map_y_tmp = rebin(transpose(dindgen(size_tmp[2])),$
                               size_tmp[1],size_tmp[2])
-            map_rkpc_tmp = sqrt((map_x_tmp - (initmaps.hst.refcoords[0]+$
+            map_rkpc_tmp = sqrt((map_x_tmp - (hstrefcoords[0]+$
                                  initmaps.hstbl.nucoffset[0]-1))^2d + $
-                                (map_y_tmp - (initmaps.hst.refcoords[1]+$
+                                (map_y_tmp - (hstrefcoords[1]+$
                                  initmaps.hstbl.nucoffset[1]-1))^2d) $
                            * initmaps.hstbl.platescale * kpc_per_as
             ipsf = where(map_rkpc_tmp le 0.15d)
@@ -465,14 +469,14 @@ pro ifsf_makemaps,initproc
          bhst_fov_sm = ifsf_hstsubim(hstblsm,[0,0],[dx,dy],$
                                      initdat.platescale,$
                                      initdat.positionangle,center_nuclei,$
-                                     initmaps.hst.refcoords,$
+                                     hstrefcoords,$
                                      initmaps.hstblsm.scllim,$
                                      sclargs=initmaps.hstblsm.sclargs,$
                                      /fov,hstps=hstpsbl)
          bhst_fov_sm_ns= ifsf_hstsubim(hstblsm,[0,0],[dx,dy],$
                                        initdat.platescale,$
                                        initdat.positionangle,center_nuclei,$
-                                       initmaps.hst.refcoords,[0,0],/noscl,$
+                                       hstrefcoords,[0,0],/noscl,$
                                        /fov,hstps=hstpsbl)
          bhst_fov_sm_ns_rb = congrid(bhst_fov_sm_ns,dx,dy,/interp,/center)
          if tag_exist(initdat,'vormap') then begin
@@ -495,6 +499,9 @@ pro ifsf_makemaps,initproc
       hstrd = readfits(initmaps.hstrd.file,hstrdhead,/silent,$
                        ext=hstrdext)
       hst_big_ifsfov = dblarr(4,2)
+      if tag_exist(initmaps.hstrd,'refcoords') then $
+         hstrefcoords = initmaps.hstrd.refcoords $
+      else hstrefcoords = initmaps.hst.refcoords
       if tag_exist(initmaps.hstrd,'platescale') then $
          hstpsrd = initmaps.hstrd.platescale $
       else hstpsrd = 0.05d
@@ -505,7 +512,7 @@ pro ifsf_makemaps,initproc
                                         initmaps.hst.subim_sm],$
                                  [dx,dy],initdat.platescale,$
                                  initdat.positionangle,center_nuclei,$
-                                 initmaps.hst.refcoords,$
+                                 hstrefcoords,$
                                  initmaps.hstrd.scllim,$
                                  sclargs=initmaps.hstrd.sclargs_sm,$
                                  ifsbounds=hst_sm_ifsfov,hstps=hstpsrd)
@@ -514,21 +521,21 @@ pro ifsf_makemaps,initproc
                                initmaps.hst.subim_big],$
                                [dx,dy],initdat.platescale,$
                                initdat.positionangle,center_nuclei,$
-                               initmaps.hst.refcoords,$
+                                 hstrefcoords,$
                                initmaps.hstrd.scllim,$
                                sclargs=initmaps.hstrd.sclargs_big,$
                                ifsbounds=hst_big_ifsfov,hstps=hstpsrd)
       rhst_fov = ifsf_hstsubim(hstrd,[0,0],[dx,dy],initdat.platescale,$
                                initdat.positionangle,center_nuclei,$
 ;                               0,center_nuclei,$
-                               initmaps.hst.refcoords,$
+                                 hstrefcoords,$
                                initmaps.hstrd.scllim,$
                                sclargs=initmaps.hstrd.sclargs_fov,$
                                /fov,hstps=hstpsrd)
       rhst_fov_ns = ifsf_hstsubim(hstrd,[0,0],[dx,dy],initdat.platescale,$
                                   initdat.positionangle,center_nuclei,$
 ;                                  0,center_nuclei,$
-                                  initmaps.hst.refcoords,[0,0],/noscl,/fov,$
+                                  hstrefcoords,[0,0],/noscl,/fov,$
                                   hstps=hstpsrd)
       if tag_exist(initmaps,'hstrdsm') then begin
          dohstsm=1
@@ -539,9 +546,9 @@ pro ifsf_makemaps,initproc
             map_x_tmp = rebin(dindgen(size_tmp[1]),size_tmp[1],size_tmp[2])
             map_y_tmp = rebin(transpose(dindgen(size_tmp[2])),$
                               size_tmp[1],size_tmp[2])
-            map_rkpc_tmp = sqrt((map_x_tmp - (initmaps.hst.refcoords[0]+$
+            map_rkpc_tmp = sqrt((map_x_tmp - (hstrefcoords[0]+$
                                  initmaps.hstrd.nucoffset[0]-1))^2d + $
-                                (map_y_tmp - (initmaps.hst.refcoords[1]+$
+                                (map_y_tmp - (hstrefcoords[1]+$
                                  initmaps.hstrd.nucoffset[1]-1))^2d) $
                            * initmaps.hstrd.platescale * kpc_per_as
             ipsf = where(map_rkpc_tmp le 0.15d)
@@ -568,14 +575,14 @@ pro ifsf_makemaps,initproc
          rhst_fov_sm = ifsf_hstsubim(hstrdsm,[0,0],[dx,dy],$
                                      initdat.platescale,$
                                      initdat.positionangle,center_nuclei,$
-                                     initmaps.hst.refcoords,$
+                                     hstrefcoords,$
                                      initmaps.hstrdsm.scllim,$
                                      sclargs=initmaps.hstrdsm.sclargs,$
                                      /fov,hstps=hstpsrd)
          rhst_fov_sm_ns= ifsf_hstsubim(hstrdsm,[0,0],[dx,dy],$
                                        initdat.platescale,$
                                        initdat.positionangle,center_nuclei,$
-                                       initmaps.hst.refcoords,[0,0],/noscl,$
+                                       hstrefcoords,[0,0],/noscl,$
                                        /fov,hstps=hstpsrd)
          rhst_fov_sm_ns_rb = congrid(rhst_fov_sm_ns,dx,dy,/interp,/center)
          if tag_exist(initdat,'vormap') then begin
@@ -901,7 +908,7 @@ pro ifsf_makemaps,initproc
 
    emlvel = 0d
    ebv = 0d
-   ebverr = 0d
+   errebv = 0d
    lr = hash()
    lrerrlo = hash()
    lrerrhi = hash()
@@ -982,14 +989,14 @@ pro ifsf_makemaps,initproc
 ;        Calculate ...
          if tag_exist(initmaps.ebv,'calc') then begin
             ebv = hash()
-            ebverr = hash()
+            errebv = hash()
             ebvmed = hash()
             foreach key,initmaps.ebv.calc do begin
                ebvtmp = $
                   ifsf_lineratios(emlflx[key],emlflxerr[key],linelist,/ebvonly,$
                                   errlo=errtmp)
                ebv[key] = ebvtmp['ebv']
-               ebverr[key] = errtmp['ebv']
+               errebv[key] = errtmp['ebv']
                igdebv = where(ebv[key] ne bad,ctgdebv)
                if ctgdebv gt 0 then ebvmed[key] = median(ebv[key,igdebv])
             endforeach
@@ -1041,7 +1048,7 @@ pro ifsf_makemaps,initproc
          endif
       endif else begin
          ebv = 0b
-         ebverr = 0b
+         errebv = 0b
       endelse
 
 ;     Line ratios
@@ -2407,12 +2414,13 @@ pro ifsf_makemaps,initproc
    endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Continuum plots: Stellar velocity / sigma
+; Continuum plots: Stellar velocity / sigma + E(B-V)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;  Size of plot grid
    if tag_exist(initdat,'decompose_qso_fit') OR $
       tag_exist(initdat,'decompose_ppxf_fit') then npx = 2 else npx = 1
+   if tag_exist(initdat,'ebv_star') then npx++
    npy = 1
 
 ;  Figure out correct image size in inches
@@ -2516,7 +2524,7 @@ pro ifsf_makemaps,initproc
 
    endif
 
-   if npx gt 1 then begin
+   if tag_exist(initdat,'decompose_ppxf_fit') then begin
 
       map = contcube.stel_sigma
       igd = where(map ne bad,ctgd)
@@ -2568,6 +2576,65 @@ pro ifsf_makemaps,initproc
 
       endif
    endif
+
+   if tag_exist(initdat,'ebv_star') then begin
+
+      map = contcube.stel_ebv
+      igd = where(map ne bad,ctgd)
+      stel_ebv = map
+      cbform = '(D0.1)' ; colorbar syntax
+
+      if ctgd gt 0 then begin
+
+;        Set up range
+         if hasrangefile then begin
+            ithisline = where(rangeline eq 'stel' AND $
+                              rangequant eq 'ebv',ctthisline)
+            if ctthisline eq 1 then auto=0b
+         endif else auto=1b
+         plotdat = ifsf_plotrange(auto=auto,$
+                                  mapgd=map[igd],divinit=0.2d,$
+                                  ncbdivmax=ncbdivmax,$
+                                  rline=rangeline,matline='stel',$
+                                  rcomp=rangecomp,$
+                                  rquant=rangequant,matquant='ebv',$
+                                  rncbdiv=rangencbdiv,$
+                                  rlo=rangelo,rhi=rangehi)
+
+         plotdat_stel_ebv = plotdat
+
+         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+                         min=plotdat[0],max=plotdat[1])
+         cgloadct,65,/reverse
+         cgimage,mapscl,/keep,pos=pos_top[*,npx-1],opos=truepos,$
+                 /noerase,missing_value=bad,missing_index=255,$
+                 missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                /nodata,/noerase,xran=[0,dx],yran=[0,dy]
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                          center_nuclei_kpc_y,/nolab
+;        Colorbar
+         xoffset = pan_xfrac*0.05
+         yoffset = mar_yfrac*0.2
+         cbpos=[truepos[0]+xoffset,truepos[1]-yoffset,$
+                truepos[2]-xoffset,truepos[1]]
+         ticknames = string(dindgen(plotdat[3]+1)*$
+                            plotdat[2]/double(plotdat[3]) - $
+                            (plotdat[2] - plotdat[1]),format=cbform)
+         ticknames[0]=' '
+         ticknames[plotdat[3]]=' '
+         cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                    ticknames=ticknames,charsize=0.6
+;        Title
+         title='E(B-V)'
+         yoffset = mar_yfrac*0.85
+         cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                truepos[1]-yoffset,title,charsize=1.25,align=0.5,/norm
+
+      endif
+   endif else begin
+      stel_ebv = 0d
+   endelse
 
 ;  Title
    cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
@@ -2674,6 +2741,8 @@ pro ifsf_makemaps,initproc
                      map[igd] *= initmaps.fluxfactor
                   if tag_exist(initmaps,'fluxunits') then $
                      map[igd] *= initmaps.fluxunits
+                  if tag_exist(initmaps,'vornorm') then $
+                     map[igd] /= initmaps.vornorm[igd]
                                  
                   zran=[0,1]
                   dzran = 1
@@ -2852,12 +2921,15 @@ pro ifsf_makemaps,initproc
    if tag_exist(initmaps,'ebv') then begin
       if tag_exist(initmaps.ebv,'calc') then begin
 
+         plotdat_ebv = hash()
+
 ;        Loop through types
          for i=0,n_elements(initmaps.ebv.calc)-1 do begin
             
             fluxtype = initmaps.ebv.calc[i]
             
             map = ebv[fluxtype]
+            maperr = errebv[fluxtype]
             ibd = where(map eq bad OR ~ finite(map),ctbd)
             igd = where(map ne bad AND finite(map),ctgd)
 
@@ -2907,11 +2979,11 @@ pro ifsf_makemaps,initproc
                                  rncbdiv=rangencbdiv,$
                                  rlo=rangelo,rhi=rangehi)
 
+               plotdat_ebv[fluxtype] = plotdat
+
                cgps_open,initdat.mapdir+initdat.label+'ebv_'+fluxtype+'.eps',$
                          charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
                cbform = '(D0.2)'
-
-               title+=textoidl('E(B-V)')
 
                mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
                                min=plotdat[0],max=plotdat[1])
@@ -2946,12 +3018,103 @@ pro ifsf_makemaps,initproc
 
                cgps_close
 
-            endif
+            endif else begin
+               plotdat_ebv[fluxtype] = 0b
+            endelse
          endfor
       endif
    endif
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Emission line vs. stellar extinction
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+   if tag_exist(initmaps,'ebv') AND $
+      tag_exist(initdat,'ebv_star') then begin
+      if tag_exist(initmaps.ebv,'calc') then begin
+         for i=0,n_elements(initmaps.ebv.calc)-1 do begin
+            
+            fluxtype = initmaps.ebv.calc[i]
+            map = ebv[fluxtype]
+            maperr = errebv[fluxtype]
+            ibd = where(map eq bad OR ~ finite(map),ctbd)
+            igd = where(map ne bad AND finite(map),ctgd)
+
+            if ctgd gt 0 then begin
+               cgps_open,initdat.mapdir+initdat.label+'ebv_'+fluxtype+'_v_ebv_stel.eps',$
+                         charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui
+               xran = [min([plotdat_ebv[fluxtype,0],plotdat_stel_ebv[0]]),$
+                       max([plotdat_ebv[fluxtype,1],plotdat_stel_ebv[1]])]
+               yran=xran
+               cgplot,[0],/xsty,/ysty,/nodata,xran=xran,yran=yran,$
+                      xtit='gas E(B-V)',ytit='stellar E(B-V)'
+               cgoplot,map,stel_ebv,psym=16,symsize=0.75d,$
+                       err_xlow=maperr,err_xhi=maperr
+               cgoplot,xran,yran
+               cgps_close
+            endif
+
+         endfor
+      endif
+   endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Stellar extinction vs. HST color
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+   if dohstcolsm AND tag_exist(initdat,'ebv_star') then begin
+
+      map = cshst_fov_rb
+      igd = where(cshst_fov_rb ne bad AND stel_ebv ne bad)
+      xran = [min(map[igd])*0.95d,max(map[igd])*1.05d]
+      yran = plotdat_stel_ebv[0:1]
+
+      cgps_open,initdat.mapdir+initdat.label+'color_v_ebv_stel.eps',$
+                charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui
+      cgplot,[0],/xsty,/ysty,/nodata,xran=xran,yran=yran,$
+             xtit=initmaps.hstbl.label+'-'+initmaps.hstrd.label,$
+             ytit='stellar E(B-V)'
+      cgoplot,map,stel_ebv,psym=16,symsize=0.75d
+      cgps_close
+
+   endif
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Gas extinction vs. HST color
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+   if dohstcolsm AND tag_exist(initmaps,'ebv') then begin
+      if tag_exist(initmaps.ebv,'calc') then begin
+         for i=0,n_elements(initmaps.ebv.calc)-1 do begin
+
+            fluxtype = initmaps.ebv.calc[i]
+            map = ebv[fluxtype]
+            maperr = errebv[fluxtype]
+            ibd = where(map eq bad OR ~ finite(map),ctbd)
+            igd = where(map ne bad AND finite(map),ctgd)
+
+            if ctgd gt 0 then begin
+               cmap = cshst_fov_rb
+               xran = [min(cmap[igd])*0.95d,max(cmap[igd])*1.05d]
+               yran = plotdat_ebv[fluxtype,0:1]
+
+               cgps_open,initdat.mapdir+initdat.label+'color_v_ebv_'+fluxtype+'.eps',$
+                         charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui
+               cgplot,[0],/xsty,/ysty,/nodata,xran=xran,yran=yran,$
+                      xtit=initmaps.hstbl.label+'-'+initmaps.hstrd.label,$
+                      ytit='gas E(B-V)'
+               cgoplot,cmap[igd],map[igd],psym=16,symsize=0.75d,$
+                       err_ylow=maperr[igd],err_yhi=maperr[igd]
+               cgps_close
+            endif
+         endfor
+      endif
+   endif
+   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Plots of line ratios
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -3921,11 +4084,7 @@ pro ifsf_makemaps,initproc
       map[ibd] = bad
 
 ;     Save some things for later
-      igd_nadem_empweq = igd
-      ibd_nadem_empweq = ibd
       plotdat_nadem_empweq = plotdat
-      map_nadem_empweq = map
-      map_nadem_empweq_err = maperr
 
       mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
                       min=plotdat[0],max=plotdat[1])
@@ -3951,7 +4110,14 @@ pro ifsf_makemaps,initproc
              truepos[3]+yoffset,panel_title,$
              charsize=panel_title_chars,align=0.5,/norm
 
-      endif
+      endif 
+      
+;     Save some things for later
+      igd_nadem_empweq = igd
+      ibd_nadem_empweq = ibd
+      map_nadem_empweq = map
+      map_nadem_empweq_err = maperr
+      
 
 ;     Fitted W_eq
 ;-------------------------------------------------------------------------------
@@ -4139,11 +4305,7 @@ pro ifsf_makemaps,initproc
       map[ibd] = bad
 
 ;     Save some things for later
-      igd_nadem_empflux = igd
-      ibd_nadem_empflux = ibd
       plotdat_nadem_empflux = plotdat
-      map_nadem_empflux = map
-      map_nadem_empflux_err = maperr
 
       mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
                       min=plotdat[0],max=plotdat[1])
@@ -4170,6 +4332,12 @@ pro ifsf_makemaps,initproc
              charsize=panel_title_chars,align=0.5,/norm
 
       endif
+
+;     Save some things for later
+      igd_nadem_empflux = igd
+      ibd_nadem_empflux = ibd
+      map_nadem_empflux = map
+      map_nadem_empflux_err = maperr
 
 ;     Fitted Flux
 ;-------------------------------------------------------------------------------
@@ -7441,34 +7609,38 @@ pro ifsf_makemaps,initproc
               e_of_meanr_wtflx: e_of_meanr_wtflx,$
               e_of_meanpa_wtflx: e_of_meanpa_wtflx,$
 ;             Maps
-              lr: lr, $
-              lrerrlo: lrerrlo, $
-              lrerrhi: lrerrhi, $
-              elecden: elecdenmap, $
-              elecdenerrlo: elecdenmap_errlo, $
-              elecdenerrhi: elecdenmap_errhi, $
               a_vel: nadabsvel, $
               a_v98: nadabsv98, $
-              ibd_nadabs_fitweq: ibd_nadabs_fitweq,$
-              igd_nadabs_fitweq: igd_nadabs_fitweq,$
+              center_nuclei: center_nuclei,$
+              center_nuclei_kpc_x: center_nuclei_kpc_x,$
+              center_nuclei_kpc_y: center_nuclei_kpc_y, $
+              dx: dx,$
+              dy: dy,$
               e_vel: emlvel, $
               e_flx: emlflx, $
               ebv: ebv, $
-              ebverr: ebverr, $
-              dx: dx,$
-              dy: dy,$
+              errebv: errebv, $
+              elecden: elecdenmap, $
+              elecdenerrlo: elecdenmap_errlo, $
+              elecdenerrhi: elecdenmap_errhi, $
+              ibd_nadabs_fitweq: ibd_nadabs_fitweq,$
+              igd_nadabs_fitweq: igd_nadabs_fitweq,$
+              kpc_per_as: kpc_per_as,$
+              lr: lr, $
+              lrerrlo: lrerrlo, $
+              lrerrhi: lrerrhi, $
               map_r: map_r,$
               map_rkpc_ifs: map_rkpc_ifs,$
-              kpc_per_as: kpc_per_as,$
-              xran_kpc: xran_kpc,$
-              yran_kpc: yran_kpc,$
+              stel_vel: stel_vel,$
+              stel_ebv: stel_ebv,$
               xarr_kpc: xran_kpc,$
+              xran_kpc: xran_kpc,$
               yarr_kpc: yran_kpc,$
-              center_nuclei: center_nuclei,$
-              center_nuclei_kpc_x: center_nuclei_kpc_x,$
-              center_nuclei_kpc_y: center_nuclei_kpc_y $
+              yran_kpc: yran_kpc $
              }
    save,windstr,file=initdat.mapdir+initdat.label+'.xdr'
+
+   save,emlvel,file=initdat.mapdir+initdat.label+'.emlvel.xdr'
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; OTHER PLOTS (GALAXY-SPECIFIC)

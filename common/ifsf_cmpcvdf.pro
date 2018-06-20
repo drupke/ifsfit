@@ -30,7 +30,9 @@
 ;      Systemic redshift to which to refer output velocities.
 ;
 ; :Keywords:      
-; 
+;    vlimits: in, optional, type=dblarr(2), default=[-1d4,1d4]
+;    vstep: in, optional, type=double, default=1d
+;    
 ; :Author:
 ;    David S. N. Rupke::
 ;      Rhodes College
@@ -43,9 +45,10 @@
 ;    ChangeHistory::
 ;      2016sep28, DSNR, created; copied from IFSF_CMPLINSPECMAPS
 ;      2016oct05, DSNR, updated error treatment to include wave, sigma errors
+;      2018jun07, DSNR, added options to adjust model velocity parameters
 ;    
 ; :Copyright:
-;    Copyright (C) 2016 David S. N. Rupke
+;    Copyright (C) 2016--2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -63,7 +66,7 @@
 ;
 ;-
 function ifsf_cmpcvdf,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
-                      ncomp,linelist,zref
+                      ncomp,linelist,zref,vlimits=vlimits,vstep=vstep
 
    bad = 1d99
    c = 299792.458
@@ -73,8 +76,8 @@ function ifsf_cmpcvdf,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
    min = sqrt((machar(/double)).xmin)
    minexp = alog(min)
 
-   modvelran = [-1d4,1d4]
-   modvelstep = 1d
+   if keyword_set(vlimits) then modvelran = vlimits else modvelran=[-1d4,1d4]
+   if keyword_set(vstep) then modvelstep = vstep else modvelstep=1d
    nmod = (round(modvelran[1]-modvelran[0])/modvelstep)+1
    modvel = dindgen(nmod)
    modvel*=modvelstep

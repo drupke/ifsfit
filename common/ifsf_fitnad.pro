@@ -766,8 +766,6 @@ copyvor:
             endif
          endif
 
-nofit:
-
          if tag_exist(initdat,'vormap') then begin
             if finite(initdat.vormap[i,j]) AND $
                initdat.vormap[i,j] ne bad then begin
@@ -777,6 +775,8 @@ nofit:
                endif
             endif
          endif
+
+nofit:
 
       endfor
       

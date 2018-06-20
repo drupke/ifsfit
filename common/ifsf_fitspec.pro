@@ -112,9 +112,12 @@
 ;      2016oct11, DSNR, added calculation of fit residual
 ;      2016nov17, DSNR, changed FTOL in MPFITFUN call from 1d-6 to 
 ;                       default (1d-10)
+;      2018mar05, DSNR, added option to convolve template with spectral resolution
+;                       profile
+;      2018may30, DSNR, added option to adjust XTOL and FTOL for line fitting
 ;         
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -160,10 +163,14 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   if tag_exist(initdat,'startempfile') then istemp = 1b else istemp=0b
   if tag_exist(initdat,'loglam') then loglam=1b else loglam=0b
   if tag_exist(initdat,'vacuum') then vacuum=1b else vacuum=0b
-  if tag_exist(initdat,'dored') then redinit=1d else redinit=[]
+  if tag_exist(initdat,'ebv_star') then ebv_star=initdat.ebv_star else ebv_star=[]
   if tag_exist(initdat,'maskwidths_def') then $
      maskwidths_def = initdat.maskwidths_def $
   else maskwidths_def = 1000d ; default half-width in km/s for emission line masking
+  if tag_exist(initdat,'mpfit_xtol') then mpfit_xtol=initdat.mpfit_xtol $
+  else mpfit_xtol=1d-10
+  if tag_exist(initdat,'mpfit_ftol') then mpfit_ftol=initdat.mpfit_ftol $
+  else mpfit_ftol=1d-10
 
   noemlinfit = 0b
   if tag_exist(initdat,'noemlinfit') then ct_comp_emlist = 0 $
@@ -180,9 +187,22 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
      if vacuum then airtovac,templatelambdaz
      if tag_exist(initdat,'waveunit') then $
         templatelambdaz *= initdat.waveunit
+     if tag_exist(initdat,'fcnconvtemp') then begin
+        if tag_exist(initdat,'argsconvtemp') then $
+           newtemplate = $
+              call_function(initdat.fcnconvtemp,templatelambdaz,$
+                            template,_extra=initdat.argsconvtemp) $
+        else $
+           newtemplate = $
+              call_function(initdat.fcnconvtemp,templatelambdaz,$
+                            template)
+     endif
   endif else begin
      templatelambdaz = lambda
   endelse
+
+; Set up error in zstar
+  zstar_err = 0d
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Pick out regions to fit
@@ -354,7 +374,9 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
            ppxf_sigma=0d
         endelse
         add_poly_weights=0d
-           
+        ct_rchisq=0d
+        ppxf_sigma_err=0d
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Option 2: PPXF
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -373,7 +395,7 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
               add_poly_degree = initdat.argscontfit.add_poly_degree
 
 ;       This ensures PPXF doesn't look for lambda if no reddening is done
-        if n_elements(redinit) eq 0 then redlambda = [] else redlambda=gdlambda
+        if n_elements(ebv_star) eq 0 then redlambda = [] else redlambda=exp(gdlambda_log)
 
 ;       Add QSO template as sky spectrum so that it doesn't get convolved with
 ;       anything.
@@ -389,7 +411,8 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
              [0,initdat.siginit_stars],sol,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
              degree=add_poly_degree,polyweights=add_poly_weights,quiet=quiet,$
-             weights=ct_coeff,reddening=redinit,lambda=redlambda,sky=sky
+             weights=ct_coeff,reddening=ebv_star,lambda=redlambda,sky=sky,$
+             error=solerr
 
 ;       Resample the best fit into linear space
         continuum = interpol(continuum_log,gdlambda_log,ALOG(gdlambda))
@@ -398,9 +421,20 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
         zstar += sol[0]/c
         ppxf_sigma=sol[1]
 
+;     From PPXF docs:
+;     - These errors are meaningless unless Chi^2/DOF~1 (see parameter SOL below).
+;       However if one *assume* that the fit is good, a corrected estimate of the
+;       errors is: errorCorr = error*sqrt(chi^2/DOF) = error*sqrt(sol[6]).
+        ct_rchisq = sol[6]
+        solerr *= sqrt(sol[6])
+        zstar_err = sqrt(zstar_err^2d + (solerr[0]/c)^2d)
+        ppxf_sigma_err=solerr[1]
+
      endif else begin
         add_poly_weights=0d
+        ct_rchisq=0d
         ppxf_sigma=0d
+        ppxf_sigma_err=0d
      endelse
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -520,7 +554,7 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
                    bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                    nfev=nfev,niter=niter,status=status,quiet=quiet,$
                    npegged=npegged,functargs=argslinefit,$
-                   errmsg=errmsg)
+                   errmsg=errmsg,xtol=mpfit_xtol,ftol=mpfit_ftol)
 
 ;; Un-normalize fit.
 ;  specfit *= fnorm
@@ -585,7 +619,7 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   endelse
 
   ; This sets the output reddening to a numerical 0 instead of NULL
-  if n_elements(redinit) eq 0 then redinit=0d
+  if n_elements(ebv_star) eq 0 then ebv_star=0d
   
   fit_time2 = systime(1)
   if not quiet then print,'IFSF_FITSPEC: Line fit took ',$
@@ -605,10 +639,13 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
 ;          Continuum fit parameters
            ct_method: method, $
            ct_coeff: ct_coeff, $
-           ct_ebv: redinit, $
+           ct_ebv: ebv_star, $
            zstar: zstar, $
+           zstar_err: zstar_err,$
            ct_add_poly_weights: add_poly_weights,$
            ct_ppxf_sigma: ppxf_sigma,$
+           ct_ppxf_sigma_err: ppxf_sigma_err,$
+           ct_rchisq: ct_rchisq,$
 ;          Spectrum in various forms
            wave: gdlambda, $
            spec: gdflux, $      ; data
