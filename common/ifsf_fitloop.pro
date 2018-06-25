@@ -49,9 +49,10 @@
 ;      2016sep26, DSNR, small change in masking for new treatment of spec. res.
 ;      2016oct20, DSNR, fixed treatment of SIGINIT_GAS
 ;      2016nov17, DSNR, added flux calibration
+;      2018jun25, DSNR, added MC error calculation on stellar parameters
 ;
 ; :Copyright:
-;    Copyright (C) 2016 David S. N. Rupke
+;    Copyright (C) 2016--2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -106,6 +107,14 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
             format='(A0,I0,A0,I0,A0)'
      
    endif
+
+   if oned then begin
+      outlab = string(initdat.outdir,initdat.label,'_',i+1,$
+         format='(A,A,A,I04,A,I04)')
+   endif else begin
+      outlab = string(initdat.outdir,initdat.label,'_',i+1,'_',j+1,$
+         format='(A,A,A,I04,A,I04)')
+   endelse
 
 
 ;;  Apply flux calibration
@@ -177,6 +186,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 ;        Initialize stellar redshift for this spaxel
          if oned then zstar = initdat.zinit_stars[i] $
          else zstar = initdat.zinit_stars[i,j]
+         zstar_init = zstar
 
 ;        Regions to ignore in fitting. Set to max(err).
          if tag_exist(initdat,'cutrange') then begin
@@ -218,6 +228,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
                   linelistz[line] = $
                      reform(linelist[line]*(1d + (initdat.zinit_gas)[line,i,j,*]),$
                             initdat.maxncomp)
+         linelistz_init = linelistz
 
          structinit = ifsf_fitspec(cube.wave,flux,err,dq,zstar,linelist,$
                                    linelistz,ncomp,initdat,quiet=quiet,$
@@ -264,6 +275,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
                siginit_gas_tmp=0
             endelse
 
+            zstar_init2 = structinit.zstar
             struct = ifsf_fitspec(cube.wave,flux,err,dq,structinit.zstar,$
                                   linelist,$
                                   linelistz,ncomp,initdat,quiet=quiet,$
@@ -319,19 +331,133 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 
          endif else dofit=0b
 
-         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-         ; Save result to a file
-         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
          if ~ dofit AND ~ abortfit then begin
-            if oned then $
-               save,struct,file=$
-               string(initdat.outdir,initdat.label,'_',i+1,'.xdr',$
-               format='(A,A,A,I04,A,I04,A)') $
-            else $
-               save,struct,file=$
-               string(initdat.outdir,initdat.label,'_',i+1,'_',j+1,$
-               '.xdr',format='(A,A,A,I04,A,I04,A)')
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Monte Carlo the errors
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+            if tag_exist(initdat,'mcerrors') then begin
+
+;              Parameter values to collect
+               mcdist = hash()
+               mcdist['ct_ebv'] = dblarr(initdat.mcerrors.niter)
+               mcdist['ct_ppxf_sigma'] = dblarr(initdat.mcerrors.niter)
+               mcdist['zstar'] = dblarr(initdat.mcerrors.niter)
+               nwave = n_elements(struct.wave)
+               rans = randomn(seed,nwave,initdat.mcerrors.niter,/double)
+               model = struct.cont_fit + struct.emlin_fit
+
+               for k=0,initdat.mcerrors.niter-1 do begin
+;                 attempt to correct for over- and under-estimated errors
+;                 by multiplying by reduced chi-squared
+                  if struct.ct_rchisq ne 0d then $
+                     erradj = struct.spec_err * struct.ct_rchisq $
+                  else erradj = struct.spec_err
+                  moderr = model + rans[*,k]*erradj
+                  imaxerr = where(struct.spec_err eq max(err))
+                  moderr[imaxerr] = 0d
+
+;; Option 1: re-run entire continuum + emission-line fit, two iterations
+;                  zstar = zstar_init
+;                  linelistz = linelistz_init
+;                  mcstructinit = ifsf_fitspec(struct.wave,moderr,struct.spec_err,$
+;                                              dq[struct.fitran_indx],zstar,$
+;                                              linelist,linelistz,$
+;                                              ncomp,initdat,quiet=quiet,$
+;                                              siglim_gas=siglim_gas,$
+;                                              siginit_gas=siginit_gas,$
+;                                              tweakcntfit=tweakcntfit,col=i+1,$
+;                                              row=j+1)
+;                  
+;                  if ~ onefit then begin
+;
+;                     if ~ tag_exist(initdat,'noemlinfit') AND $
+;                        ct_comp_emlist gt 0 then begin
+;                        linepars = ifsf_sepfitpars(linelist,mcstructinit.param,$
+;                                                   mcstructinit.perror,$
+;                                                   mcstructinit.parinfo)
+;                        linelistz = linepars.wave
+;                        if tag_exist(initdat,'masksig_secondfit') then $
+;                           masksig_secondfit = initdat.masksig_secondfit $
+;                        else masksig_secondfit = masksig_secondfit_def
+;                        maskwidths = hash(initdat.lines)
+;                        foreach line,initdat.lines do $
+;                           maskwidths[line] = $
+;                              masksig_secondfit*linepars.sigma_obs[line]
+;                        maskwidths_tmp = maskwidths
+;                        peakinit_tmp = linepars.fluxpk_obs
+;                        siginit_gas_tmp = linepars.sigma
+;                     endif else begin
+;                        maskwidths_tmp=0
+;                        peakinit_tmp=0
+;                        siginit_gas_tmp=0
+;                     endelse
+;
+;                     mcstruct = ifsf_fitspec(struct.wave,moderr,struct.spec_err,$
+;                                             dq[struct.gd_indx],zstar,$
+;                                             linelist,linelistz,$
+;                                             ncomp,initdat,quiet=quiet,$
+;                                             siglim_gas=siglim_gas,$
+;                                             maskwidths=maskwidths_tmp,$
+;                                             peakinit=peakinit_tmp,$
+;                                             siginit_gas=siginit_gas_tmp,$
+;                                             tweakcntfit=tweakcntfit,col=i+1,$
+;                                             row=j+1)
+;
+;
+;                  endif else mcstruct = mcstructinit
+            
+; Option 2: re-run second stellar fit only
+                  if ~ onefit then begin
+                     zstar = zstar_init2
+                  endif else begin
+                     zstar = zstar_init
+                     maskwidths_tmp = 0d
+                     peakinit_tmp = 0d
+                     siginit_gas_tmp = 0d
+                  endelse
+                  if ~ tag_exist(initdat,'doemlinmask') then $
+                     initdat_tmp = create_struct(initdat,'doemlinmask',1b) $
+                  else initdat_tmp = initdat
+                  if ~ tag_exist(initdat,'noemlinfit') then $
+                     initdat_tmp = create_struct(initdat_tmp,'noemlinfit',1b)
+
+; For correctness, error here should be erradj, but for consistency with 
+; first call we'll leave it alone. Difference is a constant scaling factor,
+; so should in principle only affect reduced chi squared.
+                  mcstruct = ifsf_fitspec(struct.wave,moderr,$
+                                          struct.spec_err,$
+                                          dq[struct.fitran_indx],zstar,$
+                                          linelist,linelistz,$
+                                          ncomp,initdat_tmp,quiet=quiet,$
+                                          siglim_gas=siglim_gas,$
+                                          maskwidths=maskwidths_tmp,$
+                                          peakinit=peakinit_tmp,$
+                                          siginit_gas=siginit_gas_tmp,$
+                                          tweakcntfit=tweakcntfit,col=i+1,$
+                                          row=j+1)
+
+
+
+                  mcdist['zstar',k] = mcstruct.zstar
+                  mcdist['ct_ppxf_sigma',k] = mcstruct.ct_ppxf_sigma
+                  mcdist['ct_ebv',k] = mcstruct.ct_ebv
+                  
+               endfor
+
+               ct_errors = ifsf_cterrdist(mcdist,outlab+'_cterrs.pdf')
+               struct = create_struct(struct,'ct_errors',ct_errors)
+               
+            endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Save result to a file
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+            save,struct,file=outlab+'.xdr'
+
          endif
 
       endwhile

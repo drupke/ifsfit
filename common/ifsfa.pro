@@ -469,11 +469,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                   poly_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
                   poly_mod_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_sigma: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_sigma_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_sigma_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_z_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad $
+                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_ebv_err: dblarr(cube.ncols,cube.nrows,2)+bad $
                  }
            endif else if tag_exist(initdat,'decompose_qso_fit') then begin
               contcube = $
@@ -484,11 +485,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                   poly_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   npts: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_sigma: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_sigma_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_sigma_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_z_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad $
+                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad, $
+                  stel_ebv_err: dblarr(cube.ncols,cube.nrows,2)+bad $
                  }
               hostcube = $
                  {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
@@ -498,9 +500,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif else begin
               contcube = $
                  {stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_z_err: dblarr(cube.ncols,cube.nrows)+bad,$
+                  stel_z_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad $
+                  stel_ebv: dblarr(cube.ncols,cube.nrows)+bad, $
+                  stel_ebv_err: dblarr(cube.ncols,cube.nrows,2)+bad $
                  }
            endelse
            firstcontproc=0
@@ -531,9 +534,15 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            contcube.poly_mod_tot_pct[i,j] = $
               contcube.poly_mod_tot[i,j] / cont_fit_tot
            contcube.stel_sigma[i,j] = struct.ct_ppxf_sigma
-           contcube.stel_sigma_err[i,j] = struct.ct_ppxf_sigma_err
            contcube.stel_z[i,j] = struct.zstar
-           contcube.stel_z_err[i,j] = struct.zstar_err
+           if tag_exist(struct.ct_errors) then $
+              contcube.stel_sigma_err[i,j,*] = struct.ct_errors['ct_ppxf_sigma'] $
+           else contcube.stel_sigma_err[i,j] = $
+              [struct.ct_ppxf_sigma_err,struct.ct_ppxf_sigma_err]
+           if tag_exist(struct.ct_errors) then $
+              contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
+           else contcube.stel_z_err[i,j,0] = $
+              [struct.zstar_err,struct.zstar_err]
 ;;          Total flux near NaD in different components
 ;           ilow = value_locate(struct.wave,5850d*(1d + struct.zstar))
 ;           ihigh = value_locate(struct.wave,5950d*(1d + struct.zstar))
@@ -591,9 +600,15 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     polymod_refit = dblarr(n_elements(struct.wave))
                  endelse
                  contcube.stel_sigma[i,j] = struct.ct_coeff.ppxf_sigma
-                 contcube.stel_sigma_err[i,j] = struct.ct_coeff.ppxf_sigma_err
                  contcube.stel_z[i,j] = struct.zstar
-                 contcube.stel_z_err[i,j] = struct.zstar_err
+                 if tag_exist(struct.ct_errors) then $
+                    contcube.stel_sigma_err[i,j,*] = struct.ct_errors['ct_ppxf_sigma'] $
+                 else contcube.stel_sigma_err[i,j] = $
+                    [struct.ct_ppxf_sigma_err,struct.ct_ppxf_sigma_err]
+                 if tag_exist(struct.ct_errors) then $
+                    contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
+                 else contcube.stel_z_err[i,j] = $
+                    [struct.zstar_err,struct.zstar_err]
               endif else begin
                  par_qsohost = struct.ct_coeff
                  polymod_refit = 0d
@@ -636,9 +651,13 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif
         endif else begin
            contcube.stel_z[i,j] = struct.zstar
-           contcube.stel_z_err[i,j] = struct.zstar_err
+           if tag_exist(struct.ct_errors) then $
+              contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
+           else contcube.stel_z_err[i,j,*] = [struct.zstar_err,struct.zstar_err]
         endelse
         contcube.stel_ebv[i,j] = struct.ct_ebv
+        if tag_exist(struct.ct_errors) then $
+           contcube.stel_ebv_err[i,j,*] = struct.ct_errors['ct_ebv']
         contcube.stel_rchisq[i,j] = struct.ct_rchisq
 
 

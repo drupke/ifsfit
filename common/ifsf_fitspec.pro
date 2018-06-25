@@ -177,6 +177,9 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   else nocomp_emlist = ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist)
   if ct_comp_emlist eq 0 then noemlinfit=1b
 
+  noemlinmask = 0b
+  if noemlinfit AND ~ tag_exist(initdat,'doemlinmask') then noemlinmask = 1b
+
   if istemp then begin
 ;    Get stellar templates
      restore,initdat.startempfile
@@ -292,7 +295,7 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   if tag_exist(initdat,'fcncontfit') then begin
 
 ;    Mask emission lines
-     if ~ noemlinfit then begin
+     if ~ noemlinmask then begin
         if not keyword_set(maskwidths) then $
            if tag_exist(initdat,'maskwidths') then $
               maskwidths = initdat.maskwidths $
@@ -661,6 +664,7 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
            ct_indx: ct_indx, $        ; where emission is not masked
 ;          Line fit parameters
            noemlinfit: noemlinfit,$   ; was emission line fit done?
+           noemlinmask: noemlinmask,$ ; were emission lines masked?
            redchisq: chisq/dof, $
            niter: niter, $
            fitstatus: status, $
