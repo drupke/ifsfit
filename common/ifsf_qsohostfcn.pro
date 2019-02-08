@@ -3,14 +3,7 @@
 ;+
 ;
 ; Function to fit a continuum with a QSO template plus a smooth additive 
-; template. The additive template is the sum of Legendre polynomials up to 
-; order FITORD. The QSO is also multiplied by a sum of Legendre polynomials 
-; up to order QSOORD. We use Legendre polynomials rather than a "standard"
-; polynomial b/c it is more well-behaved with MPCURVEFIT as the order increases.
-; In principle the two should yield the same result, but in practice Legendre
-; polynomials are more faithful to the data for high orders (for unknown
-; numerical reasons, though probably having something to do with Legendre
-; polynomials being orthogonal over -1 < x < 1).
+; template.
 ;
 ; Notes:
 ;
@@ -34,11 +27,7 @@
 ;      Number of Gaussian terms to include (3 x number of Gaussian components).
 ;    hostonly: in, optional, type=byte
 ;      Output host only.
-;    fitord: in, optional, type=integer, default=3
-;      Specifies order of additive renormalization
 ;    quiet: in, optional, type=byte
-;    qsoord: in, optional, type=integer, default=3
-;      Specifies order of multiplicative renormalization
 ;    qsoonly: in, optional, type=byte
 ;      Do not add stellar continuum.
 ; 
@@ -65,7 +54,7 @@
 ;      2016nov11, DSNR, re-wrote to use only Legendre polynomials
 ;    
 ; :Copyright:
-;    Copyright (C) 2015--2016 David S. N. Rupke
+;    Copyright (C) 2015--2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -84,9 +73,12 @@
 ;-
 pro ifsf_qsohostfcn,x,p,ymod,nxfull=nxfull,ixfull=ixfull,$
                     hostonly=hostonly,qsoonly=qsoonly,blronly=blronly,$
-                    qsoflux=qsoflux,qsoscl=qsoscl,blrterms=blrterms
+                    qsoflux=qsoflux,qsoscl=qsoscl,blrterms=blrterms,$
+                    qsoord=qsoord,hostord=hostord
 
   if ~ keyword_set(blrterms) then blrterms=0
+  if ~ keyword_set(hostord) then hostord=0
+  if ~ keyword_set(qsoord) then qsoord=0
 
   npar = n_elements(p)
   
@@ -96,6 +88,7 @@ pro ifsf_qsohostfcn,x,p,ymod,nxfull=nxfull,ixfull=ixfull,$
   
   xfull_norm01 = dindgen(nxfull)/double(nxfull-1) ; array of numbers from 0 to 1
   xfull_norm10 = reverse(xfull_norm01)
+  xfull_normm11 = (xfull_norm01*2d)-1d ; array of numbers from -1 to 1
 
   x_norm01 = xfull_norm01[ixfull]
   x_norm10 = xfull_norm10[ixfull]
@@ -108,15 +101,21 @@ pro ifsf_qsohostfcn,x,p,ymod,nxfull=nxfull,ixfull=ixfull,$
      ymod += p[2]*exp(-p[3]*x_norm10)
      ymod += p[4]*(1d - exp(-p[5]*x_norm01))
      ymod += p[6]*(1d - exp(-p[7]*x_norm10))
+     if hostord gt 0 then $
+        for i=0,hostord do ymod += p[8+i]*legendre(xfull_normm11,i)
   endif
 
 ; QSO continuum
   if ~ keyword_set(hostonly) AND ~ keyword_set(blronly) then begin
+     if hostord gt 0 then poff=1+hostord else poff=0
      qsoscl = dblarr(nx)
-     qsoscl += p[8]*exp(-p[9]*x_norm01)
-     qsoscl += p[10]*exp(-p[11]*x_norm10)
-     qsoscl += p[12]*(1d - exp(-p[13]*x_norm01))
-     qsoscl += p[14]*(1d - exp(-p[15]*x_norm10))
+     qsoscl += p[8+poff]*exp(-p[9+poff]*x_norm01)
+     qsoscl += p[10+poff]*exp(-p[11+poff]*x_norm10)
+     qsoscl += p[12+poff]*(1d - exp(-p[13+poff]*x_norm01))
+     qsoscl += p[14+poff]*(1d - exp(-p[15+poff]*x_norm10))
+;     if qsoord gt 0 then qsoscl += poly(xfull_normm11,p[16:16+qsoord])
+     if qsoord gt 0 then $
+        for i=0,qsoord do qsoscl += p[16+poff+i]*legendre(xfull_normm11,i)
      ymod += qsoscl*qsoflux
   endif
 

@@ -71,8 +71,8 @@ function ifsf_ebv_ccm,lambdas,fluxes,predfluxrat,rv=rv,fluxerr=fluxerr
   if ~ keyword_set(rv) then rv=3.1d
 
 ; Find A_lambda/A_V for each input lambda
-  alamav1 = extcurve_ccm(lambdas[0],rv=rv)
-  alamav2 = extcurve_ccm(lambdas[1],rv=rv)
+  alamav1 = ifsf_extcurve_ccm(lambdas[0],rv=rv)
+  alamav2 = ifsf_extcurve_ccm(lambdas[1],rv=rv)
   alamdiff = alamav1 - alamav2
 
 ; Arrange arrays 

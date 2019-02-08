@@ -311,20 +311,20 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
             siglim_gas = struct.siglim
 
             linepars = ifsf_sepfitpars(linelist,struct.param,$
-               struct.perror,struct.parinfo)
+                                       struct.perror,struct.parinfo)
             if tag_exist(initdat,'argscheckcomp') then goodcomp = $
                call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
-               ncomp,newncomp,siglim_gas,$
-               _extra=initdat.argscheckcomp) $
+                             ncomp,newncomp,siglim_gas,$
+                             _extra=initdat.argscheckcomp) $
             else goodcomp = $
                call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
-               ncomp,newncomp,siglim_gas)
+                             ncomp,newncomp,siglim_gas)
 
             if newncomp.count() gt 0 then begin
                foreach nc,newncomp,line do $
                   printf,loglun,'IFSF: Repeating the fit of ',line,$
-                  ' with ',string(nc,format='(I0)'),' components.',$
-                  format='(5A0)'
+                         ' with ',string(nc,format='(I0)'),' components.',$
+                         format='(5A0)'
             endif else begin
                dofit=0b
             endelse
@@ -447,7 +447,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
                   
                endfor
 
-               ct_errors = ifsf_cterrdist(mcdist,outlab+'_cterrs.pdf')
+               ct_errors = ifsf_pltmcstel(mcdist,outlab+'_cterrs.pdf')
                struct = create_struct(struct,'ct_errors',ct_errors)
                
             endif

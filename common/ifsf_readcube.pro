@@ -64,6 +64,7 @@
 ;                       added second dispersion keyword option.
 ;      2018feb08, DSNR, added WAVEEXT, INVVAR, and ZERODQ keywords
 ;      2018feb23, DSNR, added LINEARIZE keyword
+;      2018aug12, DSNR, ensure values of DATEXT, VAREXT, DQEXT don't get changed
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2018 David S. N. Rupke
@@ -92,33 +93,33 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
   if ~ keyword_set(quiet) then print,'IFSF_READCUBE: Loading data.'
 
   if ~ keyword_set(datext) then begin
-     datext=1
+     datext_use=1
      print,'IFSF_READCUBE: Setting data extension to 1.'
      print,'IFSF_READCUBE: Set DATEXT to a negative # if it needs to be 0.'
   endif
-  if datext lt 0 then datext=0
+  if datext lt 0 then datext_use=0
   if keyword_set(varext) then begin
-     if varext lt 0 then varext=0
-  endif else varext=2
-  if ~ keyword_set(dqext) then dqext=3
+     if varext lt 0 then varext_use=0 else varext_use = varext
+  endif else varext_use=2
+  if ~ keyword_set(dqext) then dqext_use=3 else dqext_use = dqext
 
 ; Read fits file.
-  if datext ne 0 then begin
+  if datext_use ne 0 then begin
      phu = readfits(infile,header_phu,ext=0,silent=quiet)
   endif else begin
      phu = 0b
      header_phu = ''
   endelse
-  dat = readfits(infile,header_dat,ext=datext,silent=quiet)
-  if varext gt 0 then begin
-     var = readfits(infile,header_var,ext=varext,silent=quiet)
+  dat = readfits(infile,header_dat,ext=datext_use,silent=quiet)
+  if varext_use gt 0 then begin
+     var = readfits(infile,header_var,ext=varext_use,silent=quiet)
      if keyword_set(invvar) then var = 1d/var
   endif else begin
      var = dat*0d
      header_var = ''
   endelse
-  if dqext ge 0 then begin
-     dq = readfits(infile,header_dq,ext=dqext,silent=quiet)
+  if dqext_use ge 0 then begin
+     dq = readfits(infile,header_dq,ext=dqext_use,silent=quiet)
      if keyword_set(gooddq) then begin
         igddq = []
         for i=0,n_elements(gooddq)-1 do begin

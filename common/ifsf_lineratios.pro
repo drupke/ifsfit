@@ -66,14 +66,22 @@
 ;
 ;-
 function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
-                         lronly=lronly,errlo=errlo,errhi=errhi
+                         lronly=lronly,errlo=errlo,errhi=errhi,rv=rv,$
+                         fcnebv=fcnebv,caseb=caseb
 
+
+   if ~ keyword_set(rv) then rv=3.1d
+   if ~ keyword_set(fcnebv) then fcnebv='ifsf_ebv_ccm'
+   
    bad = 1d99
-   caseb = hash()
-;  From Hummer & Storey 1987, T=10^4 K, n_e = 100 cm^-2
-   caseb['HalphaHbeta'] = 2.86d
-   caseb['HbetaHgamma'] = 2.13d
-   caseb['HbetaHdelta'] = 3.86d
+   if ~ keyword_set(caseb) then begin
+      caseb = hash()
+;     From Hummer & Storey 1987, T=10^4 K, n_e = 100 cm^-2
+      caseb['HalphaHbeta'] = 2.86d
+      caseb['HbetaHgamma'] = 2.13d
+      caseb['HbetaHdelta'] = 3.86d
+   endif
+   
    loge = alog10(exp(1))
 
    inlines = flux.keys()
@@ -146,10 +154,11 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
       if doerr then fluxerr = [[fluxerr[line1,igdebv]],[fluxerr[line2,igdebv]]] $
       else fluxerr=0b
                                        
-      ebv_tmp = ifsf_ebv_ccm([linelist[line1],linelist[line2]],$
+      ebv_tmp = call_function(fcnebv,[linelist[line1],linelist[line2]],$
                               [[flux[line1,igdebv]],$
                               [flux[line2,igdebv]]],$
-                              caseb[line1+line2],fluxerr=fluxerr)
+                              caseb[line1+line2],fluxerr=fluxerr,$
+                              rv=rv)
       if doerr then begin
          ibdebv = where(ebv_tmp[*,0] lt 0,ctbdebv)
          if ctbdebv gt 0 then begin

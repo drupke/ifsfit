@@ -111,9 +111,11 @@
 ;      2016oct10, DSNR, added option to combine doublet fluxes
 ;      2018feb08, DSNR, updated call to IFSF_READCUBE
 ;      2018feb23, DSNR, write host spectrum with wavelength extension
+;      2018jun26, DSNR, added option to re-weight NaD spectra by stellar chi-squared
+;      2019jan24, DSNR, added option to pass arguments to continuum plotting
 ;
 ; :Copyright:
-;    Copyright (C) 2013--2018 David S. N. Rupke
+;    Copyright (C) 2013--2019 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -453,10 +455,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                   initdat.maxncomp,linepars
            endif
         endif
+        
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Process and plot continuum data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 
 ;       Create / populate output data cubes                            
         if firstcontproc then begin
@@ -535,13 +537,13 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               contcube.poly_mod_tot[i,j] / cont_fit_tot
            contcube.stel_sigma[i,j] = struct.ct_ppxf_sigma
            contcube.stel_z[i,j] = struct.zstar
-           if tag_exist(struct.ct_errors) then $
+           if tag_exist(struct,'ct_errors') then $
               contcube.stel_sigma_err[i,j,*] = struct.ct_errors['ct_ppxf_sigma'] $
-           else contcube.stel_sigma_err[i,j] = $
+           else contcube.stel_sigma_err[i,j,*] = $
               [struct.ct_ppxf_sigma_err,struct.ct_ppxf_sigma_err]
-           if tag_exist(struct.ct_errors) then $
+           if tag_exist(struct,'ct_errors') then $
               contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
-           else contcube.stel_z_err[i,j,0] = $
+           else contcube.stel_z_err[i,j,*] = $
               [struct.zstar_err,struct.zstar_err]
 ;;          Total flux near NaD in different components
 ;           ilow = value_locate(struct.wave,5850d*(1d + struct.zstar))
@@ -560,8 +562,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            if initdat.fcncontfit eq 'ifsf_fitqsohost' then begin
 ;              if tag_exist(initdat.argscontfit,'fitord') then $
 ;                 fitord=initdat.argscontfit.fitord else fitord=0b
-;              if tag_exist(initdat.argscontfit,'qsoord') then $
-;                 qsoord=initdat.argscontfit.qsoord else qsoord=0b
+              if tag_exist(initdat.argscontfit,'qsoord') then $
+                 qsoord=initdat.argscontfit.qsoord else qsoord=0b
+              if tag_exist(initdat.argscontfit,'hostord') then $
+                 hostord=initdat.argscontfit.hostord else hostord=0b
               if tag_exist(initdat.argscontfit,'blrpar') then $
                  blrterms=n_elements(initdat.argscontfit.blrpar) else blrterms=0b
 ;              default here must be same as in IFSF_FITQSOHOST
@@ -601,11 +605,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                  endelse
                  contcube.stel_sigma[i,j] = struct.ct_coeff.ppxf_sigma
                  contcube.stel_z[i,j] = struct.zstar
-                 if tag_exist(struct.ct_errors) then $
+                 if tag_exist(struct,'ct_errors') then $
                     contcube.stel_sigma_err[i,j,*] = struct.ct_errors['ct_ppxf_sigma'] $
-                 else contcube.stel_sigma_err[i,j] = $
+                 else contcube.stel_sigma_err[i,j,*] = $
                     [struct.ct_ppxf_sigma_err,struct.ct_ppxf_sigma_err]
-                 if tag_exist(struct.ct_errors) then $
+                 if tag_exist(struct,'ct_errors') then $
                     contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
                  else contcube.stel_z_err[i,j] = $
                     [struct.zstar_err,struct.zstar_err]
@@ -617,7 +621,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;             output QSO multiplicative polynomial
               qsomod_polynorm=0b
               ifsf_qsohostfcn,struct.wave,par_qsohost,qsomod,qsoflux=qsoflux,$
-                              /qsoonly,blrterms=blrterms,qsoscl=qsomod_polynorm
+                              /qsoonly,blrterms=blrterms,qsoscl=qsomod_polynorm,$
+                              qsoord=qsoord,hostord=hostord
               hostmod = struct.cont_fit_pretweak - qsomod
 ;             If continuum is tweaked in any region, divide the resulting
 ;             residual proportionally (at each wavelength) between the QSO
@@ -637,7 +642,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               qsomod_normonly = qsoflux
               if tag_exist(initdat.argscontfit,'blrpar') then $
                  ifsf_qsohostfcn,struct.wave,par_qsohost,qsomod_blronly,$
-                                 qsoflux=qsoflux,/blronly,blrterms=blrterms
+                                 qsoflux=qsoflux,/blronly,blrterms=blrterms,$
+                                 qsoord=qsoord,hostord=hostord
 ;              qsomod_polynorm *= median(qsomod)
            endif else if initdat.fcncontfit eq 'ppxf' AND $
                          tag_exist(initdat,'qsotempfile') then begin
@@ -651,12 +657,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif
         endif else begin
            contcube.stel_z[i,j] = struct.zstar
-           if tag_exist(struct.ct_errors) then $
+           if tag_exist(struct,'ct_errors') then $
               contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
            else contcube.stel_z_err[i,j,*] = [struct.zstar_err,struct.zstar_err]
         endelse
         contcube.stel_ebv[i,j] = struct.ct_ebv
-        if tag_exist(struct.ct_errors) then $
+        if tag_exist(struct,'ct_errors') then $
            contcube.stel_ebv_err[i,j,*] = struct.ct_errors['ct_ebv']
         contcube.stel_rchisq[i,j] = struct.ct_rchisq
 
@@ -750,9 +756,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                  compspec = hostmod
                  comptit = ['exponential terms']
               endelse
-              call_procedure,fcnpltcont,struct_host,outfile+'_cnt_host',$
-                             compspec=compspec,comptit=comptit,title='Host',$
-                             fitran=initdat.fitran
+              if tag_exist(initdat,'argspltcont') then $
+                 call_procedure,fcnpltcont,struct_host,outfile+'_cnt_host',$
+                                compspec=compspec,comptit=comptit,title='Host',$
+                                fitran=initdat.fitran,_extra=initdat.argspltcont $
+              else $
+                 call_procedure,fcnpltcont,struct_host,outfile+'_cnt_host',$
+                                compspec=compspec,comptit=comptit,title='Host',$
+                                fitran=initdat.fitran
               if tag_exist(initdat.argscontfit,'blrpar') then begin
                  qsomod_blrnorm = $
                     median(qsomod)/max(qsomod_blronly)
@@ -763,9 +774,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                  compspec = [[qsomod_normonly]]
                  comptit = ['raw template']
               endelse
-              call_procedure,fcnpltcont,struct_qso,outfile+'_cnt_qso',$
-                             compspec=compspec,comptit=comptit,title='QSO',$
-                             fitran=initdat.fitran
+              if tag_exist(initdat,'argspltcont') then $
+                 call_procedure,fcnpltcont,struct_qso,outfile+'_cnt_qso',$
+                                compspec=compspec,comptit=comptit,title='QSO',$
+                                fitran=initdat.fitran,_extra=initdat.argspltcont $
+              else $
+                 call_procedure,fcnpltcont,struct_qso,outfile+'_cnt_qso',$
+                                compspec=compspec,comptit=comptit,title='QSO',$
+                                fitran=initdat.fitran
            endif
         endif
 
@@ -775,21 +791,41 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;       plot!
         if ~keyword_set(noplots) AND total(struct.cont_fit) ne 0d then $
            if tag_exist(initdat,'decompose_qso_fit') then $
-              call_procedure,fcnpltcont,struct,outfile+'_cnt',$
-                             compspec=[[qsomod],[hostmod]],$
-                             title='Total',comptit=['QSO','host'],$
-                             fitran=initdat.fitran $
+              if tag_exist(initdat,'argspltcont') then $
+                 call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                                compspec=[[qsomod],[hostmod]],$
+                                title='Total',comptit=['QSO','host'],$
+                                fitran=initdat.fitran,_extra=initdat.argspltcont $
+               else $
+                 call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                                compspec=[[qsomod],[hostmod]],$
+                                title='Total',comptit=['QSO','host'],$
+                                fitran=initdat.fitran $
            else if tag_exist(initdat,'decompose_ppxf_fit') then $
-              call_procedure,fcnpltcont,struct,outfile+'_cnt',$
-                             compspec=[[cont_fit_stel],[cont_fit_poly]],$
-                             title='Total',$
-                             comptit=['stel. temp.','ord. '+$
-                                      string(add_poly_degree,format='(I0)')+$
-                                      ' Leg. poly'],$
-                             fitran=initdat.fitran $
-           else call_procedure,fcnpltcont,struct,outfile+'_cnt',$
-                               fitran=initdat.fitran
-        
+              if tag_exist(initdat,'argspltcont') then $
+                 call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                                compspec=[[cont_fit_stel],[cont_fit_poly]],$
+                                title='Total',$
+                                comptit=['stel. temp.','ord. '+$
+                                         string(add_poly_degree,format='(I0)')+$
+                                         ' Leg. poly'],$
+                                fitran=initdat.fitran,_extra=initdat.argspltcont $
+              else $
+                 call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                                compspec=[[cont_fit_stel],[cont_fit_poly]],$
+                                title='Total',$
+                                comptit=['stel. temp.','ord. '+$
+                                         string(add_poly_degree,format='(I0)')+$
+                                         ' Leg. poly'],$
+                                fitran=initdat.fitran $
+           else $
+              if tag_exist(initdat,'argspltcont') then $
+                 call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                                fitran=initdat.fitran,_extra=initdat.argspltcont $
+              else $
+                 call_procedure,fcnpltcont,struct,outfile+'_cnt',$
+                                fitran=initdat.fitran
+                                
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Process NaD (normalize, compute quantities and save, plot)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -922,6 +958,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               ilo = where(normnad.wave[0] eq dat_normnadwave)
               ihi = where(normnad.wave[n_elements(normnad.wave)-1] $
                     eq dat_normnadwave)
+
+;             Assume that stellar fit is a good model but that the error spectrum
+;             may not be perfect. Correct using stellar reduced chi squared
+              if tag_exist(initnad,'errcorr_ctrchisq') then begin
+                 normnad.nerr *= struct.ct_rchisq
+                 weq[1,0] *= struct.ct_rchisq
+                 weq[3,0] *= struct.ct_rchisq
+              endif
               nadcube.wave[i,j,*] = dat_normnadwave
               nadcube.cont[i,j,ilo:ihi] = struct.cont_fit[normnad.ind]
               nadcube.dat[i,j,ilo:ihi] = normnad.nflux
@@ -1060,8 +1104,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          sxaddpar,newheader_dat,'CRPIX3',1
          sxaddpar,newheader_var,'CRPIX3',1
          sxaddpar,newheader_dq,'CRPIX3',1
-         writefits,initdat.host.dat_fits,cube.phu,header.phu
-         writefits,initdat.host.dat_fits,hostcube.dat,newheader_dat,/append
+;        case of no PHU
+         if datext lt 0 then begin
+            writefits,initdat.host.dat_fits,hostcube.dat,newheader_dat
+;        case of PHU
+         endif else begin
+            writefits,initdat.host.dat_fits,cube.phu,header.phu
+            writefits,initdat.host.dat_fits,hostcube.dat,newheader_dat,/append
+         endelse
          if dqext eq 2 AND varext eq 3 then begin
             writefits,initdat.host.dat_fits,hostcube.dq,newheader_dq,/append
             writefits,initdat.host.dat_fits,hostcube.err^2d,newheader_var,/append

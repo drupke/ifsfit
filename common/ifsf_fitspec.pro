@@ -115,6 +115,7 @@
 ;      2018mar05, DSNR, added option to convolve template with spectral resolution
 ;                       profile
 ;      2018may30, DSNR, added option to adjust XTOL and FTOL for line fitting
+;      2018jun25, DSNR, added NOEMLINMASK switch, distinct from NOEMLINFIT
 ;         
 ; :Copyright:
 ;    Copyright (C) 2013--2018 David S. N. Rupke

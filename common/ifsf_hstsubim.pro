@@ -71,6 +71,12 @@
 ;      Intensity limits for byte scale routine.
 ;    
 ; :Keywords:
+;    buffac: in, optional, type=double, default=2d
+;      If the FOV keyword is set, the subimage is buffered by the size of the FOV
+;      to deal with rotation. This buffer is normally multiplied by 2 to allow
+;      for buffering on either side. However, some images are originally too small for
+;      this. The BUFFAC allows this factor to be decreased if not much rotation is 
+;      needed and the image is small.
 ;    hstps: in, optional, type=double, default=0.05
 ;      Plate scale of input image, in arcseconds.
 ;    ifsbounds: out, optional, type=dblarr(4,2)
@@ -103,9 +109,10 @@
 ;      2015jul27, DSNR, bug fix: rotation matrix was working CW, not CCW
 ;      2015sep22, DSNR, approximate fix for IFS bounding box
 ;      2016may13, DSNR, routine re-write because of issues with IFSBOUNDS
+;      2018oct09, DSNR, added BUFFAC keyword
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2016 David S. N. Rupke
+;    Copyright (C) 2014--2018 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -124,10 +131,18 @@
 ;-
 function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
                        hstrefcoords,scllim,hstps=hstps,ifsbounds=ifsbounds,$
-                       fov=fov,sclargs=sclargs,noscl=noscl,badmask=badmask
+                       fov=fov,sclargs=sclargs,noscl=noscl,badmask=badmask,$
+                       buffac=buffac
                        
    bad = 1d99
                        
+;  If the FOV keyword is set, the subimage is buffered by the size of the FOV
+;  to deal with rotation. This buffer is normally multiplied by 2 to allow
+;  for buffering on either side. However, some images are originally too small for
+;  this. The BUFFAC allows this factor to be decreased if not much rotation is 
+;  needed and the image is small.
+   if ~ keyword_set(buffac) then buffac=2d
+   
 ;  HST platescale, in arcseconds
    if ~ keyword_set(hstps) then hstps = 0.05d
 
@@ -173,7 +188,7 @@ function ifsf_hstsubim,image,subimsize,ifsdims,ifsps,ifspa,ifsrefcoords,$
    endelse
    
 ;  Add buffer*2 pixels to subimage
-   subimsize_pix=round(subimsize/hstps)+buffer*2
+   subimsize_pix=round(subimsize/hstps)+buffer*buffac
 ;  Make sure subimsize is odd
    if not fix(subimsize_pix[0]) then subimsize_pix[0]++
    if not fix(subimsize_pix[1]) then subimsize_pix[1]++

@@ -38,8 +38,6 @@
 ;    add_poly_degree: in, optional, type=int, def=30
 ;      Max. order of additive Legendre polynomial in PPXF.
 ;    quiet: in, optional, type=byte
-;    qsoord: in, optional, type=integer, default=3
-;      Specifies order of multiplicative Legendre renormalization
 ;    qsoonly: in, optional, type=byte
 ;      Do not add stellar continuum.
 ;    qsoxdr: in, required, type=string
@@ -90,7 +88,7 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
                          add_poly_degree=add_poly_degree,$
                          siginit_stars=siginit_stars,$
                          polyspec_refit=polyspec_refit,fitran=fitran,$
-                         fittol=fittol
+                         fittol=fittol,qsoord=qsoord,hostord=hostord
 
    c = 299792.458d        ; speed of light, km/s
                          
@@ -102,6 +100,8 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
    endif else blrterms=n_elements(blrpar)
    if ~ keyword_set(add_poly_degree) then add_poly_degree = 30
    if ~ keyword_set(siginit_stars) then siginit_stars=50d
+   if ~ keyword_set(qsoord) then qsoord=0
+   if ~ keyword_set(hostord) then hostord=0
 
    restore,file=qsoxdr
    qsowave = qsotemplate.wave
@@ -121,17 +121,26 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
    ierr=err[index]
 
    itot = 16
+   if qsoord ne 0 then itot+=qsoord+1
+   if hostord ne 0 then itot+=hostord+1
    npar = itot+blrterms
 
    fcn = 'ifsf_qsohostfcn'
    fcnargs = {qsoflux: qsoflux[index],$
+              qsoord: qsoord,$
+              hostord: hostord,$
               qsoonly: qsoonly,$
               blrterms: blrterms,$
               nxfull: n_elements(lambda),$
               ixfull: index}
    parinfo = REPLICATE({limited:[0b,0b],value:0d,limits:[0d,0d],$
                         fixed:0b,mpprint:0b},npar)
-   parinfo[0:15].limited=[1b,0b]
+   if hostord gt 0 then begin
+      parinfo[0:7].limited=[1b,0b]
+      parinfo[9+hostord:16+hostord].limited=[1b,0b]
+   endif else begin
+      parinfo[0:15].limited=[1b,0b]
+   endelse
    param = dblarr(npar)
    if keyword_set(blrpar) then begin
       ngauss = fix(blrterms/3)
@@ -143,6 +152,7 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
 ;         parinfo[itot+3*i+1].limits = [blrpar[3*i+1]-50d,blrpar[3*i+1]+50d]
          parinfo[itot+3*i+2].limited = [1b,1b]
          parinfo[itot+3*i+2].limits = [2000d,6000d]/299792d*blrpar[3*i+1]
+;         parinfo[itot+3*i+2].limits = [2000d,20000d]/299792d*blrpar[3*i+1]
       endfor
    endif
     
@@ -176,7 +186,8 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
    if keyword_set(refit) then begin                       
 
       ifsf_qsohostfcn,lambda,ct_coeff,qsomod,qsoflux=qsoflux,$
-                      blrterms=blrterms,/qsoonly
+                      blrterms=blrterms,/qsoonly,qsoord=qsoord,$
+                      hostord=hostord
       resid=flux-qsomod
 
 ;     Log rebin residual
@@ -239,7 +250,8 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
    endif else begin
       
       ifsf_qsohostfcn,lambda,param,continuum,qsoflux=qsoflux,$
-                      qsoonly=qsoonly,blrterms=blrterms
+                      qsoonly=qsoonly,blrterms=blrterms,$
+                      qsoord=qsoord,hostord=hostord
    endelse
 
    return,continuum

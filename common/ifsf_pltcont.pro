@@ -36,9 +36,11 @@
 ;      2014jan16, DSNR, changed to Coyote Graphics routines
 ;      2016aug31, DSNR, added overplotting of continuum ranges masked during
 ;                       continuum fit with thick cyan line
+;      2019jan24, DSNR, added option to have yrange default to min/max values
+;                       rather than 0 to max
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2019 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -56,7 +58,7 @@
 ;
 ;-
 pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
-                 ps=ps,title=title,fitran=fitran
+                 ps=ps,title=title,fitran=fitran,yranminmax=yranminmax
                  
 
   if keyword_set(compspec) then begin
@@ -146,8 +148,10 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
   if ct1 gt 0 then begin
      ydat = specstars
      ymod = modstars
-;  yran = [min([ydat[i1],ymod[i1]]),max([ydat[i1],ymod[i1]])]
-     yran = [0,max([ydat[i1],ymod[i1]])]
+     if keyword_set(yranminmax) then $
+        yran = [min([ydat[i1],ymod[i1]]),max([ydat[i1],ymod[i1]])] $
+     else $
+        yran = [0,max([ydat[i1],ymod[i1]])]
      ydi = ydat[i1]
      ymodi = ymod[i1]
      y = [ydi-ymodi]
@@ -175,8 +179,10 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
   if ct2 gt 0 then begin
      ydat = specstars
      ymod = modstars
-;  yran = [min([ydat[i2],ymod[i2]]),max([ydat[i2],ymod[i2]])]
-     yran = [0,max([ydat[i2],ymod[i2]])]
+     if keyword_set(yranminmax) then $
+        yran = [min([ydat[i2],ymod[i2]]),max([ydat[i2],ymod[i2]])] $
+     else $
+        yran = [0,max([ydat[i2],ymod[i2]])]
      ydi = ydat[i2]
      ymodi = ymod[i2]
      y = [ydi-ymodi]
@@ -204,8 +210,10 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
   if ct3 gt 0 then begin
      ydat = specstars
      ymod = modstars
-;     yran = [min([ydat[i3],ymod[i3]]),max([ydat[i3],ymod[i3]])]
-     yran = [0,max([ydat[i3],ymod[i3]])]
+     if keyword_set(yranminmax) then $
+        yran = [min([ydat[i3],ymod[i3]]),max([ydat[i3],ymod[i3]])] $
+     else $
+        yran = [0,max([ydat[i3],ymod[i3]])]
      ydi = ydat[i3]
      ymodi = ymod[i3]
      y = [ydi-ymodi]

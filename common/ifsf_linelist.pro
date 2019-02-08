@@ -256,6 +256,11 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['NV1238'] = 1238.821d
    lines['NV1242'] = 1242.804d
 
+;  From Atomic Line List
+; http://www.pa.uky.edu/~peter/newpage/
+   lines['[NeV]3345'] = 3345.4d
+   lines['[NeV]3426'] = 3425.5d
+
 ;  Includes all Ni lines from P01 up to lambda = 1600 A
 ;  No energy level info. on NI II lines in ASD
    lines['NiII1317'] = 1317.22d
@@ -323,7 +328,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
 ;  add HeI lines ...
    lines['HeII1640'] = 1640.4d ; several lines
    ; (up to 7? from 1640.33 to 1640.53), according to NIST ASD
-   lines['HeII2734'] = 2734.1d ; several lines
+   lines['HeII2734'] = 2734.1d ; several lines ; in vacuum
+;   lines['HeII2734'] = 2733.3d ; several lines ; in air
    ; (up to 13? from 2733.99 to 2734.16), according to NIST ASD
 
 ;  check whether allowed or intercombination or forbidden
@@ -376,6 +382,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
 ;  add NaV lines ...
 
 ;  resonant lines
+;  air wavelengths
 ;  from P01 -- wavelengths from NIST ASD, f values from P01
    lines['MgI2025'] = 2025.824d ; f = 0.112 (~16 times smaller than 2852 line)
    lines['MgII2795'] = 2795.528d ; f = 0.6123
@@ -566,6 +573,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
       linelab['NV1238'] = 'NV 1238'
       linelab['NV1242'] = 'NV 1242'
 
+      linelab['[NeV]3345'] = '[NeV] 3345'
+      linelab['[NeV]3426'] = '[NeV] 3426'
+      
       linelab['NiII1317'] ='NiII 1317'
       linelab['NiII1370'] = 'NiII 1370'
       linelab['NiII1454'] = 'NiII 1454'
