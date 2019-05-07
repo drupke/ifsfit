@@ -327,6 +327,7 @@ function ifsf_kcwi,linelist,linelistz,linetie,$
 ; [OII] ratio
 ; Limits from Pradhan et al. 2006, MNRAS, 366, L6
 ; 28aug2016, DSNR, changed limits to be more physically reasonable for AGN physics
+; 28mar2019, DSNR, changed back to defaults
   ilratlim = 3
   lratlab = '[OII]3729/3726'
   if ncomp->haskey('[OII]3726') then tmp_ncomp = ncomp['[OII]3726'] $
@@ -341,8 +342,8 @@ function ifsf_kcwi,linelist,linelistz,linetie,$
     if ctnz gt 0 then frat[inz] = fb[inz]/fa[inz]
     parinfo[ip1:ip2].value = frat
     parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
-;    parinfo[ip1:ip2].limits  = rebin([0.35d,1.5d],2,tmp_ncomp)
-    parinfo[ip1:ip2].limits  = rebin([0.75d,1.4d],2,tmp_ncomp)
+    parinfo[ip1:ip2].limits  = rebin([0.35d,1.5d],2,tmp_ncomp)
+;    parinfo[ip1:ip2].limits  = rebin([0.75d,1.4d],2,tmp_ncomp)
     parinfo[ip1:ip2].parname = '[OII]3729/3726 line ratio'
     parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
 ;    Check to see if line ratio is fixed

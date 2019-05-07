@@ -256,10 +256,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['NV1238'] = 1238.821d
    lines['NV1242'] = 1242.804d
 
-;  From Atomic Line List
-; http://www.pa.uky.edu/~peter/newpage/
-   lines['[NeV]3345'] = 3345.4d
-   lines['[NeV]3426'] = 3425.5d
+   lines['[NeV]3345'] = 3345.83d
+   lines['[NeV]3426'] = 3425.87d
 
 ;  Includes all Ni lines from P01 up to lambda = 1600 A
 ;  No energy level info. on NI II lines in ASD

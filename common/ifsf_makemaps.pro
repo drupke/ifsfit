@@ -2,7 +2,7 @@
 ;+
 ;
 ; This procedure makes maps of various quantities. Contains four
-; helper routines: IFSF_LINESYNTAX, IFSF_PLOTRANGE, IFSF_PLOTCOMPASS,
+; helper routines: IFSF_PA, IFSF_PLOTRANGE, IFSF_PLOTCOMPASS,
 ; IFSF_PLOTAXESNUC.
 ;
 ; :Categories:
@@ -74,27 +74,6 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_linesyntax,line
-;  Change first, second occurrence of [ and ] to \[ and \]
-;  Otherwise call to DEVICE can choke if the string includes [ rather
-;  than \[
-   COMPILE_OPT IDL2, HIDDEN
-   linelab=line
-   ilb = strpos(linelab,'[')
-   ilb2 = strpos(linelab,'[',/reverse_search) ; second occurrence
-   if ilb ne -1 then $
-      linelab = strmid(linelab,0,ilb)+'\'+strmid(linelab,ilb)
-   if ilb ne -1 AND ilb ne ilb2 then $
-      linelab = strmid(linelab,0,ilb2+1)+'\'+strmid(linelab,ilb2+1)
-   irb = strpos(linelab,']')
-   irb2 = strpos(linelab,']',/reverse_search) ; second occurrence
-   if irb ne -1 then $
-      linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
-   if irb ne -1 AND irb ne irb2 then $
-      linelab = strmid(linelab,0,irb2+1)+'\'+strmid(linelab,irb2+1)
-   return,linelab
-end
-   
 function ifsf_pa,xaxis,yaxis
 
 ;  Computes PA east of north, assuming +y axis is north
@@ -120,33 +99,46 @@ end
 
 pro ifsf_plotaxesnuc,xran_kpc,yran_kpc,xnuc,ynuc,nolab=nolab,toplab=toplab,$
                      noxlab=noxlab,charsize=charsize,rightlab=rightlab,$
-                     nonuc=nonuc
+                     nonuc=nonuc,colornuc=colornuc,noylab=noylab,$
+                     colorax=colorax
    COMPILE_OPT IDL2, HIDDEN
+   if not keyword_set(colorax) then colornuc = !P.color
    if not keyword_set(charsize) then charsize=!P.charsize
    if not keyword_set(nolab) then begin
       if keyword_set(toplab) OR keyword_set(noxlab) then $
-         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60)
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60),$
+                color=colorax
       if not keyword_set(noxlab) AND not keyword_set(toplab) then $
-         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,charsize=charsize
+         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,charsize=charsize,$
+                color=colorax
       if keyword_set(rightlab) then $
-         cgaxis,yaxis=1,yran=yran_kpc,/ysty,/save,charsize=charsize $
+         cgaxis,yaxis=1,yran=yran_kpc,/ysty,/save,charsize=charsize,$
+                color=colorax $
       else $
-         cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,charsize=charsize
+         cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,charsize=charsize,$
+                color=colorax
    endif else begin
-      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60)
-      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,ytickn=replicate(' ',60)   
+      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60),$
+             color=colorax
+      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,ytickn=replicate(' ',60),$
+             color=colorax
    endelse
    if not keyword_set(toplab) OR keyword_set(noxlab) then $
-      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty
+      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty,$
+             color=colorax
    if keyword_set(toplab) AND $
       not keyword_set(noxlab) AND $
       not keyword_set(nolab) then $
-      cgaxis,xaxis=1,xran=xran_kpc,/xsty,charsize=charsize
+      cgaxis,xaxis=1,xran=xran_kpc,/xsty,charsize=charsize,$
+             color=colorax
    if not keyword_set(rightlab) then $
-      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty $
+      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty,$
+             color=colorax $
    else $
-      cgaxis,yaxis=0,yran=yran_kpc,ytickn=replicate(' ',60),/ysty
-   if not keyword_set(nonuc) then cgoplot,xnuc,ynuc,psym=1
+      cgaxis,yaxis=0,yran=yran_kpc,ytickn=replicate(' ',60),/ysty,$
+             color=colorax
+   if not keyword_set(colornuc) then colornuc = !P.color
+   if not keyword_set(nonuc) then cgoplot,xnuc,ynuc,psym=1,color=colornuc
 end
 ;
 pro ifsf_plotcompass,xarr,yarr,carr=carr,nolab=nolab,hsize=hsize,hthick=hthick
@@ -1783,7 +1775,7 @@ pro ifsf_makemaps,initproc
 
    cgps_open,initdat.mapdir+initdat.label+'cont.eps',$
              charsize=1d*charscale,$
-             /encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+             /encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
 
    if dohst then begin
       
@@ -2170,7 +2162,7 @@ pro ifsf_makemaps,initproc
 
    cgps_open,initdat.mapdir+initdat.label+'color.eps',$
              charsize=1d*charscale,$
-             /encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+             /encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
 
    if dohst then begin
       
@@ -2382,7 +2374,7 @@ pro ifsf_makemaps,initproc
 ;      dzran = zran[1]-zran[0]
 
       cgps_open,initdat.mapdir+initdat.label+'cont_rad.eps',charsize=1,/encap,$
-                /inches,xs=xsize_in,ys=ysize_in,/qui
+                /inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
       
 ;     Total (continuum-only) model flux. Plot fits if decompose tags set, otherwise
 ;     plot total cube flux within specified range.
@@ -2655,7 +2647,7 @@ pro ifsf_makemaps,initproc
 
    cgps_open,initdat.mapdir+initdat.label+'stel.eps',$
              charsize=1d*charscale,$
-             /encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+             /encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
 
    cbform = '(I0)' ; colorbar syntax
    stel_z = contcube.stel_z
@@ -3065,7 +3057,7 @@ pro ifsf_makemaps,initproc
 
          linelab = ifsf_linesyntax(line)
          cgps_open,initdat.mapdir+initdat.label+linelab+ '.eps',$
-                   charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+                   charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
 
 ;        loop through plot types
          for j=0,npx-1 do begin
@@ -3329,7 +3321,7 @@ pro ifsf_makemaps,initproc
                plotdat_ebv[fluxtype] = plotdat
 
                cgps_open,initdat.mapdir+initdat.label+'ebv_'+fluxtype+'.eps',$
-                         charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+                         charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
                cbform = '(D0.2)'
 
                mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
@@ -3390,7 +3382,7 @@ pro ifsf_makemaps,initproc
 
             if ctgd gt 0 then begin
                cgps_open,initdat.mapdir+initdat.label+'ebv_'+fluxtype+'_v_ebv_stel.eps',$
-                         charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui
+                         charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui,/nomatch
                xran = [min([plotdat_ebv[fluxtype,0],plotdat_stel_ebv[0]]),$
                        max([plotdat_ebv[fluxtype,1],plotdat_stel_ebv[1]])]
                yran=xran
@@ -3424,7 +3416,7 @@ pro ifsf_makemaps,initproc
       if xran[0] lt 0 then xran[0]=0d
 
       cgps_open,initdat.mapdir+initdat.label+'color_v_ebv_stel.eps',$
-                charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui
+                charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui,/nomatch
       cgplot,[0],/xsty,/ysty,/nodata,xran=xran,yran=yran,$
              xtit=initmaps.hstbl.label+'-'+initmaps.hstrd.label,$
              ytit='stellar E(B-V)',title=initdat.name
@@ -3471,7 +3463,7 @@ pro ifsf_makemaps,initproc
                yran = plotdat_ebv[fluxtype,0:1]
 
                cgps_open,initdat.mapdir+initdat.label+'color_v_ebv_'+fluxtype+'.eps',$
-                         charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui
+                         charsize=1,/encap,/inches,xs=7.5d,ys=7.5d,/qui,/nomatch
                cgplot,[0],/xsty,/ysty,/nodata,xran=xran,yran=yran,$
                       xtit=initmaps.hstbl.label+'-'+initmaps.hstrd.label,$
                       ytit='gas E(B-V)'
@@ -3556,7 +3548,7 @@ pro ifsf_makemaps,initproc
                           1d - topmar_yfrac*0.85d]
 
             cgps_open,initdat.mapdir+initdat.label+'lr_'+fluxtype+'.eps',$
-                      charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+                      charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
             cbform = '(D0.2)'
 
 ;           Loop through plot panels
@@ -3737,7 +3729,7 @@ pro ifsf_makemaps,initproc
 
             linelab = ifsf_linesyntax(line)
             cgps_open,initdat.mapdir+initdat.label+linelab+'_rad.eps',$
-                      charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+                      charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
 
             ichan=0
             for j=0,npx-1 do begin
@@ -3878,7 +3870,7 @@ pro ifsf_makemaps,initproc
                    1d - topmar_yfrac*0.75d]
 
       cgps_open,initdat.mapdir+initdat.label+'NaDabs.eps',$
-                charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+                charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
       ranlin='NaDabs'
       cbform = '(I0)'
       panel_title_chars=1.05
@@ -4429,7 +4421,7 @@ pro ifsf_makemaps,initproc
                    1d - topmar_yfrac*0.75d]
 
       cgps_open,initdat.mapdir+initdat.label+'NaDem.eps',$
-                charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui
+                charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
       ranlin='NaDem'
       cbform = '(I0)'
       panel_title_chars=1.05
@@ -5687,7 +5679,7 @@ pro ifsf_makemaps,initproc
 
       cgps_open,initdat.mapdir+initdat.label+'NaDfitncomp.eps',charsize=1.5,$
          /encap,$
-         /inches,xs=plotquantum*2,ys=plotquantum*2*aspectrat,/qui
+         /inches,xs=plotquantum*2,ys=plotquantum*2*aspectrat,/qui,/nomatch
       pos = cglayout([1,1],ixmar=[0,0],iymar=[0,0],oxmar=[3,5],oymar=[6,1],$
                      xgap=0,ygap=0,aspect=1,unit=!D.X_PX_CM/3.0)
       map = nadabsncomp
@@ -7355,7 +7347,8 @@ pro ifsf_makemaps,initproc
   e_of_flx = 0
   if ~ tag_exist(initdat,'noemlinfit') then begin
 
-  fluxnorm = initdat.fluxunits * initdat.platescale^2d
+  fluxnorm = initdat.fluxunits ; assume fluxunits incorporates surface brightness correction if necessary
+;  fluxnorm = initdat.fluxunits * initdat.platescale^2d
   emlflxsums = hash()
   emlflxsums['tot_ext'] = hash()
   emlflxsums['tot_unext_pp'] = hash()
@@ -7927,9 +7920,9 @@ pro ifsf_makemaps,initproc
                 format='(5A10)'
          printf,lun_stats,lineofdashes
          foreach line,linefluxes do begin
-            l_tot_ext = drt_linelum(emlflxsums['tot_ext',line],ldist,/ergs)
-            l_tot_unext_pp = drt_linelum(emlflxsums['tot_unext_pp',line],ldist,/ergs)
-            l_tot_unext_med = drt_linelum(emlflxsums['tot_unext_med',line],ldist,/ergs)
+            l_tot_ext = drt_linelum(emlflxsums['tot_ext',line]*1d-3,ldist,/ergs)
+            l_tot_unext_pp = drt_linelum(emlflxsums['tot_unext_pp',line]*1d-3,ldist,/ergs)
+            l_tot_unext_med = drt_linelum(emlflxsums['tot_unext_med',line]*1d-3,ldist,/ergs)
             printf,lun_stats,line,'total',alog10(l_tot_ext),$
                    alog10(l_tot_unext_pp),$
                    alog10(l_tot_unext_med),$
@@ -8055,6 +8048,7 @@ pro ifsf_makemaps,initproc
 
    plotinfo = {dx: dx,$
                dy: dy,$
+               ldist: ldist,$
                map_r: map_r,$
                map_rkpc_ifs: map_rkpc_ifs,$
                kpc_per_as: kpc_per_as,$

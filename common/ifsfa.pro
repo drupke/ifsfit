@@ -29,6 +29,7 @@
 ;   EMLSIGERR[compkeys,lines,dx,dy]
 ;   EMLFLX[fluxkeys,lines,dx,dy]
 ;   EMLFLXERR[fluxkeys,lines,dx,dy]
+;   EMLWEQ[fluxkeys,lines,dx,dy]
 ;   EMLCVDF[cvdfkeys]
 ; where
 ;   lines = emission line names [Halpha, Hbeta, ...]
@@ -113,6 +114,7 @@
 ;      2018feb23, DSNR, write host spectrum with wavelength extension
 ;      2018jun26, DSNR, added option to re-weight NaD spectra by stellar chi-squared
 ;      2019jan24, DSNR, added option to pass arguments to continuum plotting
+;      2019mar20, DSNR, compute Weq
 ;
 ; :Copyright:
 ;    Copyright (C) 2013--2019 David S. N. Rupke
@@ -212,7 +214,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   if ~ tag_exist(initdat,'noemlinfit') then $
-     ifsf_printlinpar,initdat.lines,linlun,$
+     ifsf_printlinpar,lines_with_doublets,linlun,$
                       outfile=initdat.outdir+initdat.label+'.lin.dat'
   ifsf_printfitpar,fitlun,$
                    outfile=initdat.outdir+initdat.label+'.fit.dat'
@@ -226,8 +228,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
       emlwaverr = hash()
       emlsig = hash()
       emlsigerr = hash()
+      emlweq = hash()
       emlflx = hash()
       emlflxerr = hash()
+      emlweq['ftot'] = hash()
       emlflx['ftot'] = hash()
       emlflxerr['ftot'] = hash()
       for k=0,initdat.maxncomp-1 do begin
@@ -236,12 +240,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          emlwaverr[cstr]=hash()
          emlsig[cstr]=hash()
          emlsigerr[cstr]=hash()
+         emlweq['f'+cstr]=hash()
          emlflx['f'+cstr]=hash()
          emlflxerr['f'+cstr]=hash()
          emlflx['f'+cstr+'pk']=hash()
          emlflxerr['f'+cstr+'pk']=hash()
       endfor
       foreach line,lines_with_doublets do begin
+         emlweq['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
          emlflx['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
          emlflxerr['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
          for k=0,initdat.maxncomp-1 do begin
@@ -250,6 +256,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
             emlwaverr[cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
             emlsig[cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
             emlsigerr[cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
+            emlweq['f'+cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
             emlflx['f'+cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
             emlflxerr['f'+cstr,line]=dblarr(cube.ncols,cube.nrows)+bad
             emlflx['f'+cstr+'pk',line]=dblarr(cube.ncols,cube.nrows)+bad
@@ -360,6 +367,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            linepars = ifsf_sepfitpars(linelist,struct.param,struct.perror,$
                                       struct.parinfo,tflux=tflux,$
                                       doublets=emldoublets)
+           lineweqs = ifsf_cmpweq(struct,linelist,$
+                                  doublets=emldoublets)
         endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -402,6 +411,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
              endif
 ;            Assign total fluxes
              if ctgd gt 0 then begin
+                emlweq['ftot',line,i,j]=lineweqs.tot[line]
                 emlflx['ftot',line,i,j]=tflux.tflux[line]
                 emlflxerr['ftot',line,i,j]=tflux.tfluxerr[line]
              endif
@@ -442,6 +452,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                    emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
                    emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
                    emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
+                   emlweq['f'+cstr,line,i,j]=lineweqs.comp[line,sindex]
                    emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
                    emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
                    emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
@@ -1013,10 +1024,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                        emlflx['ftot',line] lt $
                        emlflxerr['ftot',line]*initdat.emlsigcut,ctbd)
            if ctbd gt 0 then begin
+              emlweq['ftot',line,ibd] = bad
               emlflx['ftot',line,ibd] = bad
               emlflxerr['ftot',line,ibd] = bad
               for k=0,initdat.maxncomp-1 do begin
                  cstr='c'+string(k+1,format='(I0)')
+                 emlweq['f'+cstr,line,ibd] = bad
                  emlflx['f'+cstr,line,ibd] = bad
                  emlflxerr['f'+cstr,line,ibd] = bad
                  emlflx['f'+cstr+'pk',line,ibd] = bad
@@ -1038,10 +1051,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         emlcvdf = ifsf_cmpcvdf(emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
                                initdat.maxncomp,linelist_with_doublets,$
                                initdat.zsys_gas,vlimits=vlimits,vstep=vstep)
-        save,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,emlcvdf,$
+        save,emlwav,emlwaverr,emlsig,emlsigerr,emlweq,emlflx,emlflxerr,emlcvdf,$
              file=initdat.outdir+initdat.label+'.lin.xdr'
      endif else begin
-        save,emlwav,emlwaverr,emlsig,emlsigerr,emlflx,emlflxerr,$
+        save,emlwav,emlwaverr,emlsig,emlsigerr,emlweq,emlflx,emlflxerr,$
              file=initdat.outdir+initdat.label+'.lin.xdr'
      endelse
   endif
