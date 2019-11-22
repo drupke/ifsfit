@@ -622,7 +622,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     [struct.ct_ppxf_sigma_err,struct.ct_ppxf_sigma_err]
                  if tag_exist(struct,'ct_errors') then $
                     contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
-                 else contcube.stel_z_err[i,j] = $
+                 else contcube.stel_z_err[i,j,*] = $
                     [struct.zstar_err,struct.zstar_err]
               endif else begin
                  par_qsohost = struct.ct_coeff

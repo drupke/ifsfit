@@ -91,46 +91,43 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_fitdoublet,table,dir,galshort,doublet,$
+pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                     cols=cols,rows=rows,verbose=verbose,$
                     noxdr=noxdr,noplot=noplot,weights=weights,$
-                    noerr=noerr,nomc=nomc,init=init
+                    noerr=noerr,nomc=nomc,init=init,$
+                    argsgalinfo=argsgalinfo
 
    bad = 1d99
    doublet_emrat_init = 1.5d
    c = 299792.458d
 
+   IF (doublet eq 'MgII') THEN linename = 'MgII2802'
    IF (doublet eq 'NV') THEN linename = 'NV1242'
    IF (doublet eq 'OVI') THEN linename = 'OVI1037'
    IF (doublet eq 'PV') THEN linename = 'PV1128'
+   IF (doublet eq 'FeIIUV1') THEN linename = 'FeII2585'
+   IF (doublet eq 'FeIIUV2') THEN linename = 'FeII2373'
 
    starttime = systime(1)
    time = 0
    if keyword_set(verbose) then quiet=0 else quiet=1
    if ~ keyword_set(noplot) then noplot=0 else noplot=1
 
-   ; Get fit initialization
-   trows=[3,81]
-   galshortlist = read_csvcol(table,'C',rows=trows,sep=',',type='string')
-   zlist = read_csvcol(table,'D',rows=trows,sep=',',junk=bad)
-   
-   selectionparameter=WHERE(galshortlist eq galshort)
-   galshort=galshortlist[selectionparameter[0]]
-   redshift=zlist[selectionparameter]
-   readcol, dir+galshort+'/'+galshort+doublet+'par_init.txt', $
-            profileshifts, profilesig, coveringfactor, opticaldepth, $
-            FORMAT='(A,D,D,D,D)',/silent
-   initproc = 'cos_'+galshort+doublet
-   initstr = call_function(initproc,dir, galshort, redshift, $
-                           profileshifts, profilesig, coveringfactor, $
-                           opticaldepth)
+   ; Get initial fit parameters and galaxy properties
+   redshift = 0d
+   if keyword_set(argsgalinfo) then begin
+      initstr = call_function(fcngalinfo,redshift,argsgalinfo=argsgalinfo)
+   endif else begin
+      initstr = call_function(fcngalinfo,redshift)
+   endelse
 
    maxncomp = initstr.maxncomp
    
    ; Get linelist
    linelist = $
       ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
-                     'NV1238','NV1242','PV1117','PV1128'])
+                     'NV1238','NV1242','PV1117','PV1128','MgII2795','MgII2802',$
+                     'FeII2585','FeII2599','FeII2373','FeII2382'])
 
    if tag_exist(initstr,'taumax') then taumax=initstr.taumax $
    else taumax = 5d
@@ -176,14 +173,14 @@ pro ifsf_fitdoublet,table,dir,galshort,doublet,$
 ;           Restore continuum + emission-line fit
             if oned then lab = string(i+1,format='(I04)') $
             else lab = string(i+1,'_',j+1,format='(I04,A,I04)')
-            infile = initstr.outdir+initstr.galaxy+ext
-            print, infile
+;            infile = initstr.outdir+initstr.galaxy+ext
+;            print, infile
             outfile = initstr.outdir+initstr.galaxy
-            if ~ file_test(infile) then begin
-               print,'IFSF_FITUVABS: No file for ',i+1,', ',j+1,'.',$
-                     format='(A0,I4,A0,I4,A0)'
-               goto,nofit
-            endif
+;            if ~ file_test(infile) then begin
+;               print,'IFSF_FITDOUBLET: No file for ',i+1,', ',j+1,'.',$
+;                     format='(A0,I4,A0,I4,A0)'
+;               goto,nofit
+;            endif
 ;            restore,file=infile
          endif
 
@@ -243,7 +240,8 @@ pro ifsf_fitdoublet,table,dir,galshort,doublet,$
          parinit = $
             call_function(initstr.fcninitpar,doublet,initabs,initem,$
                           initstr.doubletabs_siglim,doubletem_siglim,$
-                          doubletabsfix=doubletabsfix,doubletemfix=doubletemfix)
+                          doubletabsfix=doubletabsfix,doubletemfix=doubletemfix,$
+                          taumax=taumax)
 
 ;        Plot initial guess if requested
          if keyword_set(init) then begin
@@ -426,7 +424,7 @@ nofit:
    endfor
 
 ;  Velocity calculations
-   comps=N_ELEMENTS(profilesig)
+   comps=maxncomp
    zcomp=MAKE_ARRAY(2+4*comps)
    delz=MAKE_ARRAY(comps)
    velocity=MAKE_ARRAY(comps)

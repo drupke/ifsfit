@@ -96,6 +96,24 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
      w_doublet1 = linelist['PV1117']*(1d +zsys)
      w_doublet2 = linelist['PV1128']*(1d +zsys)
   END
+  IF (doublet eq 'MgII') THEN BEGIN
+     linelist = ifsf_linelist(['MgII2795','MgII2802'])
+     ; Observed-frame wavelengths
+     w_doublet1 = linelist['MgII2795']*(1d +zsys)
+     w_doublet2 = linelist['MgII2802']*(1d +zsys)
+  END
+  IF (doublet eq 'FeIIUV1') THEN BEGIN
+     linelist = ifsf_linelist(['FeII2585','FeII2599'])
+     ; Observed-frame wavelengths
+     w_doublet1 = linelist['FeII2585']*(1d +zsys)
+     w_doublet2 = linelist['FeII2599']*(1d +zsys)
+  END
+  IF (doublet eq 'FeIIUV2') THEN BEGIN
+     linelist = ifsf_linelist(['FeII2373','FeII2382'])
+     ; Observed-frame wavelengths
+     w_doublet1 = linelist['FeII2373']*(1d +zsys)
+     w_doublet2 = linelist['FeII2382']*(1d +zsys)
+  END
   moddoubletabs=1
   moddoubletem=1
   modflux = ifsf_doubletfcn(wave,param,doubletname=doublet,$

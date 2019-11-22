@@ -102,6 +102,21 @@ function ifsf_doubletfcn, wave, param,$
          LogLF = 2.722d -2.420d
          tratio = 10d^LogLF
          lratio = 1128.0078d/1117.9774d
+      endif else if doubletname eq 'MgII' then begin
+;        Data from Morton 2003
+         LogLF = 3.236d - 2.933d
+         tratio = 10d^LogLF
+         lratio = 2802.7056d/2795.5301d
+      endif else if doubletname eq 'FeIIUV1' then begin
+;        Data from Morton 2003
+         LogLF = 2.793d - 2.252d
+         tratio = 10d^LogLF
+         lratio = 2585.8762d/2599.3959d
+      endif else if doubletname eq 'FeIIUV2' then begin
+;        Data from Morton 2003
+         LogLF = 2.882d - 1.871d
+         tratio = 10d^LogLF
+         lratio = 2373.7365d/2382.0386d
       endif
    endif else begin
       doubletname = 'NV'

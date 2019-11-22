@@ -79,31 +79,30 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
                           siglimdoubletem,taumax=taumax,$
                           doubletabsfix=doubletabsfix,doubletemfix=doubletemfix
                       
-;  Default to NV unless otherwise specified
    if doublet eq 'OVI' then begin
-;     Data from Morton 2003
       LogLF = 2.136d -1.834d
-      tratio = 10d^LogLF
-      lratio = 1037.6167d/1031.9261d
       linename = 'OVI1037'
    endif else if doublet eq 'NV' then begin
-;     Data from Morton 2003
-;     optical depth ratio
       LogLF = 2.286d -1.985d
-      tratio = 10d^LogLF
-;     corresponding wavelength ratio
-      lratio = 1242.804d/1238.821d      
       linename = 'NV1242'
    endif else if doublet eq 'PV' then begin
       LogLF = 2.722d -2.420d
-      tratio = 10d^LogLF
-      lratio = 1128.0078d/1117.9774d
       linename = 'PV1128'
+   endif else if doublet eq 'MgII' then begin
+      LogLF = 3.236d - 2.933d
+      linename = 'MgII2802'
+   endif else if doublet eq 'FeIIUV1' then begin
+         LogLF = 2.793d - 2.252d
+         linename = 'FeII2585'
+   endif else if doublet eq 'FeIIUV2' then begin
+         LogLF = 2.882d - 1.871d
+         linename = 'FeII2373'
    endif else begin
       print,'IFSF_INITDOUBLET: Error -- doublet not specified.'
       stop
    endelse
-    
+   
+   tratio = 10d^LogLF
    c = 299792.458d
    
    if not keyword_set(taumax) then taumax=5d

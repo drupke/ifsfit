@@ -93,7 +93,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
   if ~ keyword_set(quiet) then print,'IFSF_READCUBE: Loading data.'
 
   if ~ keyword_set(datext) then begin
-     datext_use=1
+     datext=1
      print,'IFSF_READCUBE: Setting data extension to 1.'
      print,'IFSF_READCUBE: Set DATEXT to a negative # if it needs to be 0.'
   endif

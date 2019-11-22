@@ -141,15 +141,17 @@ pro ifsf_plotaxesnuc,xran_kpc,yran_kpc,xnuc,ynuc,nolab=nolab,toplab=toplab,$
    if not keyword_set(nonuc) then cgoplot,xnuc,ynuc,psym=1,color=colornuc
 end
 ;
-pro ifsf_plotcompass,xarr,yarr,carr=carr,nolab=nolab,hsize=hsize,hthick=hthick
+pro ifsf_plotcompass,xarr,yarr,carr=carr,nolab=nolab,hsize=hsize,hthick=hthick,$
+                     thick=thick
    COMPILE_OPT IDL2, HIDDEN
    if ~ keyword_set(carr) then carr='Black'
    if ~ keyword_set(hsize) then hsize=!D.X_SIZE / 64
    if ~ keyword_set(hthick) then hthick=1d
+   if ~ keyword_set(thick) then thick=!P.thick
    cgarrow,xarr[0],yarr[0],xarr[1],yarr[1],/data,/solid,color=carr,hsize=hsize,$
-           hthick=hthick
+           hthick=hthick,thick=thick
    cgarrow,xarr[0],yarr[0],xarr[2],yarr[2],/data,/solid,color=carr,hsize=hsize,$
-           hthick=hthick
+           hthick=hthick,thick=thick
    if ~ keyword_set(nolab) then begin
       cgtext,xarr[3],yarr[3],'N',color=carr,align=0.5
       cgtext,xarr[4],yarr[4],'E',color=carr,align=0.5
@@ -351,7 +353,8 @@ pro ifsf_makemaps,initproc
 
 ;  Luminosity and angular size distances
    if tag_exist(initdat,'distance') then begin
-      asdist = initdat.distance
+      ldist = initdat.distance
+      asdist = ldist/(1d + initdat.zsys_gas)^2d
    endif else begin
 ; Planck 2018 parameters: https://ui.adsabs.harvard.edu/#abs/arXiv:1807.06209
       ldist = lumdist(initdat.zsys_gas,H0=67.4d,Omega_m=0.315d,Lambda0=0.685d,/silent)
@@ -369,7 +372,8 @@ pro ifsf_makemaps,initproc
    if not tag_exist(initdat,'datext') then datext=1 else datext=initdat.datext
    if not tag_exist(initdat,'varext') then varext=2 else varext=initdat.varext
    if not tag_exist(initdat,'dqext') then dqext=3 else dqext=initdat.dqext
-   datacube = ifsf_readcube(initdat.infile,/quiet,oned=oned,$
+   header=1
+   datacube = ifsf_readcube(initdat.infile,/quiet,oned=oned,header=header,$
                             datext=datext,varext=varext,dqext=dqext)
    if tag_exist(initmaps,'fluxfactor') then begin
       datacube.dat *= initmaps.fluxfactor
@@ -1006,7 +1010,7 @@ pro ifsf_makemaps,initproc
                      (center_axes_hst[1]+initmaps.hstrd.nucoffset[1]))^2d)
             map_rkpc_rhst = map_r_rhst * initmaps.hstrd.platescale * kpc_per_as
          endif else map_rkpc_rhst = map_rkpc_hst 
-   endif
+   endif else map_rkpc_hst = 0d
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Process emission lines
@@ -2651,8 +2655,14 @@ pro ifsf_makemaps,initproc
 
    cbform = '(I0)' ; colorbar syntax
    stel_z = contcube.stel_z
-   stel_z_errlo = contcube.stel_z_err[*,*,0]
-   stel_z_errhi = contcube.stel_z_err[*,*,1]
+;  For backwards compatibility ...
+   if tag_exist(contcube,'stel_z_err') then begin
+      stel_z_errlo = contcube.stel_z_err[*,*,0]
+      stel_z_errhi = contcube.stel_z_err[*,*,1]
+   endif else begin
+      stel_z_errlo = stel_z * 0d
+      stel_z_errhi = stel_z * 0d
+   endelse
    igd = where(stel_z ne bad,ctgd)
 
    stel_vel = 0b
@@ -6855,8 +6865,8 @@ pro ifsf_makemaps,initproc
 
 ;     Convert from flux/arcsec^2 back to straight flux
       if ctgd gt 0 then begin
-         map_fha[igd] *= initdat.platescale
-         map_fha_err[igd] *= initdat.platescale
+         map_fha[igd] *= initdat.platescale^2d
+         map_fha_err[igd] *= initdat.platescale^2d
          Rmax_kpc_ha = max(map_rkpc_ifs[igd])
 ;        Convert to Halpha flux using Case B
          if ofcompline eq 'Hbeta' then begin
@@ -6887,8 +6897,8 @@ pro ifsf_makemaps,initproc
          igd = where(mapr_fha gt 0d AND mapr_fha ne bad AND $
                      mapr_vha ge 0,ctgd)
          if ctgd gt 0 then begin
-            mapr_fha[igd] *= initdat.platescale
-            mapr_fha_err[igd] *= initdat.platescale
+            mapr_fha[igd] *= initdat.platescale^2d
+            mapr_fha_err[igd] *= initdat.platescale^2d
             Rmax_kpc_ha_red = max(map_rkpc_ifs[igd])
             Rmax_kpc_ha = Rmax_kpc_ha_red > Rmax_kpc_ha ? Rmax_kpc_ha_red : Rmax_kpc_ha
             if ofcompline eq 'Hbeta' then begin
@@ -7001,7 +7011,8 @@ pro ifsf_makemaps,initproc
                         mapr_vha gt 0,ctgoodr_ha)
 
 ;     Compute electron density to use
-      elecdenuse = dindgen(dx,dy) + elecden_default
+;      elecdenuse = dindgen(dx,dy) + elecden_default
+      elecdenuse = dblarr(dx,dy) + elecden_default
       elecdenuse_err = dblarr(dx,dy,2) + $
                        rebin(reform(elecden_err_default,1,1,2),dx,dy,2)
       elecdencomp = 'ftot'
@@ -7052,7 +7063,7 @@ pro ifsf_makemaps,initproc
                                   map_costheta_ha[igood_ha]
 ; 1d-7 converts from ergs/s to W
       map_l_ha[igood_ha] = $
-         drt_linelum(map_fha[igood_ha]*initdat.fluxunits,ldist,/ergs)
+         drt_linelum(map_fha[igood_ha]*initdat.fluxunits*1d-3,ldist,/ergs)
       map_m_ha[igood_ha] = mumpsm * map_l_ha[igood_ha] / $
                            volemis / elecdenuse[igood_ha]
                                 ; in units of msun
@@ -7081,7 +7092,7 @@ pro ifsf_makemaps,initproc
                                       map_costheta_ha[igood_ha]
 
       map_l_err_ha[igood_ha] = $
-         drt_linelum(map_fha_err[igood_ha]*initdat.fluxunits,ldist,/ergs)
+         drt_linelum(1d-3*map_fha_err[igood_ha]*initdat.fluxunits,ldist,/ergs)
          
 ;      map_m_err_ha[igood_ha] = mumpsm * map_l_err_ha[igood_ha] / $
 ;                               volemis / elecden
@@ -7176,7 +7187,7 @@ pro ifsf_makemaps,initproc
          mapr_vrad_ha[igoodr_ha] = abs(mapr_vha[igoodr_ha]) / $
                                       map_costheta_ha[igoodr_ha]
          mapr_l_ha[igoodr_ha] = $
-            drt_linelum(mapr_fha[igoodr_ha]*initdat.fluxunits,ldist,/ergs)
+            drt_linelum(1d-3*mapr_fha[igoodr_ha]*initdat.fluxunits,ldist,/ergs)
          mapr_m_ha[igoodr_ha] = mumpsm * mapr_l_ha[igoodr_ha] / $
                                 volemis / elecdenuse[igoodr_ha]
          mapr_dmdt_ha[igoodr_ha] = mapr_m_ha[igoodr_ha] * $
@@ -7195,7 +7206,7 @@ pro ifsf_makemaps,initproc
          mapr_vrad_err_ha[igoodr_ha] = abs(mapr_vha_err[igoodr_ha]) / $
                                          map_costheta_ha[igoodr_ha]
          mapr_l_err_ha[igoodr_ha] = $
-            drt_linelum(mapr_fha_err[igoodr_ha]*initdat.fluxunits,ldist,/ergs)
+            drt_linelum(1d-3*mapr_fha_err[igoodr_ha]*initdat.fluxunits,ldist,/ergs)
  
          for j=0,1 do begin
          xyind = array_indices(map_r,igoodr_ha)
@@ -8051,6 +8062,7 @@ pro ifsf_makemaps,initproc
                ldist: ldist,$
                map_r: map_r,$
                map_rkpc_ifs: map_rkpc_ifs,$
+               map_rkpc_hst: map_rkpc_hst,$
                kpc_per_as: kpc_per_as,$
                kpc_per_pix: kpc_per_pix,$
                xran_kpc: xran_kpc,$

@@ -96,11 +96,11 @@ function ifsf_cmpcvdfvals,emlcvdf,emlflx,emlflxerr,fluxvels=fluxvels,$
                emlflxerr['ftotpk',line,i,j] = emlcvdf['fluxerr',line,i,j,k]
                emlvel['vpk',line,i,j] = emlcvdf['vel',k]
             endif
-            iv98 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.02)
-            iv84 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.16)
-            iv50 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.5)
-            iv16 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.84)
-            iv02 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.98)
+            iv98 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.02d)
+            iv84 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.16d)
+            iv50 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.5d)
+            iv16 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.84d)
+            iv02 = value_locate(emlcvdf['cumfluxnorm',line,i,j,*],0.98d)
             if iv98 ne -1 AND iv98 ne nvel-1 then $
                emlvel['v%98',line,i,j] = emlcvdf['vel',iv98]
             if iv84 ne -1 AND iv84 ne nvel-1 then $

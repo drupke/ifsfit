@@ -180,6 +180,10 @@ function ifsf_example,initmaps=initmaps,initnad=initnad
          tweakcntfit: tweakcntfit,$
          emlsigcut: 2d,$
          logfile: '/Location/of/logfile',$
+         batchfile: '/Location/of/ifsfit/common/ifsf_fitloop.pro',$
+         batchdir: '/Location/for/temp/batch/files/',$
+         cvdf_vlimits: [-2d3,2d3],$
+         cvdf_vstep: 1d,$
          siglim_gas: siglim_gas,$
          siginit_gas: siginit_gas,$
          siginit_stars: 50d $

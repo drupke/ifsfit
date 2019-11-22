@@ -35,7 +35,7 @@
 ;      2018apr14, DSNR, copied from IFSF_GDTEMP
 ;    
 ; :Copyright:
-;    Copyright (C) 2018 David S. N. Rupke
+;    Copyright (C) 2018--2019 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -52,7 +52,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_valdestemp,infile,outfile,wavelo,wavehi
+pro ifsf_valdestemp,infile,outfile,wavelo=wavelo,wavehi=wavehi
 
    bad = 1d99
    valdesbad = -2147483647

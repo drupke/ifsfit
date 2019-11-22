@@ -121,6 +121,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['HeI5876'] = 5875.661d
    lines['HeI6678'] = 6678.15d
    lines['HeI7065'] = 7065.19d
+   lines['HeII2733'] = 2733
+   lines['HeII3203'] = 3203
    lines['HeII4686'] = 4686.7d
    lines['[NeIII]3869'] = 3868.76d
    lines['[NeIII]3967'] = 3967.47d
@@ -335,9 +337,11 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['NIII1751a'] = 1751.218d
    lines['NIII1751b'] = 1751.657d
 
-;  add CII] lines ...
+;  add CIII] + CII] lines ...
    lines['[CIII]1906'] = 1906.683d
    lines['CIII]1908'] = 1908.734d
+   lines['CII]2326'] = 2326.11d
+   lines['CII]2329'] = 2328.84d
 
 ;  add [NeIV] 1601 lines ...
    lines['[NeIV]2422'] = 2422.561d ; [M1] or [E2]
@@ -632,6 +636,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
 
       linelab['[CIII]1906'] = '[CIII] 1906'
       linelab['CIII]1908'] = 'CIII] 1908'
+      linelab['CII]2326'] = 'CII] 2326'
+      linelab['CII]2329'] = 'CII] 2329'
 
       linelab['[SiIII]1883'] = '[SiIII] 1883'
       linelab['SiIII]1892'] = 'SiIII] 1892'
