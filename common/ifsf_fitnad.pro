@@ -607,12 +607,14 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             if tag_exist(initnad,'argspltfitnad') then $
                ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
                               (nadcube.dat)[i,j,*],$
+                              (nadcube.err)[i,j,*],$
                               param,outfile+'_nad_fit',zref,$
                               specres=specres,zstar=zstar,$
                               _extra=initnad.argspltfitnad $
             else $
                ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
                               (nadcube.dat)[i,j,*],$
+                              (nadcube.err)[i,j,*],$
                               param,outfile+'_nad_fit',zref,$
                               specres=specres,zstar=zstar
          endif

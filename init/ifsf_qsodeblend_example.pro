@@ -111,26 +111,26 @@ function ifsf_qsodeblend_example,initmaps=initmaps,initnad=initnad
 ; Optional pars
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Tweaked regions are around Hbeta/[OIII], HeI/NaD, [OI], Ha/[NII], and [SII]
-
-; Parameters for continuum fit
-  tweakcntfit = dblarr(ncols,nrows,3,5)
-; Default fitting order
-  tweakcntfit[*,*,2,*] = 2
-; Number of wavelength regions to re-fit
-  nregions = 5
-; Lower wavelength for re-fit
-  tweakcntfit[*,*,0,0:nregions-1] = $
-     rebin(reform([5650,6850,7400,7600,7850],1,1,1,nregions),$
-           ncols,nrows,1,nregions)
-; Upper wavelength for re-fit
-  tweakcntfit[*,*,1,0:nregions-1] = $
-     rebin(reform([6000,7050,7550,7850,8000],1,1,1,nregions),$
-           ncols,nrows,1,nregions)
-; Order for re-fit
-  tweakcntfit[*,*,2,0:nregions-1] = $
-     rebin(reform([1,1,1,1,1],1,1,1,nregions),$
-           ncols,nrows,1,nregions)
+;; Tweaked regions are around Hbeta/[OIII], HeI/NaD, [OI], Ha/[NII], and [SII]
+;
+;; Parameters for continuum fit
+;  tweakcntfit = dblarr(ncols,nrows,3,5)
+;; Default fitting order
+;  tweakcntfit[*,*,2,*] = 2
+;; Number of wavelength regions to re-fit
+;  nregions = 5
+;; Lower wavelength for re-fit
+;  tweakcntfit[*,*,0,0:nregions-1] = $
+;     rebin(reform([5650,6850,7400,7600,7850],1,1,1,nregions),$
+;           ncols,nrows,1,nregions)
+;; Upper wavelength for re-fit
+;  tweakcntfit[*,*,1,0:nregions-1] = $
+;     rebin(reform([6000,7050,7550,7850,8000],1,1,1,nregions),$
+;           ncols,nrows,1,nregions)
+;; Order for re-fit
+;  tweakcntfit[*,*,2,0:nregions-1] = $
+;     rebin(reform([1,1,1,1,1],1,1,1,nregions),$
+;           ncols,nrows,1,nregions)
 
 
 ; Parameters for emission line plotting
@@ -160,8 +160,8 @@ function ifsf_qsodeblend_example,initmaps=initmaps,initnad=initnad
   siglim_gas = dblarr(ncols,nrows,2)
   siglim_gas[*,*,0] = 5d
   siglim_gas[*,*,1] = 1000d
-  lratfix=hash()
-  lratfix['[NI]5200/5198'] = [1.5d]
+;  lratfix=hash()
+;  lratfix['[NI]5200/5198'] = [1.5d]
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -193,8 +193,8 @@ function ifsf_qsodeblend_example,initmaps=initmaps,initnad=initnad
                                   '[SII]6716','[SII]6731']},$ ;struct
          argscontfit: {qsoxdr: '/path/nucleartemplate.xdr',$
                        siginit_stars: 50d,$
-                       uselog: 1b,$
-                       }
+                       uselog: 1b $
+                       },$
 ; Comment out for step 2; uncomment for step 7
 ;                       refit: 1b},$ ;comment out for step (2)
 ; Comment out for step 2
@@ -209,13 +209,14 @@ function ifsf_qsodeblend_example,initmaps=initmaps,initnad=initnad
          maskwidths_def: 500d,$
          fcncheckcomp: 'ifsf_checkcomp',$
          fcncontfit: 'ifsf_fitqsohost',$
-         tweakcntfit: tweakcntfit,$
+ ;        tweakcntfit: tweakcntfit,$
          emlsigcut: 2d,$
          logfile: '/path/fitdir/'+gal+'/'+outstr+'/'+$
                   gal+'_fitlog.txt',$
          batchfile: '/path/to/ifsfit/common/ifsf_fitloop.pro',$
          batchdir: '/path/to/batch/',$
-         cutrange: [[6920,6965]], $
+;         cutrange: [[6920,6965]], $
+         nocvdf: 1b,$
          siglim_gas: siglim_gas,$
          siginit_gas: siginit_gas,$
          siginit_stars: 100d, $

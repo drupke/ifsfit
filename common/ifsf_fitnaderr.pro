@@ -465,7 +465,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
             weqerr[1,*] = $
                ifsf_pltmcdist(weq[*,1],position=pos[*,2],$
                               xtitle='W$\downeq$ (em, $\Angstrom$)',$
-                              maxinput=0d,max_value=0d,xran=[min(weq[*,1]),0],$
+                              maxinput=0d,min_value=0d,xran=[min(weq[*,1]),0],$
                               noerase=em_noerase) $
          else cghistoplot,dat,pos=pos[*,2],missing=bad,noerase=em_noerase,ytit='',$
                           xtit='W$\downeq$ (em, $\Angstrom$)',xticks=2,nbins=1,binsize=0.1d,$

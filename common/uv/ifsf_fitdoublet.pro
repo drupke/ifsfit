@@ -425,13 +425,24 @@ nofit:
 
 ;  Velocity calculations
    comps=maxncomp
-   zcomp=MAKE_ARRAY(2+4*comps)
    delz=MAKE_ARRAY(comps)
    velocity=MAKE_ARRAY(comps)
    FOR M = 0, comps-1 DO BEGIN
       delz[M] = param[4+4*M]/(linelist[linename]*(1d + redshift)) - 1d
       velocity[M] = c*((delz[M]+1d)^2d -1d)/((delz[M]+1d)^2d +1d)
    ENDFOR
+
+
+;  Velocity calculations
+   if param[1] gt 0 then begin
+      comps_em=param[1]
+      delz=MAKE_ARRAY(comps)
+      velocity_em=MAKE_ARRAY(comps)
+      FOR M = 0, comps_em-1 DO BEGIN
+        delz[M] = param[2+param[0]*4+4*M]/(linelist[linename]*(1d + redshift)) - 1d
+        velocity_em[M] = c*((delz[M]+1d)^2d -1d)/((delz[M]+1d)^2d +1d)
+      ENDFOR
+   endif
     
 
 finish:
@@ -451,6 +462,17 @@ finish:
          printf,lun, param[2+4*M:2+4*M+3],velocity[M],$
                 FORMAT='(F-20.4,F-20.4,F-20.4,F-20.4,F-20.4)'
       ENDFOR
+      if param[1] gt 0 then begin
+         printf, lun,'Flux','Ratio',$
+                'Wavelength(A)','Sigma(km/s)','Velocity(km/s)',$
+                FORMAT='(A-20,A-20,A-20,A-20,A-20)'
+         FOR M = 0, comps_em-1 DO BEGIN
+            printf,lun, param[2+4*param[0]+4*M+2:2+4*param[0]+4*M+3],$
+                   param[2+4*param[0]+4*M:2+4*param[0]+4*M+1],$
+                   velocity_em[M],$
+                   FORMAT='(F-20.4,F-20.4,F-20.4,F-20.4,F-20.4)'
+         ENDFOR
+      endif
       close, lun
       FREE_LUN, lun
    endif

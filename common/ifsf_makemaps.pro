@@ -1,9 +1,8 @@
 ;
 ;+
 ;
-; This procedure makes maps of various quantities. Contains four
-; helper routines: IFSF_PA, IFSF_PLOTRANGE, IFSF_PLOTCOMPASS,
-; IFSF_PLOTAXESNUC.
+; This procedure makes maps of various quantities. Contains one
+; helper routine: IFSF_PA.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -96,112 +95,7 @@ function ifsf_pa,xaxis,yaxis
    if sizetmp[0] eq 0 then pa = pa[0]
    return,pa
 end
-
-pro ifsf_plotaxesnuc,xran_kpc,yran_kpc,xnuc,ynuc,nolab=nolab,toplab=toplab,$
-                     noxlab=noxlab,charsize=charsize,rightlab=rightlab,$
-                     nonuc=nonuc,colornuc=colornuc,noylab=noylab,$
-                     colorax=colorax
-   COMPILE_OPT IDL2, HIDDEN
-   if not keyword_set(colorax) then colornuc = !P.color
-   if not keyword_set(charsize) then charsize=!P.charsize
-   if not keyword_set(nolab) then begin
-      if keyword_set(toplab) OR keyword_set(noxlab) then $
-         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60),$
-                color=colorax
-      if not keyword_set(noxlab) AND not keyword_set(toplab) then $
-         cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,charsize=charsize,$
-                color=colorax
-      if keyword_set(rightlab) then $
-         cgaxis,yaxis=1,yran=yran_kpc,/ysty,/save,charsize=charsize,$
-                color=colorax $
-      else $
-         cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,charsize=charsize,$
-                color=colorax
-   endif else begin
-      cgaxis,xaxis=0,xran=xran_kpc,/xsty,/save,xtickn=replicate(' ',60),$
-             color=colorax
-      cgaxis,yaxis=0,yran=yran_kpc,/ysty,/save,ytickn=replicate(' ',60),$
-             color=colorax
-   endelse
-   if not keyword_set(toplab) OR keyword_set(noxlab) then $
-      cgaxis,xaxis=1,xran=xran_kpc,xtickn=replicate(' ',60),/xsty,$
-             color=colorax
-   if keyword_set(toplab) AND $
-      not keyword_set(noxlab) AND $
-      not keyword_set(nolab) then $
-      cgaxis,xaxis=1,xran=xran_kpc,/xsty,charsize=charsize,$
-             color=colorax
-   if not keyword_set(rightlab) then $
-      cgaxis,yaxis=1,yran=yran_kpc,ytickn=replicate(' ',60),/ysty,$
-             color=colorax $
-   else $
-      cgaxis,yaxis=0,yran=yran_kpc,ytickn=replicate(' ',60),/ysty,$
-             color=colorax
-   if not keyword_set(colornuc) then colornuc = !P.color
-   if not keyword_set(nonuc) then cgoplot,xnuc,ynuc,psym=1,color=colornuc
-end
-;
-pro ifsf_plotcompass,xarr,yarr,carr=carr,nolab=nolab,hsize=hsize,hthick=hthick,$
-                     thick=thick
-   COMPILE_OPT IDL2, HIDDEN
-   if ~ keyword_set(carr) then carr='Black'
-   if ~ keyword_set(hsize) then hsize=!D.X_SIZE / 64
-   if ~ keyword_set(hthick) then hthick=1d
-   if ~ keyword_set(thick) then thick=!P.thick
-   cgarrow,xarr[0],yarr[0],xarr[1],yarr[1],/data,/solid,color=carr,hsize=hsize,$
-           hthick=hthick,thick=thick
-   cgarrow,xarr[0],yarr[0],xarr[2],yarr[2],/data,/solid,color=carr,hsize=hsize,$
-           hthick=hthick,thick=thick
-   if ~ keyword_set(nolab) then begin
-      cgtext,xarr[3],yarr[3],'N',color=carr,align=0.5
-      cgtext,xarr[4],yarr[4],'E',color=carr,align=0.5
-   endif
-end
-;
-function ifsf_plotrange,auto=auto,$
-                        rline=rline,matline=matline,$
-                        rcomp=rcomp,matcomp=matcomp,$
-                        rquant=rquant,matquant=matquant,$
-                        rncbdiv=rncbdiv,rlo=rlo,rhi=rhi,$
-                        mapgd=mapgd,divinit=divinit,ncbdivmax=ncbdivmax
-;
-   if keyword_set(auto) then doauto=1 else doauto=0
-   if ~ doauto then begin
-      if keyword_set(rline) AND keyword_set(matline) AND $
-         keyword_set(rquant) AND keyword_set(matquant) AND $
-         keyword_set(rncbdiv) AND (keyword_set(rlo) OR keyword_set(rhi)) then begin
-         if keyword_set(rcomp) AND keyword_set(matcomp) then $
-            ithisline = where(rline eq matline AND $
-                              rcomp eq matcomp AND $
-                              rquant eq matquant,ctthisline) $
-         else $
-            ithisline = where(rline eq matline AND $
-                              rquant eq matquant,ctthisline)
-         if ctthisline eq 1 then begin
-            zran = [rlo[ithisline],rhi[ithisline]]
-            ncbdiv = rncbdiv[ithisline]
-            ncbdiv = ncbdiv[0]
-         endif else doauto=1
-      endif else doauto=1
-   endif
-   if doauto then begin
-      if keyword_set(mapgd) AND $
-         keyword_set(divinit) AND $
-         keyword_set(ncbdivmax) then begin
-         zran = [min(mapgd),max(mapgd)]
-         divarr = ifsf_cbdiv(zran,divinit,ncbdivmax)
-         ncbdiv = divarr[0]
-      endif else begin
-         message,'Proper keywords not specified.'
-      endelse
-   endif
-   return,[zran,zran[1]-zran[0],ncbdiv]
-end
-;
-;
 ;-------------------------------------------------------------------------------
-;
-;
 pro ifsf_makemaps,initproc
 
    fwhm2sig = 2d*sqrt(2d*alog(2d))
@@ -1411,7 +1305,7 @@ pro ifsf_makemaps,initproc
                zdiff = $
                   tmpwaveabs/(nadlinelist['NaD1']*(1d + initdat.zsys_gas)) - 1d
                nadabsvel[i,j,0] = c_kms * ((zdiff+1d)^2d - 1d) / $
-                                  ((zdiff+1d)^2d + 1d)
+                                          ((zdiff+1d)^2d + 1d)
                errnadabsvel[i,j,0,*] = $
                   c_kms * (4d/(nadlinelist['NaD1']*(1d + initdat.zsys_gas))*$
                            ([zdiff,zdiff]+1d)/(([zdiff,zdiff]+1d)^2d + 1d)^2d) * $
@@ -1477,7 +1371,7 @@ pro ifsf_makemaps,initproc
                zdiff = reverse(tmpwaveabs[sortgd])/$
                        (nadlinelist['NaD1']*(1d + initdat.zsys_gas)) - 1d
                nadabsvel[i,j,1:ctgd] = c_kms * ((zdiff+1d)^2d - 1d) / $
-                                       ((zdiff+1d)^2d + 1d)
+                                               ((zdiff+1d)^2d + 1d)
                errnadabsvel[i,j,1:ctgd,*] = $
                   c_kms * (4d/(nadlinelist['NaD1']*(1d + initdat.zsys_gas))*$
                            (rebin(zdiff,1,1,ctgd,2)+1d)/$

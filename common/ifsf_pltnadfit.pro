@@ -62,7 +62,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_pltnadfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran,$
+pro ifsf_pltnadfit,wave,flux,err,param,outfile,zsys,xran=xran,yran=yran,$
                    specres=specres,zstar=zstar
                    
   if ~keyword_set(specres) then message,'Spectral resolution not specified.'
@@ -113,6 +113,7 @@ pro ifsf_pltnadfit,wave,flux,param,outfile,zsys,xran=xran,yran=yran,$
   cgplot,wave,flux,xran=xran,yran=yran,/xsty,/ysty,$
          backg='Black',axiscolor='White',color='White',$
          xtit='Wavelength ($\Angstrom$)',ytit='Normalized F$\down$$\lambda$'
+  cgoplot,wave,err,color='White',linesty=2
   cgoplot,[w_nad1,w_nad1],yran,color='Green',linesty=2
   cgoplot,[w_nad2,w_nad2],yran,color='Green',linesty=2
   cgoplot,[w_hei,w_hei],yran,color='Green',linesty=2

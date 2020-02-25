@@ -121,8 +121,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['HeI5876'] = 5875.661d
    lines['HeI6678'] = 6678.15d
    lines['HeI7065'] = 7065.19d
-   lines['HeII2733'] = 2733
-   lines['HeII3203'] = 3203
+   lines['HeII2733'] = 2733.3d ; a little uncertain; ~10 lines that could contribute
+   lines['HeII3203'] = 3203.1d ; a little uncertain; ~10 lines that could contribute
    lines['HeII4686'] = 4686.7d
    lines['[NeIII]3869'] = 3868.76d
    lines['[NeIII]3967'] = 3967.47d
@@ -390,9 +390,15 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['MgII2795'] = 2795.528d ; f = 0.6123
    lines['MgII2802'] = 2802.704d ; f = 0.3054
    lines['MgI2852'] = 2852.127d ; f = 1.81
+;  UV5
+   lines['FeII2249'] = 2249.1795d ; from Morton 2003
+;  UV4
+   lines['FeII2260'] = 2260.0809d ; from Morton 2003
+   lines['FeII2233'] = 2233.7532d ; from Morton 2003
 ;  UV3
    lines['FeII2343'] = 2343.4948d ; f = 0.1140 (~2 times smaller than 2599 line)
 ;  UV2
+   lines['FeII2366'] = 2366.8674d ; from Morton 2003
    lines['FeII2373'] = 2373.73528d; f = 0.0313 (~8 times smaller than 2599 line)
    lines['FeII2382'] = 2382.03733d; f = 0.320 (larger than 2599 line)
 ;  UV1
@@ -408,6 +414,10 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
    lines['FeII*2611'] = 2611.87336d ; goes with 2585
    lines['FeII*2631'] = 2631.32292d ; goes with 2585
    lines['FeII*2625'] = 2625.66685d ; goes with 2599
+; From Morton 2003  
+   lines['MnII2605'] = 2605.684d
+   lines['MnII2593'] = 2593.724d
+   lines['MnII2576'] = 2576.105d
 
 ;  Al lines from P01 ... check wavelengths and what type of line
 ;  add Al II at 2660/2669
@@ -472,6 +482,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
       linelab['HeI6678'] = 'HeI 6678'
       linelab['HeI7065'] = 'HeI 7065'
       linelab['HeII4686'] = 'HeII 4686'
+      linelab['HeII2733'] = 'HeII 2733'
+      linelab['HeII3203'] = 'HeII 3203'
       linelab['[NeIII]3869'] = '[NeIII] 3869'
       linelab['[NeIII]3967'] = '[NeIII] 3967'
       linelab['[NI]5198'] = '[NI] 5198'
@@ -674,7 +686,11 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
       linelab['MgII2795'] = 'MgII 2795'
       linelab['MgII2802'] = 'MgII 2802'
       linelab['MgI2852'] = 'MgI 2852'
+      linelab['FeII2233'] = 'FeII 2233'
+      linelab['FeII2249'] = 'FeII 2249'
+      linelab['FeII2260'] = 'FeII 2260'
       linelab['FeII2343'] = 'FeII 2343'
+      linelab['FeII2366'] = 'FeII 2366'
       linelab['FeII2373'] = 'FeII 2373'
       linelab['FeII2382'] = 'FeII 2382'
       linelab['FeII2585'] = 'FeII 2585'
@@ -685,6 +701,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
       linelab['FeII*2611'] = 'FeII* 2611'
       linelab['FeII*2625'] = 'FeII* 2625'
       linelab['FeII*2631'] = 'FeII* 2631'
+      linelab['MnII2605'] = 'MnII 2605'
+      linelab['MnII2593'] = 'MnII 2593'
+      linelab['MnII2576'] = 'MnII 2576'
 
       linelab['AlII1670'] = 'AlII 1670'
       linelab['AlIII1854'] = 'AlIII 1854'

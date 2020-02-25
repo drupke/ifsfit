@@ -76,14 +76,17 @@
 ;-
 pro ifsf_pltmultiplet,gal,wave,relativeflux,continuum,flux,param,linelist,$
                       initstr,multiplet,directoryname,outfile,zsys,$
-                      xran=xran,yran=yran,init=init,zres=zres
+                      xran=xran,yran=yran,init=init,zres=zres,smooth=smooth
 
 ; Default wavelengths
   c = 299792.458d
   
   wavelines = linelist[initstr.reflinename]*(1d +zsys)
-  for i=0,n_elements(initstr.linenames)-1 do $
+  wavenames = initstr.reflinename
+  for i=0,n_elements(initstr.linenames)-1 do begin
      wavelines = [wavelines,linelist[initstr.linenames[i]]*(1d +zsys)]
+     wavenames = [wavenames,initstr.linenames[i]]
+  endfor
   moddoubletabs=1
   modflux = ifsf_multipletfcn(wave,param,refloglf=initstr.refloglf,$
                               refmultwave=initstr.refmultwave,$
@@ -119,22 +122,35 @@ pro ifsf_pltmultiplet,gal,wave,relativeflux,continuum,flux,param,linelist,$
     if nplt eq 2 OR nplt eq 3 then begin
        nx = nplt
        ny = 1
-    endif else if nplt eq 4 OR nplt eq 5 OR nplt eq 6 then begin
+    endif else if nplt eq 4 then begin
+       nx = 2
+       ny = 2
+    endif else if nplt eq 5 OR nplt eq 6 then begin
        nx = 3
        ny = 2
     endif
-  endif
+  endif else begin
+     nx = 1
+     ny = 1
+  endelse
   pos = cglayout([nx,ny],oxmar=[12,2],oymar=[10,2],xgap=10,ygap=5)
+
+  if keyword_set(smooth) then relfluxuse = smooth(relativeflux,smooth) $
+  else relfluxuse = relativeflux
 
   for i=0,nplt-1 do begin
      xrantmp = xran[*,i]
      xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
      if i eq 0 then ytit='Normalized F$\down$$\lambda$' else ytit=''
-     cgplot,wave,relativeflux,xran=xrantmp,yran=yran,xstyle=1,ystyle=1,$
+     cgplot,wave,relfluxuse,xran=xrantmp,yran=yran,xstyle=1,ystyle=1,$
             backg='Black',axiscolor='White',color='White',position=pos[*,i],$
             xtit=xtit,ytit=ytit,noerase=i ne 0,/norm
-     for j=0,n_elements(wavelines)-1 do $
-        cgoplot,[wavelines[j],wavelines[j]],yran,color='Green',linesty=2
+     for j=0,n_elements(wavelines)-1 do begin
+        if wavelines[j] gt xrantmp[0] AND wavelines[j] lt xrantmp[1] then begin
+           cgoplot,[wavelines[j],wavelines[j]],yran,color='Green',linesty=2
+           cgtext,wavelines[j]-1,0.1,wavenames[j],orient=90,align=0,color='Green'
+        endif
+     endfor
      for j=0,nabs-1 do cgoplot,wave,modabs[*,j],color='Cyan',thick=2
      cgoplot,wave,modflux,color='Red',thick=4
   endfor
@@ -149,7 +165,7 @@ pro ifsf_pltmultiplet,gal,wave,relativeflux,continuum,flux,param,linelist,$
      openw, lun, output+'.txt',/GET_LUN
      FOR M =0, N_ELEMENTS(wave)-1 DO $
         printf, lun, wave[M], modflux[M], continuum[M], flux[M], $
-                relativeflux[M], $
+                relfluxuse[M], $
                 FORMAT='(F10.4,2X,F7.4,2X,E13.6,2X,E13.6,2X,F7.4)'
      FREE_LUN,lun
   
