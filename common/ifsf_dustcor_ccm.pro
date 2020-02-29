@@ -81,7 +81,7 @@ function ifsf_dustcor_ccm,lambda,flux,ebv,rv=rv,fluxerr=fluxerr,$
 
    if ~ keyword_set(rv) then rv=3.1d
    if keyword_set(fluxerr) OR keyword_set(ebverr) then doerr=1 else doerr=0
-   alamav = extcurve_ccm(lambda,rv=rv)
+   alamav = ifsf_extcurve_ccm(lambda,rv=rv)
    if keyword_set(relative) then coeff = 0.4d *(alamav[0]-alamav[1])*rv $
    else coeff = 0.4d * alamav[0] * rv
 
