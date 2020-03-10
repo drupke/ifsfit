@@ -281,6 +281,34 @@ running Mac OS X El Capitan and the MacPorts X11 tools.)
    library. The leading '_' must be dropped.
 
 -------------------------------------------------------------------------
+EXTINCTION CORRECTIONS
+-------------------------------------------------------------------------
+
+To calculate gas E(B-V) in IFSF_MAKEMAPS, switch on the EBV tag in
+INIT as in the IFSF_QSODEBLEND_EXAMPLE.PRO initialization file. This
+calculates EBV for total flux (summed over components) and the flux on
+a component-by-component basis. The title tags are just for the plots.
+
+Presently the correction is only done using the E(B-V) calculated from
+the total flux (summed over components). I.e., you can correct the
+flux on a component-by-component basis but it uses the total
+E(B-V). IFSFIT will output the corrected fluxes into XDR files with
+suffixes '.emlflxcor_pp.xdr' and '.emlflxcor_med.xdr'. The '_pp'
+version does a correction on a per-pixel basis, and uses the median
+value if E(B-V) could not be calculated. The ‘_med’ version uses the
+median E(B-V) (calculated as a spatial median) from the entire
+map. The WINDSTR output from IFSF_MAKEMAPS will also contain the
+spatially-integrated corrected fluxes in the tag E_FLUX_TOT. This in
+turn contains the extinction-corrected, spatially-integrated fluxes in
+the structure tags COMP_UNEXT_PP, COMP_UNEXT_MED, TOT_UNEXT_PP, and
+TOT_UNEXT_MED.
+
+IFSFIT can implement E(B-V) on the stellar continuum within PPXF; set
+EBV_STAR = 1 in INIT. It will Monte Carlo the errors over NITER
+iterations on stellar E(B-V) by setting MCERRORS = {niter:
+YOUR_VALUE_HERE}.
+
+-------------------------------------------------------------------------
 QUESTIONS? BUGS? WANT TO MODIFY THE CODE?
 -------------------------------------------------------------------------
 
@@ -293,7 +321,7 @@ Modifications are encouraged, but subject to the license.
 LICENSE AND COPYRIGHT
 -------------------------------------------------------------------------
 
-Copyright (C) 2013--2019 David S. N. Rupke
+Copyright (C) 2013--2020 David S. N. Rupke
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
