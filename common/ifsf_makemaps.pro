@@ -7886,6 +7886,7 @@ pro ifsf_makemaps,initproc
 ;             Misc
               ofcompline: ofcompline,$
               e_of_flx: e_of_flx,$
+              e_total_flx: emlflxsums,$
 ;             Coordinates
               a_of: map_of_abs,$
               a_of_meanxy: a_of_meanxy,$
@@ -7923,6 +7924,8 @@ pro ifsf_makemaps,initproc
               dy: dy,$
               e_vel: emlvel, $
               e_flx: emlflx, $
+              e_flxcor_pp: emlflxcor_pp, $
+              e_flxcor_med: emlflxcor_med, $
               ebv: ebv, $
               errebv: errebv, $
               elecden: elecdenmap, $
@@ -7946,6 +7949,12 @@ pro ifsf_makemaps,initproc
    save,windstr,file=initdat.mapdir+initdat.label+'.xdr'
 
    save,emlvel,file=initdat.mapdir+initdat.label+'.emlvel.xdr'
+
+   if tag_exist(initmaps.ebv,'calc') AND $
+      tag_exist(initmaps.ebv,'apply') then begin
+      save,emlflxcor_pp,file=initdat.mapdir+initdat.label+'.emlflxcor_pp.xdr'
+      save,emlflxcor_med,file=initdat.mapdir+initdat.label+'.emlflxcor_med.xdr'
+   endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; OTHER PLOTS (GALAXY-SPECIFIC)
