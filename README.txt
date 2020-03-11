@@ -287,21 +287,26 @@ EXTINCTION CORRECTIONS
 To calculate gas E(B-V) in IFSF_MAKEMAPS, switch on the EBV tag in
 INIT as in the IFSF_QSODEBLEND_EXAMPLE.PRO initialization file. This
 calculates EBV for total flux (summed over components) and the flux on
-a component-by-component basis. The title tags are just for the plots.
+a component-by-component basis. The TITLE tags are plot labels, and
+selecting APPLY produces corrected fluxes, outputs them to a file, and
+applies the extinction correction to the spatially-integrated total
+fluxes and to Halpha line fluxes, masses, energies, and momenta
+computed in any outflow calculation. It does not presently apply the
+extinction correction to line ratios or to plots of line flux maps.
 
 Presently the correction is only done using the E(B-V) calculated from
 the total flux (summed over components). I.e., you can correct the
-flux on a component-by-component basis but it uses the total
-E(B-V). IFSFIT will output the corrected fluxes into XDR files with
-suffixes '.emlflxcor_pp.xdr' and '.emlflxcor_med.xdr'. The '_pp'
-version does a correction on a per-pixel basis, and uses the median
-value if E(B-V) could not be calculated. The ‘_med’ version uses the
-median E(B-V) (calculated as a spatial median) from the entire
-map. The WINDSTR output from IFSF_MAKEMAPS will also contain the
-spatially-integrated corrected fluxes in the tag E_FLUX_TOT. This in
-turn contains the extinction-corrected, spatially-integrated fluxes in
-the structure tags COMP_UNEXT_PP, COMP_UNEXT_MED, TOT_UNEXT_PP, and
-TOT_UNEXT_MED.
+flux on a component-by-component basis but it uses the total (summed
+over components) E(B-V). IFSFIT will output the corrected fluxes into
+XDR files with suffixes '.emlflxcor_pp.xdr' and
+'.emlflxcor_med.xdr'. The '_pp' version does a correction on a
+per-pixel basis, and uses the median value if E(B-V) could not be
+calculated. The ‘_med’ version uses the median E(B-V) (calculated as a
+spatial median) from the entire map. The WINDSTR output from
+IFSF_MAKEMAPS will also contain the spatially-integrated corrected
+fluxes in the tag E_FLUX_TOT. This in turn contains the
+extinction-corrected, spatially-integrated fluxes in the structure
+tags COMP_UNEXT_PP, COMP_UNEXT_MED, TOT_UNEXT_PP, and TOT_UNEXT_MED.
 
 IFSFIT can implement E(B-V) on the stellar continuum within PPXF; set
 EBV_STAR = 1 in INIT. It will Monte Carlo the errors over NITER
