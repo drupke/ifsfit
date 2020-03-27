@@ -447,30 +447,42 @@ nofit:
 
 finish:
   
+   lineofdashes = strjoin(replicate('-',62))
+
    if ~ keyword_set(noxdr) then begin
       output=initstr.outdir+initstr.galaxy+doublet+'par_best.txt'
       openw, lun, output, /GET_LUN
-      printf, lun, param[0], '[Number of Absorption Components]',FORMAT='(I-3,A0)'
-      printf, lun, param[1], '[Number of Emission Components]',FORMAT='(I-3,A0)'
+      printf, lun, lineofdashes
+      printf, lun, 'Absorption',FORMAT='(A0)'
+      printf, lun, lineofdashes
+      printf, lun, param[0], '[Number of Components]',FORMAT='(I-3,A0)'
       printf, lun, weq.abs[0], ' [Total equivalent width in A]',FORMAT='(D0.4,A0)'
       printf, lun, vwtabs[0], ' [Weighted avg. vel. in km/s]',FORMAT='(D0.2,A0)'
       printf, lun, vwtabs[1], ' [Weighted RMS vel. in km/s]',FORMAT='(D0.2,A0)'
-      printf, lun,'Covering Factor','Optical Depth',$
-              'Wavelength(A)','Sigma(km/s)','Velocity(km/s)',$
-              FORMAT='(A-20,A-20,A-20,A-20,A-20)'
+      printf, lun, lineofdashes
+      printf, lun,'Cov. Factor','Tau',$
+              'Wave(A)','Sigma(km/s)','Vel(km/s)',$
+              FORMAT='(A-12,A-12,A-12,A-12,A-12)'
+      printf, lun, lineofdashes
       FOR M = 0, comps-1 DO BEGIN
          printf,lun, param[2+4*M:2+4*M+3],velocity[M],$
-                FORMAT='(F-20.4,F-20.4,F-20.4,F-20.4,F-20.4)'
+                FORMAT='(F-12.4,F-12.4,F-12.4,F-12.4,F-12.4)'
       ENDFOR
       if param[1] gt 0 then begin
-         printf, lun,'Flux','Ratio',$
-                'Wavelength(A)','Sigma(km/s)','Velocity(km/s)',$
-                FORMAT='(A-20,A-20,A-20,A-20,A-20)'
+         printf, lun, lineofdashes
+         printf, lun, 'Emission',FORMAT='(A0)'
+         printf, lun, lineofdashes
+         printf, lun, param[1], '[Number of Components]',FORMAT='(I-3,A0)'
+         printf, lun, lineofdashes
+         printf, lun,'Flux','2796/2803',$
+                'Wave(A)','Sigma(km/s)','Vel(km/s)',$
+                FORMAT='(A-12,A-12,A-12,A-12,A-12)'
+         printf, lun, lineofdashes
          FOR M = 0, comps_em-1 DO BEGIN
             printf,lun, param[2+4*param[0]+4*M+2:2+4*param[0]+4*M+3],$
                    param[2+4*param[0]+4*M:2+4*param[0]+4*M+1],$
                    velocity_em[M],$
-                   FORMAT='(F-20.4,F-20.4,F-20.4,F-20.4,F-20.4)'
+                   FORMAT='(F-12.4,F-12.4,F-12.4,F-12.4,F-12.4)'
          ENDFOR
       endif
       close, lun

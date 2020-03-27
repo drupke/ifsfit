@@ -1015,6 +1015,10 @@ pro ifsf_makemaps,initproc
                emlflxcor_med = hash()
                emlflxerrcor_pp = hash()
                emlflxerrcor_med = hash()
+               emlflxcor_pp['ftot'] = hash()
+               emlflxcor_med['ftot'] = hash()
+               emlflxerrcor_pp['ftot'] = hash()
+               emlflxerrcor_med['ftot'] = hash()
                for icomp=1,initdat.maxncomp do begin
                   stric = string(icomp,format='(I0)')
                   emlflxcor_pp['fc'+stric] = hash()
@@ -7927,6 +7931,7 @@ pro ifsf_makemaps,initproc
               e_flxcor_pp: emlflxcor_pp, $
               e_flxcor_med: emlflxcor_med, $
               ebv: ebv, $
+              ebvmed: ebvmed,$
               errebv: errebv, $
               elecden: elecdenmap, $
               elecdenerrlo: elecdenmap_errlo, $

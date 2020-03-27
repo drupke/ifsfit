@@ -84,6 +84,8 @@ Optional structure tags from initialization procedure:
 
   argscontfit: in, optional, type=structure
     Arguments for continuum fit routine.
+    For PPXF: add_poly_degree: in, optional, type=integer, default=4
+    	         Degree of additive polynomial.
   argsinitpar: in, optional, type=structure
     Arguments for parameter initialization routine.
   argslinefit: in, optional, type=structure
