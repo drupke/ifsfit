@@ -476,7 +476,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            hostcube = $
               {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
                err: dblarr(cube.ncols,cube.nrows,cube.nz),$
-               dq:  dblarr(cube.ncols,cube.nrows,cube.nz) $
+               dq:  dblarr(cube.ncols,cube.nrows,cube.nz), $
+               norm_sub: dblarr(cube.ncols,cube.nrows,cube.nz), $
+               norm_sub: dblarr(cube.ncols,cube.nrows,cube.nz) $
               }
            if tag_exist(initdat,'decompose_ppxf_fit') then begin
               contcube = $
@@ -526,6 +528,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         hostcube.dat[i,j,struct.fitran_indx] = struct.cont_dat
         hostcube.err[i,j,struct.fitran_indx] = err[struct.fitran_indx]
         hostcube.dq[i,j,struct.fitran_indx] = dq[struct.fitran_indx]
+        hostcube.norm_sub[i,j,struct.fitran_indx] = struct.cont_dat / struct.cont_fit
+        hostcube.norm_sub[i,j,struct.fitran_indx] = struct.cont_dat - struct.cont_fit
         if tag_exist(initdat,'decompose_ppxf_fit') then begin
            add_poly_degree = 4d ; this must be the same as in IFSF_FITSPEC
            if tag_exist(initdat,'argscontfit') then $
@@ -641,7 +645,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                               /qsoonly,blrterms=blrterms,qsoscl=qsomod_polynorm,$
                               qsoord=qsoord,hostord=hostord
               hostmod = struct.cont_fit_pretweak - qsomod
-;             If continuum is tweaked in any region, divide the resulting
+;             If continuum is tweaked in any region, subide the resulting
 ;             residual proportionally (at each wavelength) between the QSO
 ;             and host components.
               qsomod_notweak = qsomod
@@ -1139,6 +1143,26 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          endelse
          if writewaveext then $
             writefits,initdat.host.dat_fits,cube.wave,header.wave,/append
+         if tag_exist(initdat.host,'norm_sub') then begin
+            if datext lt 0 then begin
+               writefits,initdat.host.norm_sub,hostcube.norm_sub,newheader_dat
+            endif else begin
+               writefits,initdat.host.norm_sub,cube.phu,header.phu
+               writefits,initdat.host.norm_sub,hostcube.norm_sub,newheader_dat,/append
+            endelse
+            if writewaveext then $
+               writefits,initdat.host.norm_sub,cube.wave,header.wave,/append
+         endif
+         if tag_exist(initdat.host,'norm_sub') then begin
+            if datext lt 0 then begin
+               writefits,initdat.host.norm_sub,hostcube.norm_sub,newheader_dat
+            endif else begin
+               writefits,initdat.host.norm_sub,cube.phu,header.phu
+               writefits,initdat.host.norm_sub,hostcube.norm_sub,newheader_dat,/append
+            endelse
+            if writewaveext then $
+               writefits,initdat.host.norm_sub,cube.wave,header.wave,/append
+         endif
       endelse
    endif
 

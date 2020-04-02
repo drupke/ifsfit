@@ -911,7 +911,10 @@ pro ifsf_makemaps,initproc
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    emlvel = 0d
+   emlflxcor_pp = 0d
+   emlflxcor_med = 0d
    ebv = 0d
+   ebvmed = 0d
    errebv = 0d
    lr = hash()
    lrerrlo = hash()
