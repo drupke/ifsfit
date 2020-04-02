@@ -473,9 +473,15 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
 ;       Create / populate output data cubes                            
         if firstcontproc then begin
+           hostcube = $
+              {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
+               err: dblarr(cube.ncols,cube.nrows,cube.nz),$
+               dq:  dblarr(cube.ncols,cube.nrows,cube.nz) $
+              }
            if tag_exist(initdat,'decompose_ppxf_fit') then begin
               contcube = $
                  {wave: struct.wave,$
+                  all_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   stel_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   poly_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   stel_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
@@ -505,14 +511,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                   stel_ebv: dblarr(cube.ncols,cube.nrows)+bad, $
                   stel_ebv_err: dblarr(cube.ncols,cube.nrows,2)+bad $
                  }
-              hostcube = $
-                 {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
-                  err: dblarr(cube.ncols,cube.nrows,cube.nz),$
-                  dq:  dblarr(cube.ncols,cube.nrows,cube.nz) $
-                 }
            endif else begin
               contcube = $
-                 {stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
+                 {all_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                  stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_z_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_ebv: dblarr(cube.ncols,cube.nrows)+bad, $
@@ -521,6 +523,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endelse
            firstcontproc=0
         endif
+        hostcube.dat[i,j,struct.fitran_indx] = struct.cont_dat
+        hostcube.err[i,j,struct.fitran_indx] = err[struct.fitran_indx]
+        hostcube.dq[i,j,struct.fitran_indx] = dq[struct.fitran_indx]
         if tag_exist(initdat,'decompose_ppxf_fit') then begin
            add_poly_degree = 4d ; this must be the same as in IFSF_FITSPEC
            if tag_exist(initdat,'argscontfit') then $
@@ -540,6 +545,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            cont_fit_stel = struct.cont_fit - cont_fit_poly
 ;          Total flux from different components
            cont_fit_tot = total(struct.cont_fit)
+           contcube.all_mod[i,j,struct.fitran_indx] = struct.cont_fit
            contcube.stel_mod[i,j,struct.fitran_indx] = cont_fit_stel
            contcube.poly_mod[i,j,struct.fitran_indx] = cont_fit_poly
            contcube.stel_mod_tot[i,j] = total(cont_fit_stel)
@@ -667,6 +673,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               hostmod = struct.cont_fit - qsomod
            endif
         endif else begin
+           contcube.all_mod[i,j,struct.fitran_indx] = struct.cont_fit
            contcube.stel_z[i,j] = struct.zstar
            if tag_exist(struct,'ct_errors') then $
               contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
@@ -752,11 +759,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               contcube.host_mod[i,j,struct.fitran_indx] -= polymod_refit
 ;          Data minus (emission line model + QSO model)
 ;           contcube.host_dat[i,j,*] = struct.cont_dat - qsomod
+;          Update hostcube.dat to remove tweakcnt mods
 ;          Data minus (emission line model + QSO model, tweakcnt mods not 
 ;          included in QSO model)
            hostcube.dat[i,j,struct.fitran_indx] = struct.cont_dat - qsomod_notweak
-           hostcube.err[i,j,struct.fitran_indx] = err[struct.fitran_indx]
-           hostcube.dq[i,j,struct.fitran_indx] = dq[struct.fitran_indx]
            if ~keyword_set(noplots) AND $
               total(struct_host.cont_fit) ne 0d then begin
               if tag_exist(initdat.argscontfit,'refit') then begin
@@ -1063,8 +1069,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
   ;     tag_exist(initdat,'decompose_qso_fit') then $
   save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
 
-   if tag_exist(initdat,'decompose_qso_fit') AND $
-      tag_exist(initdat,'host') then begin
+   if tag_exist(initdat,'host') then begin
 ;     Change initial wavelength -- use last restored fit structure. For some 
 ;     reason SXADDPAR doesn't work when applied directly to structures, so
 ;     create new variables.

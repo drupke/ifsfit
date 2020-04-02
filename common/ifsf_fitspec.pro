@@ -249,8 +249,8 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   if ctzerinf gt 0 then begin
      flux[zerinf_indx]=median(flux[gd_indx_full])
      err[zerinf_indx]=maxerr*100d
-     if not quiet then print,'Setting ',ctzerinf,' points from zero flux or '+$
-        'neg./zero/inf. error to med(flux) and max(err)x100.',format='(A,I0,A)'
+     if not quiet then print,'Setting ',ctzerinf,' points from zero/inf./NaN flux or '+$
+        'neg./zero/inf./NaN error to med(flux) and max(err)x100.',format='(A,I0,A)'
   endif
 
 ; indices locating data within actual fit range
