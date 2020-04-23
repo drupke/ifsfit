@@ -477,7 +477,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
                err: dblarr(cube.ncols,cube.nrows,cube.nz),$
                dq:  dblarr(cube.ncols,cube.nrows,cube.nz), $
-               norm_sub: dblarr(cube.ncols,cube.nrows,cube.nz), $
+               norm_div: dblarr(cube.ncols,cube.nrows,cube.nz), $
                norm_sub: dblarr(cube.ncols,cube.nrows,cube.nz) $
               }
            if tag_exist(initdat,'decompose_ppxf_fit') then begin
@@ -528,7 +528,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         hostcube.dat[i,j,struct.fitran_indx] = struct.cont_dat
         hostcube.err[i,j,struct.fitran_indx] = err[struct.fitran_indx]
         hostcube.dq[i,j,struct.fitran_indx] = dq[struct.fitran_indx]
-        hostcube.norm_sub[i,j,struct.fitran_indx] = struct.cont_dat / struct.cont_fit
+        hostcube.norm_div[i,j,struct.fitran_indx] = struct.cont_dat / struct.cont_fit
         hostcube.norm_sub[i,j,struct.fitran_indx] = struct.cont_dat - struct.cont_fit
         if tag_exist(initdat,'decompose_ppxf_fit') then begin
            add_poly_degree = 4d ; this must be the same as in IFSF_FITSPEC
@@ -681,12 +681,18 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            contcube.stel_z[i,j] = struct.zstar
            if tag_exist(struct,'ct_errors') then $
               contcube.stel_z_err[i,j,*] = struct.ct_errors['zstar'] $
-           else contcube.stel_z_err[i,j,*] = [struct.zstar_err,struct.zstar_err]
+;          for backwards compatibility
+           else if tag_exist(struct,'zstar_err') then $
+              contcube.stel_z_err[i,j,*] = [struct.zstar_err,struct.zstar_err] $
+           else contcube.stel_z_err[i,j,*] = [0,0]
         endelse
         contcube.stel_ebv[i,j] = struct.ct_ebv
         if tag_exist(struct,'ct_errors') then $
            contcube.stel_ebv_err[i,j,*] = struct.ct_errors['ct_ebv']
-        contcube.stel_rchisq[i,j] = struct.ct_rchisq
+;       for backwards compatibility
+        if tag_exist(struct,'stel_rchisq') then $
+           contcube.stel_rchisq[i,j] = struct.ct_rchisq $
+        else contcube.stel_rchisq[i,j] = 0d
 
 
 ;       Print PPXF results to STDOUT
@@ -1143,15 +1149,15 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          endelse
          if writewaveext then $
             writefits,initdat.host.dat_fits,cube.wave,header.wave,/append
-         if tag_exist(initdat.host,'norm_sub') then begin
+         if tag_exist(initdat.host,'norm_div') then begin
             if datext lt 0 then begin
-               writefits,initdat.host.norm_sub,hostcube.norm_sub,newheader_dat
+               writefits,initdat.host.norm_div,hostcube.norm_div,newheader_dat
             endif else begin
-               writefits,initdat.host.norm_sub,cube.phu,header.phu
-               writefits,initdat.host.norm_sub,hostcube.norm_sub,newheader_dat,/append
+               writefits,initdat.host.norm_div,cube.phu,header.phu
+               writefits,initdat.host.norm_div,hostcube.norm_div,newheader_dat,/append
             endelse
             if writewaveext then $
-               writefits,initdat.host.norm_sub,cube.wave,header.wave,/append
+               writefits,initdat.host.norm_div,cube.wave,header.wave,/append
          endif
          if tag_exist(initdat.host,'norm_sub') then begin
             if datext lt 0 then begin
