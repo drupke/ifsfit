@@ -75,7 +75,8 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit
+function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
+                       airorvac=airorvac
 
 ;  Associated line labels:
    lines = hash()

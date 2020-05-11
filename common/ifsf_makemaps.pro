@@ -3155,7 +3155,7 @@ pro ifsf_makemaps,initproc
 ;        Title
          cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
          cgtext,pos_title[0],pos_title[1],initdat.name+': '+linelabels[line],$
-                charsize=1.25d,align=0.5
+                charsize=1.25d,align=0.5,/normal ; 2020may06, DSNR, added /normal
  
          cgps_close
 
@@ -7958,10 +7958,12 @@ pro ifsf_makemaps,initproc
 
    save,emlvel,file=initdat.mapdir+initdat.label+'.emlvel.xdr'
 
-   if tag_exist(initmaps.ebv,'calc') AND $
-      tag_exist(initmaps.ebv,'apply') then begin
-      save,emlflxcor_pp,file=initdat.mapdir+initdat.label+'.emlflxcor_pp.xdr'
-      save,emlflxcor_med,file=initdat.mapdir+initdat.label+'.emlflxcor_med.xdr'
+   if tag_exist(initmaps,'ebv') then begin
+      if tag_exist(initmaps.ebv,'calc') AND $
+         tag_exist(initmaps.ebv,'apply') then begin
+            save,emlflxcor_pp,file=initdat.mapdir+initdat.label+'.emlflxcor_pp.xdr'
+            save,emlflxcor_med,file=initdat.mapdir+initdat.label+'.emlflxcor_med.xdr'
+      endif
    endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

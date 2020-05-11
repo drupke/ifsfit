@@ -65,9 +65,11 @@
 ;      2018feb08, DSNR, added WAVEEXT, INVVAR, and ZERODQ keywords
 ;      2018feb23, DSNR, added LINEARIZE keyword
 ;      2018aug12, DSNR, ensure values of DATEXT, VAREXT, DQEXT don't get changed
+;      2020may05, DSNR, new treatment of default axes in 2D images; added CUNIT
+;                       and BUNIT to output
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2018 David S. N. Rupke
+;    Copyright (C) 2013--2020 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -144,8 +146,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      header_wave = ''
   endelse
 
-; Get #s of rows, columns, and wavelength pixels. Logic for 2-d case assumes 
-; that # wavelength pts > # cols.
+; Get #s of rows, columns, and wavelength pixels.
   datasize = size(dat)
   IF datasize[0] eq 3 then begin
      ncols = datasize[1]
@@ -156,15 +157,25 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      crpixstr = 'CRPIX3'
      cdeltstr = 'CD3_3'
      cdeltstropt = 'CDELT3'
+     cunitstr = 'CUNIT3'
   endif else if datasize[0] eq 2 then begin
-     ncols = (datasize[1] gt datasize[2]) ? datasize[2] : datasize[1]
-     nz = (datasize[1] gt datasize[2]) ? datasize[1] : datasize[2]
-     wavedim = (datasize[1] gt datasize[2]) ? 1 : 2
+     print,'IFSF_READCUBE: Reading 2D image. Assuming dispersion direction is'+$
+           'along rows.'
+; Old logic: # wavelength pts > # cols.           
+;     ncols = (datasize[1] gt datasize[2]) ? datasize[2] : datasize[1]
+;     nz = (datasize[1] gt datasize[2]) ? datasize[1] : datasize[2]
+;     wavedim = (datasize[1] gt datasize[2]) ? 1 : 2
+; New logic: Assume dispersion along rows. Note that "ncols" then really
+;     means "nrows"; keep this language for now.
+     wavedim = 1
+     nz = datasize[1]
+     ncols = datasize[2]
      nrows = 1
      crvalstr = 'CRVAL1'
      crpixstr = 'CRPIX1'
      cdeltstr = 'CDELT1'
      cdeltstropt = 'CD1_1'
+     cunitstr = 'CUNIT1'
   endif else if datasize[0] eq 1 then begin
      ncols = 1
      nrows = 1
@@ -174,7 +185,12 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      crpixstr = 'CRPIX1'
      cdeltstr = 'CDELT1'
      cdeltstropt = 'CD1_1'
+     cunitstr = 'CUNIT1'
   endif
+
+  bunit = sxpar(header_dat,'BUNIT',silent=quiet,count=countbunit)
+  if countbunit eq 0 then bunit = ''
+
 
 ; Create wavelength array.
   if ~ keyword_set(waveext) then begin
@@ -182,8 +198,10 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      crval = double(sxpar(header_dat,crvalstr,silent=quiet,count=countval))
      crpix = double(sxpar(header_dat,crpixstr,silent=quiet,count=countpix))
      cdelt = double(sxpar(header_dat,cdeltstr,silent=quiet,count=countdel))
+     cunit = sxpar(header_dat,cunitstr,silent=quiet,count=countunit)
      if countdel eq 0 then $
         cdelt = double(sxpar(header_dat,cdeltstropt,silent=quiet,count=countdel))
+     if countunit eq 0 then cunit = ''
 ;    Assume absence of CRPIX quantity means it is 1
      if countpix eq 0 then crpix = 1d
      if countval eq 0 OR countdel eq 0 then begin
@@ -266,7 +284,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
          wavedim: wavedim,$
          crval: crval,$
          cdelt: cdelt,$
-         crpix: crpix $
+         crpix: crpix,$
+         cunit: cunit,$
+         bunit: bunit $
          }
   if keyword_set(vormap) then $
      cube = create_struct(cube,'vorcoords',vorcoords,'nvor',nvor)
