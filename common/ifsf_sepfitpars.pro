@@ -60,6 +60,7 @@
 ;                       limit
 ;      2016oct10, DSNR, added option to combine doublets; changed calculation
 ;                       of error when line ratio pegged
+;      2020may11, DSNR, bug fix? set outstr = {nolines:1}
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2016 David S. N. Rupke
@@ -84,7 +85,7 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran,$
                          
 ;  Return 0 if no lines were fit
    if n_elements(param) eq 1 then begin
-      outstr = {nolines:0}
+      outstr = {nolines:1} ; bug fix? Changed 0 to 1; DSNR 2020may11
       goto,nolines
    endif
 

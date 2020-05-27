@@ -17,8 +17,6 @@
 ; I tend to custom repackage the original models for each task. (I can send 
 ; you the originals too if you’d like, though they are more unwieldy.)"
 ;
-; IDL> ifsf_ckctemp,'/Users/drupke/Documents/stellar_models/ckc/ckc14_solarZ_ppxf_mage.fit','/Users/drupke/Documents/stellar_models/ckc14_solarZ_ppxf_mage.xdr'
-;
 ; :Categories:
 ;    IFSFIT
 ;
@@ -75,8 +73,8 @@ pro ifsf_ckctemp,infile,outfile,wavelo=wavelo,wavehi=wavehi
    
    s = mrdfits(infile, 1)
 
-   template = {lambda: wave, flux: flux, obj: obj, $
-               age: s.age, sigma: s.sigma, dv: s.dv}
+   template = {lambda: s.wave, flux: s.flux, $
+               ages: s.age, sigma: s.sigma, dv: s.dv}
 
    save,template,filename=outfile
   

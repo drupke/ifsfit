@@ -214,7 +214,7 @@ function ifsf_qsodeblend_example,initmaps=initmaps,initnad=initnad
          logfile: '/path/fitdir/'+gal+'/'+outstr+'/'+$
                   gal+'_fitlog.txt',$
          batchfile: '/path/to/ifsfit/common/ifsf_fitloop.pro',$
-         batchdir: '/path/to/batch/',$
+         batchdir: '/path/to/batch/directory/',$
 ;         cutrange: [[6920,6965]], $
          nocvdf: 1b,$
          siglim_gas: siglim_gas,$

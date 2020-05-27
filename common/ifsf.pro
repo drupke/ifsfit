@@ -117,10 +117,9 @@ pro ifsf,initproc,cols=cols,rows=rows,oned=oned,onefit=onefit,ncores=ncores,$
   
 ; Get linelist
   if tag_exist(initdat,'lines') then begin
-     if tag_exist(initdat,'waveunit') then $
-        linelist = ifsf_linelist(initdat.lines,waveunit=initdat.waveunit) $
+     if tag_exist(initdat,'argslinelist') then $
+        linelist = ifsf_linelist(initdat.lines,_extra=initdat.argslinelist) $
      else linelist = ifsf_linelist(initdat.lines)
-     nlines = linelist.count()
   endif else begin
      linelist = hash()
   endelse

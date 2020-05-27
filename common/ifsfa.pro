@@ -157,7 +157,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
   if ~ tag_exist(initdat,'noemlinfit') then begin
 ;    Get linelist
-     linelist = ifsf_linelist(initdat.lines)
+     if tag_exist(initdat,'argslinelist') then $
+        linelist = ifsf_linelist(initdat.lines,_extra=initdat.argslinelist) $
+     else linelist = ifsf_linelist(initdat.lines)
      nlines = linelist.count()
 ;    Linelist with doublets to combine
      emldoublets = [['[SII]6716','[SII]6731'],$
@@ -173,7 +175,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            lines_with_doublets = [lines_with_doublets,dkey]
         endif
      endfor
-     linelist_with_doublets = ifsf_linelist(lines_with_doublets)
+     if tag_exist(initdat,'argslinelist') then $
+        linelist_with_doublets = $
+           ifsf_linelist(lines_with_doublets,_extra=initdat.argslinelist) $
+     else  linelist_with_doublets = $
+           ifsf_linelist(lines_with_doublets)
   endif
 
   if tag_exist(initdat,'fcnpltcont') then $

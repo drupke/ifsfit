@@ -230,6 +230,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
                             initdat.maxncomp)
          linelistz_init = linelistz
 
+         if ~ quiet then print,'IFSF_FITLOOP: First call to IFSF_FITSPEC'
          structinit = ifsf_fitspec(cube.wave,flux,err,dq,zstar,linelist,$
                                    linelistz,ncomp,initdat,quiet=quiet,$
                                    siglim_gas=siglim_gas,$
@@ -276,6 +277,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
             endelse
 
             zstar_init2 = structinit.zstar
+            if ~ quiet then print,'IFSF_FITLOOP: Second call to IFSF_FITSPEC'
             struct = ifsf_fitspec(cube.wave,flux,err,dq,structinit.zstar,$
                                   linelist,$
                                   linelistz,ncomp,initdat,quiet=quiet,$
