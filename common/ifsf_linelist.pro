@@ -9,12 +9,19 @@
 ;   2. HeI 4686 -- found random wavelength compilation. In NIST, shows
 ;                  up as a complex of many fine structure lines with
 ;                  range of several tenths of an A.
+;   3. Some other random sources -- see inline comments.
+;   
 ; For IR lines:
 ;   1. H_2: http://www.jach.hawaii.edu/UKIRT/astronomy/calib/spec_cal/h2_s.html
 ;   2. He: http://www.jach.hawaii.edu/UKIRT/astronomy/calib/spec_cal/he_4.html
 ;   3. H: http://www.jach.hawaii.edu/UKIRT/astronomy/calib/spec_cal/recomb_menu.html
 ;   4. [SiVI]: NIST
 ;   Checked He and H lines in NIST and there is good agreement.
+;
+; To get a hash of all lines with labels:
+; 
+; IDL> linelab = 1b
+; IDL> lines = ifsf_linelist(/all,linelab=linelab)
 ;
 ; :Categories:
 ;    IFSFIT
