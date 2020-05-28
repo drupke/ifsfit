@@ -35,7 +35,10 @@ IDL libraries:
   http://www.sdss.org/dr13/software/idlutils/
 - DRTOOLS, for multicore processing
   https://github.com/drupke/drtools
-  
+
+These libraries must be downloaded by the end user and installed in a
+location that is in the IDL path.
+
 Note that the IDL Astronomy User's Library ships with some Coyote
 routines, and IDLUTILS ships with the IDL Astronomy User's Library and
 MPFIT. However, it's not clear how well these libraries keep track of
@@ -51,6 +54,9 @@ http://www.iaa.csic.es/~rosa/research/synthesis/HRES/ESPS-HRES.html
 
 The enclosed routine IFSF_GDTEMP can be used to convert these tables
 into a form readable by IFSF.
+
+IFSFIT also ships with the external routine CONSEC.PRO written by John
+Johnson.
 
 -------------------------------------------------------------------------
 USAGE

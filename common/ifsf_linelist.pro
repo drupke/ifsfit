@@ -91,10 +91,11 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ;  Associated line labels:
    lines = hash()
 
-   print,'WARNING: Calling sequence to IFSF_LINELIST has changed. If vacuum '+$
-         '         wavelengths are required, or other wavelength units, or '+$
-         '         to suppress this message, use ARGSLINELIST structure in '+$
-         '         initialization procedure. Default is now air waves.'
+   print,'NOTE: Calling sequence to IFSF_LINELIST has changed. If vacuum',$
+         '      wavelengths are required, or other wavelength units, or ',$
+         '      to suppress this message, use ARGSLINELIST structure in ',$
+         '      initialization procedure. Default is now air waves.',$
+         format='(A0/A0/A0/A0)'
 
    if keyword_set(vacuum) then begin
 
