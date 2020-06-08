@@ -164,7 +164,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;    Linelist with doublets to combine
      emldoublets = [['[SII]6716','[SII]6731'],$
                     ['[OII]3726','[OII]3729'],$
-                    ['[NI]5198','[NI]5200']]
+                    ['[NI]5198','[NI]5200'],$
+                    ['[NeIII]3869','[NeIII]3967'],$
+                    ['[NeV]3345','[NeV]3426'],$
+                    ['MgII2796','MgII2803']]
      sdoub = size(emldoublets)
      if sdoub[0] eq 1 then ndoublets = 1 else ndoublets = sdoub[2]
      lines_with_doublets = initdat.lines

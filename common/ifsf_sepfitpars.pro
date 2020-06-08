@@ -61,9 +61,10 @@
 ;      2016oct10, DSNR, added option to combine doublets; changed calculation
 ;                       of error when line ratio pegged
 ;      2020may11, DSNR, bug fix? set outstr = {nolines:1}
+;      2020jun05, DSNR, added MgII case to doublets
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2020 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -117,6 +118,7 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran,$
    is2rat = where(parinfo.parname eq '[SII]6716/6731 line ratio',cts2rat)
 ;   ihahb = where(parinfo.parname eq 'Halpha/Hbeta line ratio',cthahb)
    io2rat = where(parinfo.parname eq '[OII]3729/3726 line ratio',cto2rat)
+   img2rat = where(parinfo.parname eq 'MgII2796/2803 line ratio',ctmg2rat)
 
 ;  Populate hashes
    foreach line,linelist->keys() do begin
@@ -266,6 +268,20 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran,$
             fluxpkerr_obs['[OII]3729',ipegged] = $
                fluxpkerr_obs['[OII]3726',ipegged]
          fluxpkerr[line] = fluxpkerr_obs[line]
+      endif
+
+      if line eq 'MgII2803' AND ctmg2rat gt 0 then begin
+        fluxpkerr_obs[line,0:ctmg2rat-1] = $
+          fluxpk_obs[line,0:ctmg2rat-1]*sqrt($
+          (perror[img2rat]/param[img2rat])^2d + $
+          (fluxpkerr_obs['MgII2796',0:ctmg2rat-1]/$
+          fluxpk_obs['MgII2796',0:ctmg2rat-1])^2d)
+        ;        In pegged case, set errors equal to each other
+        ipegged = where(perror[img2rat] eq 0d AND param[img2rat] ne 0d,ctpegged)
+        if ctpegged gt 0 then $
+          fluxpkerr_obs['MgII2803',ipegged] = $
+          fluxpkerr_obs['MgII2796',ipegged]
+        fluxpkerr[line] = fluxpkerr_obs[line]
       endif
 
 ;     Add back in spectral resolution

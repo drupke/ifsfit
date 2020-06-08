@@ -73,6 +73,9 @@
 ;      2016sep07, DSNR, heavily edited UV lines; added ALL keyword
 ;      2016sep12, DSNR, added IR lines
 ;      2020may26, DSNR, improved some documentation, added VACUUM option
+;      2020jun05, DSNR, added [NeV], [NeIII], MgII doublet cases;
+;                       now check lines/labels only on output lines
+;      2020jun08, DSNR, now returns only line labels corresponding to output lines
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2020 David S. N. Rupke, Anthony To
@@ -98,11 +101,12 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ;  Associated line labels:
    lines = hash()
 
-   print,'NOTE: Calling sequence to IFSF_LINELIST has changed. If vacuum',$
-         '      wavelengths are required, or other wavelength units, or ',$
-         '      to suppress this message, use ARGSLINELIST structure in ',$
-         '      initialization procedure. Default is now air waves.',$
-         format='(A0/A0/A0/A0)'
+   if ~ keyword_set(quiet) then $
+      print,'NOTE: Calling sequence to IFSF_LINELIST has changed. If vacuum',$
+            '      wavelengths are required, or other wavelength units, or ',$
+            '      to suppress this message, use ARGSLINELIST structure in ',$
+            '      initialization procedure. Default is now air waves.',$
+            format='(A0/A0/A0/A0)'
 
    if keyword_set(vacuum) then begin
 
@@ -347,8 +351,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ;  add NaV lines ...
 
 ;     Resonant lines
-      lines['MgII2795'] = 2796.352 ; f = 0.6123
-      lines['MgII2802'] = 2803.530 ; f = 0.3054
+      lines['MgII2796'] = 2796.352 ; f = 0.6123
+      lines['MgII2803'] = 2803.530 ; f = 0.3054
+      lines['MgII2796+MgII2803'] = (2796.352d + 2803.530d)/2d ; f = 0.3054
       lines['MgI2852'] = 2852.965 ; f = 1.81
 ;;  UV5
 ;      lines['FeII2249'] = 2249.1795d
@@ -393,6 +398,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['HeII4686'] = 4686.7d
       lines['[NeIII]3869'] = 3868.76d
       lines['[NeIII]3967'] = 3967.47d
+      lines['[NeIII]3869+[NeIII]3967'] = (3868.76d + 3967.47d)/2d
       lines['[NI]5198'] = 5197.90d
       lines['[NI]5200'] = 5200.26d
       lines['[NI]5198+[NI]5200'] = (5197.90d + 5200.26d)/2d
@@ -442,8 +448,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ;  air wavelengths
 ;  from P01 -- wavelengths from NIST ASD, f values from P01
       lines['MgI2025'] = 2025.824d ; f = 0.112 (~16 times smaller than 2852 line)
-      lines['MgII2795'] = 2795.528d ; f = 0.6123
-      lines['MgII2802'] = 2802.704d ; f = 0.3054
+      lines['MgII2796'] = 2795.528d ; f = 0.6123
+      lines['MgII2803'] = 2802.704d ; f = 0.3054
+      lines['MgII2796+MgII2803'] = (2795.528d + 2802.704d)/2d ; f = 0.3054
       lines['MgI2852'] = 2852.127d ; f = 1.81
 ;  UV5
       lines['FeII2249'] = 2249.1795d ; from Morton 2003
@@ -496,6 +503,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['[NeIV]2425'] = 2424.403d ; [M1+E2] resonant
       lines['[NeV]3345'] = 3345.83d ; non-resonant
       lines['[NeV]3426'] = 3425.87d ; non-resonant
+      lines['[NeV]3345+[NeV]3426'] = (3345.83d + 3425.87d)/2d ; non-resonant
 
    endelse
 
@@ -712,10 +720,12 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 
       linelab['[NeIII]3869'] = '[NeIII] 3869'
       linelab['[NeIII]3967'] = '[NeIII] 3967'
+      linelab['[NeIII]3869+[NeIII]3967'] = '[NeIII] 3869, 3967'
       linelab['[NeIV]2422'] = '[NeIV] 2422'
       linelab['[NeIV]2425'] = '[NeIV] 2425'
       linelab['[NeV]3345'] = '[NeV] 3345'
       linelab['[NeV]3426'] = '[NeV] 3426'
+      linelab['[NeV]3345+[NeV]3426'] = '[NeV] 3345, 3426'
 
       linelab['[OII]2470'] = '[OII] 2470'
       linelab['[OII]2471'] = '[OII] 2471'
@@ -743,8 +753,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       linelab['[CaVI]2242'] = '[CaVI]2242'
 
       linelab['MgI2025'] = 'MgI 2025'
-      linelab['MgII2795'] = 'MgII 2795'
-      linelab['MgII2802'] = 'MgII 2802'
+      linelab['MgII2796'] = 'MgII 2796'
+      linelab['MgII2803'] = 'MgII 2803'
+      linelab['MgII2796+MgII2803'] = 'MgII 2796, 2803'
       linelab['MgI2852'] = 'MgI 2852'
       linelab['FeII2233'] = 'FeII 2233'
       linelab['FeII2249'] = 'FeII 2249'
@@ -779,16 +790,6 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       linelab['SiII*2350'] = 'SiII* 2350'
 
     endif
-
-;  Make sure every line has a label, and vice versa!
-   if keyword_set(linelab) then begin
-      foreach key,lines.keys() do $
-         if ~ linelab.haskey(key) then $
-            print,'IFSF_LINELIST: WARNING: Line ',key,' has no label.'
-      foreach key,linelab.keys() do $
-         if ~ lines.haskey(key) then $
-            print,'IFSF_LINELIST: WARNING: Line label ',key,' has no wavelength.'
-   endif
    
    if keyword_set(waveunit) then $
       foreach key,lines.keys() do lines[key] *= waveunit
@@ -796,14 +797,33 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
    if keyword_set(all) then outlines = lines $
    else begin
       outlines = hash()
+      outlinelab = hash()
       for i=0, n_elements(inlines)-1 do begin
          imatch = where(inlines[i] eq lines->keys(),ctmatch)
-         if ctmatch eq 1 then outlines[inlines[i]] = lines[inlines[i]] $
-         else print,'IFSF_LINELIST: ERROR: ',inlines[i],$
-            ' not found in wavelength list.'
+         ctlabmatch = 1
+         if keyword_set(linelab) then $
+            ilabmatch = where(inlines[i] eq linelab->keys(),ctlabmatch)
+         if ctmatch eq 1 AND ctlabmatch eq 1 then begin
+            outlines[inlines[i]] = lines[inlines[i]]
+            if keyword_set(linelab) then $
+               outlinelab[inlines[i]] = linelab[inlines[i]]
+         endif else print,'IFSF_LINELIST: ERROR: ',inlines[i],$
+            ' not found in wavelength list OR line label missing.'
        endfor
    endelse
+
+; No longer need this, previous logic now does this check. 
+;;  Make sure every output line has a label, and vice versa!
+;   if keyword_set(linelab) then begin
+;      foreach key,outlines.keys() do $
+;         if ~ linelab.haskey(key) then $
+;            print,'IFSF_LINELIST: WARNING: Line ',key,' has no label.'
+;      foreach key,linelab.keys() do $
+;         if ~ outlines.haskey(key) then $
+;            print,'IFSF_LINELIST: WARNING: Line label ',key,' has no wavelength.'
+;   endif
  
+   linelab = outlinelab
    return,outlines
  
 end

@@ -100,7 +100,7 @@ function ifsf_kcwi,linelist,linelistz,linetie,$
   lines_arr = (linelist->keys())->toarray()
   
 ; Number of initial parameters before Gaussian parameters begin
-  lratlim = 4 ; maximum number of line ratios to constrain
+  lratlim = 5 ; maximum number of line ratios to constrain
   ppoff0 = 3
   ppoff = ppoff0 + maxncomp*lratlim
   
@@ -375,6 +375,53 @@ function ifsf_kcwi,linelist,linelistz,linetie,$
   endif
 
 
+; MgII emission ratio
+  ilratlim = 4
+  lratlab = 'MgII2796/2803'
+  if ncomp->haskey('MgII2803') then tmp_ncomp = ncomp['MgII2803'] $
+  else tmp_ncomp=0
+  if tmp_ncomp gt 0 then begin
+    ip1 = ppoff0 + ilratlim*maxncomp
+    ip2 = ip1+tmp_ncomp-1
+    fa = initflux['MgII2796',0:tmp_ncomp-1]
+    fb = initflux['MgII2803',0:tmp_ncomp-1]
+    frat = dblarr(tmp_ncomp)+1d ; default if initial s2b flux = 0
+    inz = where(fb gt 0,ctnz)
+    if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
+    parinfo[ip1:ip2].value = frat
+    parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
+    parinfo[ip1:ip2].limits  = rebin([1d,2d],2,tmp_ncomp)
+;    parinfo[ip1:ip2].limits  = rebin([0.75d,1.4d],2,tmp_ncomp)
+    parinfo[ip1:ip2].parname = 'MgII2796/2803 line ratio'
+    parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
+;    Check to see if line ratio is fixed
+    ilratfix = where(lratfix.keys() eq lratlab,ctlratfix)
+    for i=0,tmp_ncomp-1 do begin
+;       If line ratio is fixed, then fix it
+      lratfixed = 0b
+      if ctlratfix gt 0 then begin
+        if lratfix[lratlab,i] ne bad then begin
+          parinfo[ip1+i].value = lratfix[lratlab,i]
+          parinfo[ip1+i].fixed = 1b
+          parinfo[ip1+i].limited = [0b,0b]
+          lratfixed = 1b
+        endif
+      endif
+      if ~ lratfixed then begin
+;          case of pegging at or exceeding upper limit
+        if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
+          parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
+          (parinfo[ip1+i].limits[1] - $
+          parinfo[ip1+i].limits[0])*0.1
+;          case of pegging at or dipping below lower limit
+        if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
+          parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
+          (parinfo[ip1+i].limits[1] - $
+          parinfo[ip1+i].limits[0])*0.1
+      endif
+    endfor
+  endif
+
 ; cycle through velocity components
   for i=0,maxncomp-1 do begin
 
@@ -530,6 +577,19 @@ function ifsf_kcwi,linelist,linelistz,linetie,$
          string(ppoff0+maxncomp*ilratlim+i,$
          format='(I0)')+']'
        parinfo[foff+linea*3].flux_tie = '[OII]3729'
+     endif
+
+
+     ilratlim = 4
+     linea = where(lines_arr eq 'MgII2796',cta)
+     lineb = where(lines_arr eq 'MgII2803',ctb)
+     if cta gt 0 AND ctb gt 0 then begin
+       parinfo[foff+lineb*3].tied = 'P['+$
+         string(foff+linea*3,$
+         format='(I0)')+']/P['+$
+         string(ppoff0+maxncomp*ilratlim+i,$
+         format='(I0)')+']'
+       parinfo[foff+linea*3].flux_tie = 'MgII2796'
      endif
 
      linea = where(lines_arr eq '[OIII]4959',cta)

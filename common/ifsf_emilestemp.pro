@@ -74,7 +74,8 @@ pro ifsf_emilestemp,indir,outfile,wavelo,wavehi,zran=zran,tran=tran
       Z = double(filenopath.substring(zpos+2,zpos+5))
       if Zsign eq 'm' then Z*=-1d
       tpos = strpos(filenopath,'T')
-      T = double(filenopath.substring(tpos+1,tpos+7))
+;     convert from Gyr to Myr
+      T = double(filenopath.substring(tpos+1,tpos+7)) * 1d9
       thiswaveall = spec[*,0]
       ilo = value_locate(thiswaveall,wavelo)
       ihi = value_locate(thiswaveall,wavehi)
@@ -99,7 +100,7 @@ pro ifsf_emilestemp,indir,outfile,wavelo,wavehi,zran=zran,tran=tran
       endif
    endforeach
    
-   template = {lambda: waveall, flux: fluxall, age_gyr: tall, logzh: zall}
+   template = {lambda: waveall, flux: fluxall, ages: tall, logzh: zall}
    save,template,filename=outfile
       
 end
