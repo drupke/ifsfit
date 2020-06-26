@@ -17,24 +17,30 @@
 ;      Best-fit parameter array output by MPFIT.
 ;
 ; :Keywords:
+;    cont: in, optional, type=dblarr(N)
+;      Continuum used to originally normalize data for fits.
 ;    modhei: in, optional, type=dblarr(3,nhei)
 ;      Returns HeI emission spectrum.
 ;    modnadabs: in, optional, type=dblarr(4,nnadabs)
 ;      Returns NaD absorption spectrum.
 ;    modnadem: in, optional, type=dblarr(4,nnadem)
 ;      Returns NaD emission spectrum.
-;    weq: in, optional, type=structure
-;      Returns equivalent widths. Structure tags are 'em' and 'abs,' and each is
-;      an array with the first element being the total equivalent width and 
-;      subsequent elements being the equivalent widths of separate components.
 ;    nademflux: in, optional, type=dblarr(nnadem+1)
 ;      Returns flux of NaD emission. The first element is the total flux and
 ;      subsequent elements are the fluxes of separate components. Requires 
 ;      continuum, as well.
-;    cont: in, optional, type=dblarr(N)
-;      Continuum used to originally normalize data for fits.
 ;    specres: in, optional, type=double, def=0.64d
 ;      Estimated spectral resolution in wavelength units (sigma).
+;    wavhei: out, optional, type=dblarr(nhei)
+;      Wavelengths of HeI emission lines in obs. frame
+;    wavnadabs: out, optional, type=dblarr(nnadabs)
+;      Wavelengths of NaD absorption lines in obs. frame (NaD_1, red line 5896)
+;    wavnadem: out, optional, type=dblarr(nnadem)
+;      Wavelengths of NaD emission lines in obs. frame (NaD_1, red line 5896)
+;    weq: in, optional, type=structure
+;      Returns equivalent widths. Structure tags are 'em' and 'abs,' and each is
+;      an array with the first element being the total equivalent width and
+;      subsequent elements being the equivalent widths of separate components.
 ;      
 ; 
 ; :Author:
@@ -55,9 +61,10 @@
 ;      2016nov03, DSNR, added convolution with spectral resolution
 ;      2017may18, DSNR, upsample spectra to avoid undersampling model in case of
 ;                       v. narrow components
+;      2020jun25, DSNR, option to output lambda(NaD em)
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2016 David S. N. Rupke
+;    Copyright (C) 2014--2020 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -77,7 +84,7 @@
 function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
                       modnadem=modnadem, weq=weq, nademflux=nademflux, $
                       cont=cont, specres=specres, wavnadabs=wavnadabs, $
-                      wavhei=wavhei
+                      wavnadem=wavnadem,wavhei=wavhei
 
 
 
@@ -139,8 +146,13 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    if nnadem gt 0 then begin
       modnademuse=dblarr(nwaveuse,nnadem)+1d
       modnadem=dblarr(nwave,nnadem)+1d
-   endif else modnadem=0d
+      wavnadem = dblarr(nnadem)
+   endif else begin
+      wavnadem=0
+      modnadem=0d
+   endelse
    for i=0,nnadem-1 do begin
+      wavnadem[i] = param[ilo+i*4]
 ;      sigma = sqrt((param[ilo+i*4]*param[1+ilo+i*4]/c)^2d + specres^2d)
       sigma = sqrt((param[ilo+i*4]*param[1+ilo+i*4]/c)^2d)
       arg1 = ((waveuse-param[ilo+i*4])/(2d*sigma))^2d
