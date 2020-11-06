@@ -76,7 +76,7 @@ function ifsf_fitpoly,lambda,flux,weight,template_lambdaz,template_flux,index,$
 
   if ~ keyword_set(fitord) then fitord=3
   parinfo = replicate({value:0d},fitord+1)
-  fluxfit = mpfitfun('poly',ilambda,iflux,ierr,parinfo=parinfo,/quiet)
+  fluxfit = mpfitfun('poly',ilambda,iflux,ierr,parinfo=parinfo,quiet=quiet)
 ;  fluxfit = poly_fit(ilambda,iflux,fitord,measure=ierr,status=status,/double)
   continuum = poly(lambda,fluxfit)
   ct_coeff = 0

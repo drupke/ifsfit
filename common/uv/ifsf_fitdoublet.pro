@@ -95,13 +95,13 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                     cols=cols,rows=rows,verbose=verbose,$
                     noxdr=noxdr,noplot=noplot,weights=weights,$
                     noerr=noerr,nomc=nomc,init=init,$
-                    argsgalinfo=argsgalinfo
+                    argsgalinfo=argsgalinfo,argslinelist=argslinelist
 
    bad = 1d99
    doublet_emrat_init = 1.5d
    c = 299792.458d
 
-   IF (doublet eq 'MgII') THEN linename = 'MgII2802'
+   IF (doublet eq 'MgII') THEN linename = 'MgII2803'
    IF (doublet eq 'NV') THEN linename = 'NV1242'
    IF (doublet eq 'OVI') THEN linename = 'OVI1037'
    IF (doublet eq 'PV') THEN linename = 'PV1128'
@@ -116,7 +116,7 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
    ; Get initial fit parameters and galaxy properties
    redshift = 0d
    if keyword_set(argsgalinfo) then begin
-      initstr = call_function(fcngalinfo,redshift,argsgalinfo=argsgalinfo)
+      initstr = call_function(fcngalinfo,redshift,_extra=argsgalinfo)
    endif else begin
       initstr = call_function(fcngalinfo,redshift)
    endelse
@@ -124,10 +124,17 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
    maxncomp = initstr.maxncomp
    
    ; Get linelist
-   linelist = $
-      ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
-                     'NV1238','NV1242','PV1117','PV1128','MgII2795','MgII2802',$
-                     'FeII2585','FeII2599','FeII2373','FeII2382'])
+   if keyword_set(argslinelist) then $
+      linelist = $
+         ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
+                        'NV1238','NV1242','PV1117','PV1128','MgII2796','MgII2803',$
+                        'FeII2585','FeII2599','FeII2373','FeII2382'],$
+                        _extra=argslinelist) $
+   else $
+      linelist = $
+         ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
+                        'NV1238','NV1242','PV1117','PV1128','MgII2796','MgII2803',$
+                        'FeII2585','FeII2599','FeII2373','FeII2382'])
 
    if tag_exist(initstr,'taumax') then taumax=initstr.taumax $
    else taumax = 5d
@@ -253,7 +260,8 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                              (doubletcube.cont)[ilo:ihi],$
                              (doubletcube.flux)[ilo:ihi],$
                              parinit.value,doublet,dir,$
-                             outfile+doublet+'_init',zuse,/init
+                             outfile+doublet+'_init',zuse,linelist,$
+                             /init
             goto,fullstop
          endif
 
@@ -300,13 +308,14 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                                 (doubletcube.cont)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 (doubletcube.flux)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 param,doublet,dir,outfile+doublet+'_fit',zuse,$
-                                _extra=initstr.argspltfitdoublet $
+                                linelist,_extra=initstr.argspltfitdoublet $
             else $
                ifsf_pltdoublet,galshort,(doubletcube.wave)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 (doubletcube.dat)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 (doubletcube.cont)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 (doubletcube.flux)[initstr.plotindex[0]:initstr.plotindex[1]],$
-                                param,doublet,dir,outfile+doublet+'_fit',zuse
+                                param,doublet,dir,outfile+doublet+'_fit',zuse,$
+                                linelist
          endif
 
 ;        Compute model equivalent widths

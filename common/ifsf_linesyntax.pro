@@ -1,7 +1,8 @@
 ;
 ;+
 ;
-; This function gets the line syntax right for emission lines with brackets.
+; This function gets the line syntax right for emission lines with brackets or
+; other characters that need special treatment in file names.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -23,9 +24,10 @@
 ; :History:
 ;    ChangeHistory::
 ;      2019apr03, DSNR, moved from IFSF_MAKEMAPS to standalone routine
+;      2020jul02, DSNR, added treatment of asterisks
 ;
 ; :Copyright:
-;    Copyright (C) 2019 David S. N. Rupke
+;    Copyright (C) 2020 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -60,5 +62,8 @@ function ifsf_linesyntax,line
       linelab = strmid(linelab,0,irb)+'\'+strmid(linelab,irb)
    if irb ne -1 AND irb ne irb2 then $
       linelab = strmid(linelab,0,irb2+1)+'\'+strmid(linelab,irb2+1)
+    iast = strpos(linelab,'*')
+    if iast ne -1 then $
+      linelab = strmid(linelab,0,iast)+'\'+strmid(linelab,iast)
    return,linelab
 end

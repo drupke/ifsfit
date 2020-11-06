@@ -29,6 +29,8 @@
 ;      Wavelengths.
 ;    zsys: in, required, type=double
 ;      Systemic redshift.
+;    linelist: in, required, type=hash
+;      Line list and labels output by IFSF_LINELIST.
 ;
 ; :Keywords:
 ;    xran: in, optional, type=dblarr(2), default=all
@@ -54,9 +56,11 @@
 ;      2014may15, DSNR, re-written for new fitting routines
 ;      2016xxxYY, AT, adopted for UV data
 ;      2016aug08, DSNR, added option to plot initial guess
+;      2020aug03, DSNR, added linelist parameter, rather than calling again
+;                       from this routine
 ;
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke, Anthony To
+;    Copyright (C) 2013--2020 David S. N. Rupke, Anthony To
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -74,42 +78,37 @@
 ;
 ;-
 pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
-                    directoryname,outfile,zsys,xran=xran,yran=yran,init=init
+                    directoryname,outfile,zsys,linelist,$
+                    xran=xran,yran=yran,init=init
 
 ; Default wavelengths
   c = 299792.458d
   IF (doublet eq 'NV') THEN BEGIN
-    linelist = ifsf_linelist(['NV1238','NV1242'])
 ; Observed-frame wavelengths
     w_doublet1 = linelist['NV1238']*(1d +zsys)
     w_doublet2 = linelist['NV1242']*(1d +zsys)
   END
   IF (doublet eq 'OVI') THEN BEGIN
-    linelist = ifsf_linelist(['OVI1031','OVI1037'])
 ; Observed-frame wavelengths
     w_doublet1 = linelist['OVI1031']*(1d +zsys)
     w_doublet2 = linelist['OVI1037']*(1d +zsys)
   END
   IF (doublet eq 'PV') THEN BEGIN
-     linelist = ifsf_linelist(['PV1117','PV1128'])
      ; Observed-frame wavelengths
      w_doublet1 = linelist['PV1117']*(1d +zsys)
      w_doublet2 = linelist['PV1128']*(1d +zsys)
   END
   IF (doublet eq 'MgII') THEN BEGIN
-     linelist = ifsf_linelist(['MgII2795','MgII2802'])
      ; Observed-frame wavelengths
-     w_doublet1 = linelist['MgII2795']*(1d +zsys)
-     w_doublet2 = linelist['MgII2802']*(1d +zsys)
+     w_doublet1 = linelist['MgII2796']*(1d +zsys)
+     w_doublet2 = linelist['MgII2803']*(1d +zsys)
   END
   IF (doublet eq 'FeIIUV1') THEN BEGIN
-     linelist = ifsf_linelist(['FeII2585','FeII2599'])
      ; Observed-frame wavelengths
      w_doublet1 = linelist['FeII2585']*(1d +zsys)
      w_doublet2 = linelist['FeII2599']*(1d +zsys)
   END
   IF (doublet eq 'FeIIUV2') THEN BEGIN
-     linelist = ifsf_linelist(['FeII2373','FeII2382'])
      ; Observed-frame wavelengths
      w_doublet1 = linelist['FeII2373']*(1d +zsys)
      w_doublet2 = linelist['FeII2382']*(1d +zsys)

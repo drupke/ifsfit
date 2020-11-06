@@ -376,9 +376,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ;;  UV2
 ;      lines['FeII*2395'] = 2395.62504d ; goes with 2373
 ;;  UV1
-;      lines['FeII*2611'] = 2611.87336d ; goes with 2585
+;      lines['FeII*2612'] = 2611.87336d ; goes with 2585
 ;      lines['FeII*2631'] = 2631.32292d ; goes with 2585
-;      lines['FeII*2625'] = 2625.66685d ; goes with 2599
+;      lines['FeII*2626'] = 2625.66685d ; goes with 2599
 
    endif else begin
    
@@ -473,9 +473,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ;  UV2
       lines['FeII*2395'] = 2395.62504d ; goes with 2373
 ;  UV1
-      lines['FeII*2611'] = 2611.87336d ; goes with 2585
+      lines['FeII*2612'] = 2611.87336d ; goes with 2585
       lines['FeII*2631'] = 2631.32292d ; goes with 2585
-      lines['FeII*2625'] = 2625.66685d ; goes with 2599
+      lines['FeII*2626'] = 2625.66685d ; goes with 2599
 ; From Morton 2003  
       lines['MnII2605'] = 2605.684d
       lines['MnII2593'] = 2593.724d
@@ -769,8 +769,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       linelab['FeII*2364'] = 'FeII* 2364'
       linelab['FeII*2380'] = 'FeII* 2380'
       linelab['FeII*2395'] = 'FeII* 2395'
-      linelab['FeII*2611'] = 'FeII* 2611'
-      linelab['FeII*2625'] = 'FeII* 2625'
+      linelab['FeII*2612'] = 'FeII* 2612'
+      linelab['FeII*2626'] = 'FeII* 2626'
       linelab['FeII*2631'] = 'FeII* 2631'
       linelab['MnII2605'] = 'MnII 2605'
       linelab['MnII2593'] = 'MnII 2593'
@@ -794,8 +794,10 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
    if keyword_set(waveunit) then $
       foreach key,lines.keys() do lines[key] *= waveunit
 
-   if keyword_set(all) then outlines = lines $
-   else begin
+   if keyword_set(all) then begin
+      outlines = lines
+      outlinelab = linelab
+   endif else begin
       outlines = hash()
       outlinelab = hash()
       for i=0, n_elements(inlines)-1 do begin

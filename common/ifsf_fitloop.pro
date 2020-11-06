@@ -158,7 +158,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 
          if ~ tag_exist(initdat,'noemlinfit') then $
             nocomp_emlist = $
-            ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist) $
+               ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist) $
          else ct_comp_emlist=0
 
          if tag_exist(initdat,'siglim_gas') then begin
