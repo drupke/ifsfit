@@ -83,7 +83,7 @@ pro ifsf_pltnadfit,wave,flux,err,param,outfile,zsys,xran=xran,yran=yran,$
 
 ; Default wavelengths
   c = 299792.458d
-  linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
+  linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
 
 ; Observed-frame wavelengths
   w_nad1 = linelist['NaD1']*(1d +zsys)

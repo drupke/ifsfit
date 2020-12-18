@@ -158,8 +158,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
   if ~ tag_exist(initdat,'noemlinfit') then begin
 ;    Get linelist
      if tag_exist(initdat,'argslinelist') then $
-        linelist = ifsf_linelist(initdat.lines,_extra=initdat.argslinelist) $
-     else linelist = ifsf_linelist(initdat.lines)
+        linelist = $
+           ifsf_linelist(initdat.lines,/quiet,_extra=initdat.argslinelist) $
+     else $
+        linelist = ifsf_linelist(initdat.lines,/quiet)
      nlines = linelist.count()
 ;    Linelist with doublets to combine
      emldoublets = [['[SII]6716','[SII]6731'],$
@@ -180,9 +182,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
      endfor
      if tag_exist(initdat,'argslinelist') then $
         linelist_with_doublets = $
-           ifsf_linelist(lines_with_doublets,_extra=initdat.argslinelist) $
-     else  linelist_with_doublets = $
-           ifsf_linelist(lines_with_doublets)
+           ifsf_linelist(lines_with_doublets,/quiet,_extra=initdat.argslinelist) $
+     else  $
+        linelist_with_doublets = $
+           ifsf_linelist(lines_with_doublets,/quiet)
   endif
 
   if tag_exist(initdat,'fcnpltcont') then $
@@ -304,7 +307,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
      rows = fix(rows)
      for j=rows[0]-1,rows[1]-1 do begin
 
-        novortile=0b
+        novortile=0b ; this gets set to 1b if we're using Vor maps and one is missing
         if oned then begin
            flux = cube.dat[*,i]
            err = sqrt(abs(cube.var[*,i]))
@@ -326,7 +329,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               iuse = i
               juse = j
            endelse
-           if ~ novortile then begin
+           if ~novortile then begin
               flux = reform(cube.dat[iuse,juse,*],cube.nz)
               err = reform(sqrt(abs(cube.var[iuse,juse,*])),cube.nz)
               dq = reform(cube.dq[iuse,juse,*],cube.nz)
@@ -353,6 +356,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            nodata = where(flux ne 0d,ct)
            filepresent = file_test(infile)
         endif else begin
+;          missing vormap when one was needed
            filepresent = 0b
            ct = 0d
         endelse
@@ -367,7 +371,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         restore,file=infile
 
 ;       Restore original error.
-;       TODO: Is this necessary?
+;       This is necessary to, e.g., deal with NaD region whose error is blown up
+;       for continuum + emission line fit.
         struct.spec_err = err[struct.fitran_indx]
 
         if ~ struct.noemlinfit then begin
@@ -544,18 +549,24 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            if tag_exist(initdat,'argscontfit') then $
               if tag_exist(initdat.argscontfit,'add_poly_degree') then $
                  add_poly_degree = initdat.argscontfit.add_poly_degree
-;          Compute polynomial
-           log_rebin,[struct.wave[0],$
-                      struct.wave[n_elements(struct.wave)-1]],$
-                      struct.spec,$
-                      dumy_log,wave_log
-           xnorm = cap_range(-1d,1d,n_elements(wave_log))
-           cont_fit_poly_log = 0d ; Additive polynomial
-           for k=0,add_poly_degree do $
-              cont_fit_poly_log += legendre(xnorm,k)*struct.ct_add_poly_weights[k]
-           cont_fit_poly=interpol(cont_fit_poly_log,wave_log,ALOG(struct.wave))           
-;          Compute stellar continuum
-           cont_fit_stel = struct.cont_fit - cont_fit_poly
+           ; for backward compatibility, compute polynomial if necessary
+           if ~ tag_exist(struct,'poly_fit') then begin
+               log_rebin,[struct.wave[0],$
+                          struct.wave[n_elements(struct.wave)-1]],$
+                         struct.spec,dumy_log,wave_log
+               ; this function is in ppxf distro
+               xnorm = cap_range(-1d,1d,n_elements(wave_log))
+               cont_fit_poly_log = 0d ; Additive polynomial
+               for k=0,add_poly_degree do $
+                  cont_fit_poly_log += $
+                     legendre(xnorm,k)*struct.ct_add_poly_weights[k]
+               cont_fit_poly = $
+                  interpol(cont_fit_poly_log,wave_log,ALOG(struct.wave))           
+               cont_fit_stel = struct.cont_fit - cont_fit_poly
+           endif else begin
+              cont_fit_poly = struct.poly_fit
+              cont_fit_stel = struct.stel_fit
+           endelse
 ;          Total flux from different components
            cont_fit_tot = total(struct.cont_fit)
            contcube.all_mod[i,j,struct.fitran_indx] = struct.cont_fit
@@ -947,7 +958,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                      iweq: dblarr(cube.ncols,cube.nrows,4)+bad,$
                      emflux: dblarr(cube.ncols,cube.nrows,2)+bad,$
                      emul: dblarr(cube.ncols,cube.nrows,4)+bad,$
-                     vel: dblarr(cube.ncols,cube.nrows,6)+bad}
+                     vel: dblarr(cube.ncols,cube.nrows,6)+bad,$
+                     normpars: dblarr(cube.ncols,cube.nrows,$
+                        n_elements(fitpars_normnad))+bad }
                  firstnadnorm = 0
               endif
 ;             Defaults
@@ -1012,6 +1025,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               nadcube.emflux[i,j,*] = emflux
               nadcube.emul[i,j,*] = emul
               nadcube.vel[i,j,*] = vel
+              nadcube.normpars[i,j,*] = fitpars_normnad
 ;             Plot data
               if not keyword_set(noplots) then $
                  if tag_exist(initnad,'argspltnormnad') then $

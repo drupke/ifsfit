@@ -83,7 +83,7 @@ pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
    if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
    if ~ keyword_set(fitranhi) then fitranhi = (1d +z)*[5905d,5960d]
 
-   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
+   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
    nad1 = (1d + z)*linelist['NaD1']
    nad2 = (1d + z)*linelist['NaD2']
    hei = (1d + z)*linelist['HeI5876']

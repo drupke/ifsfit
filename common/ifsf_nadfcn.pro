@@ -217,14 +217,17 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
       endif else nademflux=0d
    endif else nademflux=0d
 
-;  Convolve model with line spread function, represented by a Gaussian
-   fwhm_pix = specres*fwhmtosig/mean(dwaveuse)
-   npix = fix(fwhm_pix*5d)
-   if not npix then npix++
-   kernel = psf_gaussian(npix=npix,ndim=1,/double,fwhm=fwhm_pix)
-   modflux_con = convol(modflux,kernel,/normalize,/edge_mirror)
-   
-;  Downsample back to original resolution
+   ;  Convolve model with line spread function, represented by a Gaussian
+   if keyword_set(specres) then begin
+      fwhm_pix = specres*fwhmtosig/mean(dwaveuse)
+      npix = fix(fwhm_pix*5d)
+      if not npix then npix++
+      kernel = psf_gaussian(npix=npix,ndim=1,/double,fwhm=fwhm_pix)
+      modflux_con = convol(modflux,kernel,/normalize,/edge_mirror)
+   endif else $
+      modflux_con = modflux
+      
+   ;     Downsample back to original resolution
    modflux_con_ds = rebin(modflux_con[dslo:dshi],nwave-1)
    modflux_con_ds = [modflux_con_ds[0],modflux_con_ds]
    

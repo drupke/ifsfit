@@ -54,9 +54,10 @@
 ;      2016feb04, DSNR, fixed treatment of HST image sizes
 ;      2016feb15, DSNR, fixed factor-of-2 error in PSF FWHM estimates
 ;      2018oct09, DSNR, added BUFFAC option to IFSF_HSTSUBIM calls
+;      2020dec01, DSNR, check on existence of lines in EMLFLX before plotting
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2018 David S. N. Rupke
+;    Copyright (C) 2014--2020 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -3019,6 +3020,12 @@ pro ifsf_makemaps,initproc
 ;     Loop through emission lines
       foreach line,lines_with_doublets do begin
 
+;        Check that line exists in flux array. This prevents having to re-run
+;        IFSFA in cases in which, e.g., IFSFA has been updated with new 
+;        doublet sums.
+         emlflxkeys = emlflx.Keys()
+         if emlflx[emlflxkeys[0]].HasKey(line) then begin
+
          linelab = ifsf_linesyntax(line)
          cgps_open,initdat.mapdir+initdat.label+linelab+ '.eps',$
                    charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
@@ -3222,6 +3229,8 @@ pro ifsf_makemaps,initproc
                 charsize=1.25d,align=0.5,/normal ; 2020may06, DSNR, added /normal
  
          cgps_close
+
+         endif
 
       endforeach
 
@@ -3702,6 +3711,12 @@ pro ifsf_makemaps,initproc
 ;        Loop through emission lines
          foreach line,lines_with_doublets do begin
 
+;           Check that line exists in flux array. This prevents having to re-run
+;           IFSFA in cases in which, e.g., IFSFA has been updated with new 
+;           doublet sums.
+            emlflxkeys = emlflx.Keys()
+            if emlflx[emlflxkeys[0]].HasKey(line) then begin
+
             linelab = ifsf_linesyntax(line)
             cgps_open,initdat.mapdir+initdat.label+linelab+'_rad.eps',$
                       charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
@@ -3767,6 +3782,8 @@ pro ifsf_makemaps,initproc
             cgtext,pos_xtit[0],pos_xtit[1],'Radius (kpc)',$
                    charsize=1.25d,align=0.5
             cgps_close
+
+            endif
 
          endforeach
       endif

@@ -95,17 +95,18 @@ pro ifsf_qsohostfcn,x,p,ymod,nxfull=nxfull,ixfull=ixfull,$
   
   ymod = dblarr(nx)
 
-; Additive polynomial.
+; Starlight additive function
   if ~ keyword_set(qsoonly) AND ~ keyword_set(blronly) then begin
      ymod += p[0]*exp(-p[1]*x_norm01)
      ymod += p[2]*exp(-p[3]*x_norm10)
      ymod += p[4]*(1d - exp(-p[5]*x_norm01))
      ymod += p[6]*(1d - exp(-p[7]*x_norm10))
+;    optional additive polynomial
      if hostord gt 0 then $
         for i=0,hostord do ymod += p[8+i]*legendre(xfull_normm11,i)
   endif
 
-; QSO continuum
+; QSO continuum multiplier function
   if ~ keyword_set(hostonly) AND ~ keyword_set(blronly) then begin
      if hostord gt 0 then poff=1+hostord else poff=0
      qsoscl = dblarr(nx)
@@ -114,8 +115,18 @@ pro ifsf_qsohostfcn,x,p,ymod,nxfull=nxfull,ixfull=ixfull,$
      qsoscl += p[12+poff]*(1d - exp(-p[13+poff]*x_norm01))
      qsoscl += p[14+poff]*(1d - exp(-p[15+poff]*x_norm10))
 ;     if qsoord gt 0 then qsoscl += poly(xfull_normm11,p[16:16+qsoord])
+;    optional polynomial added to multiplier
      if qsoord gt 0 then $
         for i=0,qsoord do qsoscl += p[16+poff+i]*legendre(xfull_normm11,i)
+;    optional bspline added to multiplier
+     if qsobspline
+     if keyword_set(argsbkpts) then $
+     sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,$
+        _extra=argsbkpts) $
+     else $
+        sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,everyn=50)
+     continuum = bspline_valu(lambda,sset)
+
      ymod += qsoscl*qsoflux
   endif
 

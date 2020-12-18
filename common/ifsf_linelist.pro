@@ -420,9 +420,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['[SII]6731'] = 6730.82d
       lines['[SII]6716+[SII]6731'] = (6716.44d + 6730.82d)/2d
       lines['[SIII]6312'] = 6312.06d
-      lines['Mg1b5167'] = 5167.3213
-      lines['Mg1b5173'] = 5172.6844
-      lines['Mg1b5184'] = 5183.6043  
+      lines['MgIb5167'] = 5167.3213d
+      lines['MgIb5173'] = 5172.6844d
+      lines['MgIb5184'] = 5183.6043d 
       lines['NaD2'] = 5889.95d
       lines['NaD1'] = 5895.92d
       lines['OH6287a'] = 6287.407 ; 9-3 P1e(2.5), Osterbrock 1996
@@ -577,9 +577,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       linelab['[SII]6731'] = '[SII] 6731'
       linelab['[SII]6716+[SII]6731'] = '[SII] 6716, 6731'
       linelab['[SIII]6312'] = '[SIII] 6312'
-      linelab['Mg1b5167'] = 'MgI 5167'
-      linelab['Mg1b5173'] = 'MgI 5173'
-      linelab['Mg1b5184'] = 'MgI 5184'
+      linelab['MgIb5167'] = 'MgI 5167'
+      linelab['MgIb5173'] = 'MgI 5173'
+      linelab['MgIb5184'] = 'MgI 5184'
       linelab['NaD2'] = 'NaI 5890'
       linelab['NaD1'] = 'NaI 5896'
       linelab['OH6287a'] = ''

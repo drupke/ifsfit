@@ -2,8 +2,10 @@
 ;
 ;+
 ;
-; Grid Valdes et al. 2004 (ApJS, 152, 221) stellar spectra into a
+; Grid Valdes et al. 2004 (ApJS, 152, 221) stellar spectra 
 ; to select a representative subset. See Figure 1 in Valdes+04.
+;
+; Input file can first be created with IFSF_VALDESTEMP.
 ;
 ; :Categories:
 ;    IFSFIT

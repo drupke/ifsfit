@@ -59,7 +59,7 @@ function ifsf_cmpnadvel,wave,flux,err,inds,zsys
 
    bad=1d99
    c_kms = 299792.458d
-   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
+   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
 ;  Average wavelength of NaD lines
    lamavgrest = ((linelist['NaD2']+linelist['NaD1'])/2d)
 

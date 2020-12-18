@@ -116,9 +116,12 @@
 ;                       profile
 ;      2018may30, DSNR, added option to adjust XTOL and FTOL for line fitting
 ;      2018jun25, DSNR, added NOEMLINMASK switch, distinct from NOEMLINFIT
+;      2020dec07, DSNR, some new options to convolve templates and data
+;                       to match in resolution before sending into PPXF;
+;                       tested with S7 data/Valdes templates
 ;         
 ; :Copyright:
-;    Copyright (C) 2013--2018 David S. N. Rupke
+;    Copyright (C) 2013--2020 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -144,6 +147,7 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   flux_out = flux
   err_out = err
 
+  bad = 1d99
   c = 299792.458d        ; speed of light, km/s
   siginit_gas_def = 100d ; default sigma for initial guess 
                          ; for emission line widths
@@ -191,16 +195,6 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
      if vacuum then airtovac,templatelambdaz
      if tag_exist(initdat,'waveunit') then $
         templatelambdaz *= initdat.waveunit
-     if tag_exist(initdat,'fcnconvtemp') then begin
-        if tag_exist(initdat,'argsconvtemp') then $
-           newtemplate = $
-              call_function(initdat.fcnconvtemp,templatelambdaz,$
-                            template,_extra=initdat.argsconvtemp) $
-        else $
-           newtemplate = $
-              call_function(initdat.fcnconvtemp,templatelambdaz,$
-                            template)
-     endif
   endif else begin
      templatelambdaz = lambda
   endelse
@@ -286,10 +280,27 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   if ctzerinf_log gt 0 then $
      gd_indx_log = cgsetdifference(gd_indx_log,zerinf_indx_log)
   
+  newflux = bad
+  newtemp = bad
+  if tag_exist(initdat,'fcnconv') then begin
+     newflux = []
+     if tag_exist(initdat,'argsconv') then $
+        newtemp = $
+           call_function(initdat.fcnconv,templatelambdaz,$
+                         template.flux,gdlambda,gdflux,newflux,$
+                         zstar,_extra=initdat.argsconv) $
+     else $
+        newtemp = $
+           call_function(initdat.fcnconv,templatelambdaz,$
+                         template.flux,gdlambda,gdflux,newflux,zstar)
+  endif
 
 ; Log rebin galaxy spectrum for use with PPXF, this time with 
 ; errors corrected before rebinning
-  log_rebin,fitran,gdflux,gdflux_log,gdlambda_log,velscale=velscale
+  if newflux[0] ne bad then $
+     log_rebin,fitran,newflux,gdflux_log,gdlambda_log,velscale=velscale $
+  else $
+     log_rebin,fitran,gdflux,gdflux_log,gdlambda_log,velscale=velscale
   log_rebin,fitran,gderr^2d,gderrsq_log
   gderr_log = sqrt(gderrsq_log)
 
@@ -302,6 +313,11 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   if tag_exist(initdat,'fcncontfit') then begin
+   
+;    Some defaults. These only apply in case of fitting with stellar model
+;    + additive polynomial.
+     stel_mod = 0d
+     poly_mod = 0d
 
 ;    Mask emission lines
      if ~ noemlinmask then begin
@@ -397,8 +413,12 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
                     tag_exist(initdat,'siginit_stars')) then begin
         
 ;       Interpolate template to same grid as data
-        temp_log = ifsf_interptemp(gdlambda_log,alog(templatelambdaz),$
-                                   template.flux)
+        if newtemp[0] ne bad then $
+           temp_log = ifsf_interptemp(gdlambda_log,alog(templatelambdaz),$
+                                      newtemp) $
+        else $
+           temp_log = ifsf_interptemp(gdlambda_log,alog(templatelambdaz),$
+                                      template.flux)
 
 ;       Check polynomial degree
         add_poly_degree = 4
@@ -424,10 +444,13 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
              degree=add_poly_degree,polyweights=add_poly_weights,quiet=quiet,$
              weights=ct_coeff,reddening=ebv_star,lambda=redlambda,sky=sky,$
-             error=solerr
+             error=solerr,matrix=ppxfdesignmatrix
 
-;       Resample the best fit into linear space
+;       Resample into linear space
         continuum = interpol(continuum_log,gdlambda_log,ALOG(gdlambda))
+        poly_mod_log = ppxfdesignmatrix[*,0:add_poly_degree] # add_poly_weights
+        poly_mod = interpol(poly_mod_log,gdlambda_log,ALOG(gdlambda))
+        stel_mod = continuum - poly_mod
 
 ;       Adjust stellar redshift based on fit
         zstar += sol[0]/c
@@ -645,7 +668,9 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
 ; restore initial values
   flux = flux_out
   err = err_out
-
+  
+;  print,ppxf_sigma
+  
   outstr = {$
            fitran: fitran, $
 ;          Continuum fit parameters
@@ -664,6 +689,8 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
            spec_err: gderr, $
            cont_dat: cont_dat, $ ; cont. data (all data - em. line fit)
            cont_fit: continuum, $     ; cont. fit
+           stel_fit: stel_mod,$       ; stellar models part of cont. fit
+           poly_fit: poly_mod,$       ; additive poly. part of cont. fit
            cont_fit_pretweak: continuum_pretweak, $ ; cont. fit before tweaking
            emlin_dat: gdflux_nocnt, $ ; em. line data (all data - cont. fit)
            emlin_fit: specfit, $      ; em. line fit

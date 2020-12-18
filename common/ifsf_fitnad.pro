@@ -246,7 +246,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             if refline ne 'HeI5876' AND $
                ~ tag_exist(initnad,'noemlinfit') then begin
 ;              Get reference line parameters
-               reflinelist = ifsf_linelist([refline])
+               reflinelist = ifsf_linelist([refline],/quiet)
 ;              Case of constraining with another line from another spaxel
                if tag_exist(initnad,'heitiecol') AND $
                   tag_exist(initnad,'heitierow') then begin
