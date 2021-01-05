@@ -959,6 +959,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                      emflux: dblarr(cube.ncols,cube.nrows,2)+bad,$
                      emul: dblarr(cube.ncols,cube.nrows,4)+bad,$
                      vel: dblarr(cube.ncols,cube.nrows,6)+bad,$
+                     errcor: dblarr(cube.ncols,cube.nrows)+bad,$
                      normpars: dblarr(cube.ncols,cube.nrows,$
                         n_elements(fitpars_normnad))+bad }
                  firstnadnorm = 0
@@ -1009,12 +1010,29 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     eq dat_normnadwave)
 
 ;             Assume that stellar fit is a good model but that the error spectrum
-;             may not be perfect. Correct using stellar reduced chi squared
+;             may not be perfect. Two options for correction:
+;             1. sqrt(rchi^2) (as suggested by MPFIT and PPXF) or
+;             2. ratio of RMS in continuum to median error around NaD
+;             For S7 data (only data on which this has been tested), the first option
+;             overcorrects b/c rchi^2 < 1, so I switched to rchi^2 instead of its square.
+;             This is of course very ad hoc. The second option for S7 data is
+;             better based in reality, and changes the error less.
+              naderrcor = 1d
               if tag_exist(initnad,'errcorr_ctrchisq') then begin
-                 normnad.nerr *= struct.ct_rchisq
-                 weq[1,0] *= struct.ct_rchisq
-                 weq[3,0] *= struct.ct_rchisq
+                 naderrcor = struct.ct_rchisq
+              endif else if tag_exist(initnad,'errcorr_ctrms') then begin
+                 inormfit = where((dat_normnadwave ge fitranlo[0] AND $
+                                   dat_normnadwave le fitranlo[1]) OR $
+                                  (dat_normnadwave ge fitranhi[0] AND $
+                                   dat_normnadwave le fitranhi[1]))
+                 nadcontrms = sqrt(mean((normnad.nflux[inormfit]-1d)^2d))
+                 naderrmed = mean(normnad.nerr[inormfit])
+                 naderrcor = nadcontrms/naderrmed
               endif
+              normnad.nerr *= naderrcor
+              weq[1,0] *= naderrcor
+              weq[3,0] *= naderrcor
+
               nadcube.wave[i,j,*] = dat_normnadwave
               nadcube.cont[i,j,ilo:ihi] = struct.cont_fit[normnad.ind]
               nadcube.dat[i,j,ilo:ihi] = normnad.nflux
@@ -1025,6 +1043,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               nadcube.emflux[i,j,*] = emflux
               nadcube.emul[i,j,*] = emul
               nadcube.vel[i,j,*] = vel
+              nadcube.errcor[i,j] = naderrcor
               nadcube.normpars[i,j,*] = fitpars_normnad
 ;             Plot data
               if not keyword_set(noplots) then $

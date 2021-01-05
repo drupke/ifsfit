@@ -420,6 +420,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['[SII]6731'] = 6730.82d
       lines['[SII]6716+[SII]6731'] = (6716.44d + 6730.82d)/2d
       lines['[SIII]6312'] = 6312.06d
+      lines['CaIIK'] = 3933.663d
+      lines['CaIIH'] = 3968.469d
       lines['MgIb5167'] = 5167.3213d
       lines['MgIb5173'] = 5172.6844d
       lines['MgIb5184'] = 5183.6043d 
@@ -577,6 +579,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       linelab['[SII]6731'] = '[SII] 6731'
       linelab['[SII]6716+[SII]6731'] = '[SII] 6716, 6731'
       linelab['[SIII]6312'] = '[SIII] 6312'
+      linelab['CaIIK'] = 'CaII K'
+      linelab['CaIIH'] = 'CaII H'
       linelab['MgIb5167'] = 'MgI 5167'
       linelab['MgIb5173'] = 'MgI 5173'
       linelab['MgIb5184'] = 'MgI 5184'

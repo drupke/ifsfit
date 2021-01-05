@@ -16,8 +16,8 @@
 ; will further speed up the code in the case of hyper-threaded cores.
 ;
 ; The multi-core functionality requires split_for.pro and its associated 
-; subroutines, written by Robert da Silva and available at
-;   http://slugidl.pbworks.com/w/page/29199259/Child%20Processes
+; subroutines, written by Robert da Silva. These are now bundled with DRTOOLS:
+; https://github.com/drupke/drtools
 ;
 ; :Categories:
 ;    IFSFIT
@@ -99,9 +99,10 @@
 ;      2014jul07, DSNR, documented
 ;      2016nov03, DSNR, added convolution with spectral resolution
 ;      2018jun26, DSNR, call IFSF_PLTMCDIST for plotting
+;      2021jan05, DSNR, updated documentation
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2018 David S. N. Rupke
+;    Copyright (C) 2014--2020 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -130,7 +131,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
 
    bad = 1d99
    plotquantum = 2.5 ; in inches
-   nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
+   nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
 
    if ~ keyword_set(fitfcn) then fitfcn = 'ifsf_nadfcn'
    if ~ keyword_set(niter) then niter = 1000

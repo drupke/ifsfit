@@ -61,9 +61,11 @@
 ;                       outputs
 ;      2015jun03, DSNR, adjusted treatment of emission line sigma limits
 ;      2016nov03, DSNR, added convolution with spectral resolution
+;      2021jan05, DSNR, changed RMS calculation from median to mean; median
+;                       may underestimate by factor ~2 based on a few tests
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2020 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -232,6 +234,8 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             ilamlo = 0
             ilamhi = n_elements((nadcube.wave)[i,j,*])-1
          endelse
+
+;        Arrays to pass to MPFIT
          passwav = reform((nadcube.wave)[i,j,ilamlo:ilamhi],ilamhi-ilamlo+1)
          passdat = reform((nadcube.dat)[i,j,ilamlo:ilamhi],ilamhi-ilamlo+1)
          passcont = reform((nadcube.cont)[i,j,ilamlo:ilamhi],ilamhi-ilamlo+1)
@@ -415,9 +419,9 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                   niline = n_elements((nadcube.wave)[i,j,*])
                   inotlinelo = dindgen(ilinelo-1)
                   inotlinehi = dindgen(niline-ilinehi-1) + ilinehi + 1
-                  rms = sqrt(median(((nadcube.dat)[i,j,[inotlinelo,inotlinehi]]-1d)^2d))
+                  rms = sqrt(mean(((nadcube.dat)[i,j,[inotlinelo,inotlinehi]]-1d)^2d))
                endif else begin
-                  rms = sqrt(median(((nadcube.dat)[i,j,*]-1d)^2d))
+                  rms = sqrt(mean(((nadcube.dat)[i,j,*]-1d)^2d))
                endelse
                sigthresh = 1d
                ctbad = 0
@@ -536,9 +540,9 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                niline = n_elements((nadcube.dat)[i,j,*])
                inotlinelo = dindgen(ilinelo-1)
                inotlinehi = dindgen(niline-ilinehi-1) + ilinehi + 1
-               rms = sqrt(median(((nadcube.dat)[i,j,[inotlinelo,inotlinehi]]-1d)^2d))
+               rms = sqrt(mean(((nadcube.dat)[i,j,[inotlinelo,inotlinehi]]-1d)^2d))
             endif else begin
-               rms = sqrt(median(((nadcube.dat)[i,j,*]-1d)^2d))
+               rms = sqrt(mean(((nadcube.dat)[i,j,*]-1d)^2d))
             endelse
             sigthresh = 1d
             ctbad = 0

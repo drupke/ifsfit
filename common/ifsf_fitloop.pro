@@ -352,11 +352,22 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
                model = struct.cont_fit + struct.emlin_fit
 
                for k=0,initdat.mcerrors.niter-1 do begin
-;                 attempt to correct for over- and under-estimated errors
-;                 by multiplying by reduced chi-squared
-                  if struct.ct_rchisq ne 0d then $
-                     erradj = struct.spec_err * struct.ct_rchisq $
-                  else erradj = struct.spec_err
+;                  Previous attempt to correct for over- and under-estimated errors.
+;                  Both MPFIT and PPXF documentation suggest that multiplying by
+;                  sqrt(rchi^2) can fix this. For S7 data, this reduced the error
+;                  too much.
+;                  if struct.ct_rchisq ne 0d then $
+;                     erradj = struct.spec_err * struct.ct_rchisq $
+;                  else erradj = struct.spec_err
+;                  Another option would be computing RMS over continuum-normalized
+;                  data and comparing to median error. However, for S7 data
+;                  a (very) few tests indicate that this number may be close to ~1,
+;                  suggesting that it is not necessary.
+;                  contrms = sqrt(mean((struct.cont_dat[struct.ct_indx]/struct.cont_fit[struct.ct_indx]-1d)^2d))
+;                  errmed = mean((err[struct.gd_indx])[struct.ct_indx]/struct.cont_fit[struct.ct_indx])
+;                  errcor = contrms/errmed
+;                  print,errcor,struct.ct_rchisq
+                  erradj = struct.spec_err
                   moderr = model + rans[*,k]*erradj
                   imaxerr = where(struct.spec_err eq max(err))
                   moderr[imaxerr] = 0d
