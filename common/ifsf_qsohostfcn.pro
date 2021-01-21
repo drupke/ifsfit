@@ -119,13 +119,13 @@ pro ifsf_qsohostfcn,x,p,ymod,nxfull=nxfull,ixfull=ixfull,$
      if qsoord gt 0 then $
         for i=0,qsoord do qsoscl += p[16+poff+i]*legendre(xfull_normm11,i)
 ;    optional bspline added to multiplier
-     if qsobspline
-     if keyword_set(argsbkpts) then $
-     sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,$
-        _extra=argsbkpts) $
-     else $
-        sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,everyn=50)
-     continuum = bspline_valu(lambda,sset)
+;     if qsobspline
+;     if keyword_set(argsbkpts) then $
+;     sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,$
+;        _extra=argsbkpts) $
+;     else $
+;        sset = bspline_iterfit(lambda,flux,invvar=1/weight,inmask=mask,everyn=50)
+;     continuum = bspline_valu(lambda,sset)
 
      ymod += qsoscl*qsoflux
   endif

@@ -332,7 +332,7 @@ Modifications are encouraged, but subject to the license.
 LICENSE AND COPYRIGHT
 -------------------------------------------------------------------------
 
-Copyright (C) 2013--2020 David S. N. Rupke
+Copyright (C) 2013--2021 David S. N. Rupke
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

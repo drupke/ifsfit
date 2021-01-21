@@ -5,6 +5,9 @@
 ; Grid Valdes et al. 2004 (ApJS, 152, 221) stellar spectra 
 ; to select a representative subset. See Figure 1 in Valdes+04.
 ;
+; Default is to pick the "zeroth" element of each bin. Randomize this by
+; selecting the RANDOM keyword.
+;
 ; Input file can first be created with IFSF_VALDESTEMP.
 ;
 ; :Categories:
@@ -21,6 +24,7 @@
 ;      Filename and path of output file.
 ;
 ; :Keywords:
+;    random: in, optional, type=boolean
 ;
 ; :Author:
 ;    David S. N. Rupke::
@@ -52,7 +56,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_gridvaldestemp,infile,outfile
+pro ifsf_gridvaldestemp,infile,outfile,random=random
 
    restore,infile
 
@@ -67,19 +71,24 @@ pro ifsf_gridvaldestemp,infile,outfile
          ind = where(template.logg ge logg AND template.logg lt logg+dlogg AND $
                      template.feh ge feh AND template.feh lt feh+dfeh,ct)    
          if ct gt 0 then begin
+            if not keyword_set(random) then iuse = 0 $
+            else begin
+               ran = randomu(seed)
+               iuse = fix((ct-1)*ran)
+            endelse
             if firsttemp then begin
-               newflux = template.flux[*,ind[0]]
-               newobj = template.obj[ind[0]]
-               newteff = template.teff[ind[0]]
-               newlogg = template.logg[ind[0]]
-               newfeh = template.feh[ind[0]]
+               newflux = template.flux[*,ind[iuse]]
+               newobj = template.obj[ind[iuse]]
+               newteff = template.teff[ind[iuse]]
+               newlogg = template.logg[ind[iuse]]
+               newfeh = template.feh[ind[iuse]]
                firsttemp = 0b
             endif else begin
-               newflux = [[newflux],[template.flux[*,ind[0]]]]
-               newobj = [newobj,template.obj[ind[0]]]
-               newteff = [newteff,template.teff[ind[0]]]
-               newlogg = [newlogg,template.logg[ind[0]]]
-               newfeh = [newfeh,template.feh[ind[0]]]
+               newflux = [[newflux],[template.flux[*,ind[iuse]]]]
+               newobj = [newobj,template.obj[ind[iuse]]]
+               newteff = [newteff,template.teff[ind[iuse]]]
+               newlogg = [newlogg,template.logg[ind[iuse]]]
+               newfeh = [newfeh,template.feh[ind[iuse]]]
             endelse
          endif
          feh+=dfeh
@@ -104,11 +113,16 @@ pro ifsf_gridvaldestemp,infile,outfile
                if cttmp gt 0 then isin = 1b
             endfor
             if isin eq 0b then begin
-               newflux = [[newflux],[template.flux[*,ind[0]]]]
-               newobj = [newobj,template.obj[ind[0]]]
-               newteff = [newteff,template.teff[ind[0]]]
-               newlogg = [newlogg,template.logg[ind[0]]]
-               newfeh = [newfeh,template.feh[ind[0]]]
+               if not keyword_set(random) then iuse = 0 $
+               else begin
+                  ran = randomu(seed)
+                  iuse = fix((ct-1)*ran)
+               endelse
+               newflux = [[newflux],[template.flux[*,ind[iuse]]]]
+               newobj = [newobj,template.obj[ind[iuse]]]
+               newteff = [newteff,template.teff[ind[iuse]]]
+               newlogg = [newlogg,template.logg[ind[iuse]]]
+               newfeh = [newfeh,template.feh[ind[iuse]]]
             endif
          endif
          feh+=dfeh

@@ -1,4 +1,3 @@
-; docformat = 'rst'
 ;
 ;+
 ;
@@ -62,10 +61,13 @@
 ;      2015jun03, DSNR, adjusted treatment of emission line sigma limits
 ;      2016nov03, DSNR, added convolution with spectral resolution
 ;      2021jan05, DSNR, changed RMS calculation from median to mean; median
-;                       may underestimate by factor ~2 based on a few tests
+;                       may underestimate by factor ~2 based on a few tests;
+;                       some commenting updates
+;      2021jan14, DSNR, added rejection of NaD sky lines in computing
+;                       RMS threshold for significance of components
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2020 David S. N. Rupke
+;    Copyright (C) 2013--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -177,10 +179,11 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 
          print,'  Row ',j+1,' of ',nrows,format='(A,I0,A,I0)'
 
-;        Check data quality
+;        Check for data quality. Presently empricial Weq set to bad if IFSF_NORMNAD
+;        finds that <S/N per pixel>  <  thresh (default thresh is 1).
          igd = where(nadcube.weq[i,j,*] ne bad,ctgd)
          if ctgd eq 0 then begin
-            message,'Skipping this spectrum b/c <SNR> < threshold (IFSF_NORMNAD).',/cont
+            message,'No fit: No data, or mean S/N per pixel < threshold (IFSF_NORMNAD)',/cont
             goto,nofit
          endif
 
@@ -367,24 +370,28 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                refit=1b
                while refit ne 0b do begin
                
-;              Fill out parameter structure with initial guesses and constraints
-               if tag_exist(initnad,'argsinitpar') then parinit = $
-                  call_function(initnad.fcninitpar,0,0,initnadem,$
-                                initnad.nadabs_siglim,nadem_siglim,$
-                                heifix=0,nademfix=nademfix,$
-                                _extra=initnad.argsinitpar) $
-               else parinit = $
-                  call_function(initnad.fcninitpar,0,0,initnadem,$
-                                initnad.nadabs_siglim,nadem_siglim,$
-                                heifix=0,nademfix=nademfix)
+;                 Fill out parameter structure with initial guesses and constraints
+                  if tag_exist(initnad,'argsinitpar') then parinit = $
+                     call_function(initnad.fcninitpar,0,0,initnadem,$
+                        initnad.nadabs_siglim,nadem_siglim,$
+                        heifix=0,nademfix=nademfix,$
+                        _extra=initnad.argsinitpar) $
+                  else parinit = $
+                     call_function(initnad.fcninitpar,0,0,initnadem,$
+                        initnad.nadabs_siglim,nadem_siglim,$
+                        heifix=0,nademfix=nademfix)
 
-;               tmpdat = (nadcube.dat)[i,j,*]
+ ;               tmpdat = (nadcube.dat)[i,j,*]
 ;;              This block looks for automatically-determined absorption and 
 ;;              emission line indices (from IFSF_CMPNADWEQ, invoked by IFSFA)
 ;;              and uses these to only fit the emission line region by setting
 ;;              anything blueward to 1. Note that if only an emission line was 
 ;;              found, then the index used is shifted blueward slightly to make
-;;              sure the entire line is included.   
+;;              sure the entire line is included.
+;
+;;              This block was used for the Rupke & Veilleux 2015 paper, but
+;;              is now deprecated. Some fixes need to happen to make it work
+;;              properly again.
 ;
 ;               if (nadcube.iweq)[i,j,1] ne -1 then $
 ;                  tmpind = (nadcube.iweq)[i,j,1] $
@@ -394,93 +401,109 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
 ;                  message,'No absorption or emission indices. Aborting.'
 ;               tmpdat[0:tmpind] = 1d
                                 
-               param = Mpfitfun(initnad.fcnfitnad,$
-                                passwav,$
-                                passdat,$
-                                passerr,$
-                                parinfo=parinit,perror=perror,maxiter=100,$
-                                bestnorm=chisq_emonly,covar=covar,$
-                                yfit=specfit,dof=dof_emonly,$
-                                nfev=nfev,niter=niter_emonly,status=status,$
-                                quiet=quiet,$
-                                npegged=npegged,ftol=1D-6,errmsg=errmsg,$
-                                functargs=argsfitnad)
-               if status eq 5 then message,'Max. iterations reached.',/cont
-               if status eq 0 OR status eq -16 then $
-                  message,'Error in MPFIT. Aborting.'
+                  param = Mpfitfun(initnad.fcnfitnad,$
+                     passwav,$
+                     passdat,$
+                     passerr,$
+                     parinfo=parinit,perror=perror,maxiter=100,$
+                     bestnorm=chisq_emonly,covar=covar,$
+                     yfit=specfit,dof=dof_emonly,$
+                     nfev=nfev,niter=niter_emonly,status=status,$
+                     quiet=quiet,$
+                     npegged=npegged,ftol=1D-6,errmsg=errmsg,$
+                     functargs=argsfitnad)
+                  if status eq 5 then message,'Max. iterations reached.',/cont
+                  if status eq 0 OR status eq -16 then $
+                     message,'Error in MPFIT. Aborting.'
 
-;              Reject insignificant components automatically
-               if ~ tag_exist(initnad,'noautoreject') then begin
-                  
-               igdindices = where((nadcube.iweq)[i,j,*] ne -1,ctgdindices)
-               if ctgdindices gt 0 then begin
-                  ilinelo = min((nadcube.iweq)[i,j,igdindices])
-                  ilinehi = max((nadcube.iweq)[i,j,igdindices])
-                  niline = n_elements((nadcube.wave)[i,j,*])
-                  inotlinelo = dindgen(ilinelo-1)
-                  inotlinehi = dindgen(niline-ilinehi-1) + ilinehi + 1
-                  rms = sqrt(mean(((nadcube.dat)[i,j,[inotlinelo,inotlinehi]]-1d)^2d))
-               endif else begin
-                  rms = sqrt(mean(((nadcube.dat)[i,j,*]-1d)^2d))
-               endelse
-               sigthresh = 1d
-               ctbad = 0
-               ctgd = nnadem
-               ibad = !NULL
-               igd = !NULL
-               for k=0,nnadem-1 do begin
-                  karr = 3 + k*4 + dindgen(4)
-                  modcomp = ifsf_nadfcn((nadcube.wave)[i,j,*],[0,0,1,param[karr]],$
-                                        specres=specres)
-                  if max(modcomp)-1d le rms*sigthresh then begin
-                     ctbad++
-                     ctgd--
-                     ibad = [ibad,k]
-                  endif else begin
-                     igd = [igd,k]
-                  endelse
-               endfor
-               if ctbad gt 0 then begin
-                  nnadem -= ctbad
-                  if ctgd gt 0 then begin
-                     winit = reform(((initnad.nadem_zinit)[i,j,igd]+1d)$
-                                    *linelist['NaD1'],nnadem)
-                     siginit = reform((initnad.nadem_siginit)[i,j,igd],nnadem)
-                     if tag_exist(initnad,'nadem_finit') then $
-                        finit = reform((initnad.nadem_finit)[i,j,igd],nnadem) $
-                     else finit = dblarr(nnadem)+0.1d
-                     if tag_exist(initnad,'nadem_rinit') then $
-                        rinit = reform((initnad.nadem_rinit)[i,j,igd],nnadem) $
-                     else rinit = dblarr(nnadem)+nad_emrat_init
-                     initnadem = [[winit],[siginit],[finit],[rinit]]
-                     if tag_exist(initnad,'nadem_fix') then $
-                        nademfix=reform((initnad.nadem_fix)[i,j,igd,*],nnadem,4) $
-                     else nademfix=0b
+                  ; Reject insignificant components automatically.
+                  if ~ tag_exist(initnad,'noautoreject') then begin
+
+                     ; Find RMS outside region used to compute empirical Weq ...
+                     igdindices = where((nadcube.iweq)[i,j,*] ne -1,ctgdindices)
+                     if ctgdindices gt 0 then begin
+                        ilinelo = min((nadcube.iweq)[i,j,igdindices])
+                        ilinehi = max((nadcube.iweq)[i,j,igdindices])
+                        niline = n_elements((nadcube.wave)[i,j,*])
+                        inotlinelo = indgen(ilinelo-1)
+                        inotlinehi = indgen(niline-ilinehi-1) + fix(ilinehi) + 1
+                        ; Also remove rest-frame NaD sky lines if badly subtracted
+                        isky = where((nadcube.wave)[i,j,*] ge 5887d AND $
+                           (nadcube.wave)[i,j,*] le 5899d,ctsky)
+                        if ctsky gt 0 then $
+                           inotlinelo = cgsetdifference(inotlinelo,isky)
+                        if ctsky gt 0 then $
+                           inotlinehi = cgsetdifference(inotlinehi,isky)
+                        rms = sqrt(mean(((nadcube.dat)[i,j,[inotlinelo,inotlinehi]]-1d)^2d))
+                     ; ... or full input region
+                     endif else begin
+                        inotsky = where((nadcube.wave)[i,j,*] le 5887 OR $
+                           (nadcube.wave)[i,j,*] ge 5899,ctnotsky)
+                        rms = sqrt(mean(((nadcube.dat)[i,j,inotsky]-1d)^2d))
+                     endelse
+                     ; Keep components with peak model flux above 1sigma cf. RMS
+                     sigthresh = 1d
+                     ctbad = 0
+                     ctgd = nnadem
+                     ibad = !NULL
+                     igd = !NULL
+                     for k=0,nnadem-1 do begin
+                        karr = 3 + k*4 + dindgen(4)
+                        modcomp = ifsf_nadfcn((nadcube.wave)[i,j,*],[0,0,1,param[karr]],$
+                           specres=specres)
+                        if max(modcomp)-1d le rms*sigthresh then begin
+                           ctbad++
+                           ctgd--
+                           ibad = [ibad,k]
+                        endif else begin
+                           igd = [igd,k]
+                        endelse
+                     endfor
+                     ; If a bad component is flagged ...
+                     if ctbad gt 0 then begin
+                        nnadem -= ctbad
+                        ; Reinitialize for next fit
+                        if ctgd gt 0 then begin
+                           winit = reform(((initnad.nadem_zinit)[i,j,igd]+1d)$
+                              *linelist['NaD1'],nnadem)
+                           siginit = reform((initnad.nadem_siginit)[i,j,igd],nnadem)
+                           if tag_exist(initnad,'nadem_finit') then $
+                              finit = reform((initnad.nadem_finit)[i,j,igd],nnadem) $
+                           else finit = dblarr(nnadem)+0.1d
+                           if tag_exist(initnad,'nadem_rinit') then $
+                              rinit = reform((initnad.nadem_rinit)[i,j,igd],nnadem) $
+                           else rinit = dblarr(nnadem)+nad_emrat_init
+                           initnadem = [[winit],[siginit],[finit],[rinit]]
+                           if tag_exist(initnad,'nadem_fix') then $
+                              nademfix=reform((initnad.nadem_fix)[i,j,igd,*],nnadem,4) $
+                           else nademfix=0b
+                        ; or stop b/c no more components
+                        endif else begin
+                           refit = 0b
+                           initnadem=0
+                           nademfix=0b
+                           dofirstemfit=0b
+                        endelse
+                     ; If no bad components, keep this fit
+                     endif else begin
+                        refit = 0b
+                        first_param = param
+                        first_nademfix = nademfix
+                        first_parinit = parinit
+                        first_modflux = passdat
+                        initnadem = transpose(reform(param[3:2+nnadem*4],4,nnadem))
+                        nademfix=rebin(transpose([1b,1b,1b,1b]),nnadem,4)                
+                     endelse
+                  ; In case of no automatic rejection, just proceed.
                   endif else begin
                      refit = 0b
-                     initnadem=0
-                     nademfix=0b
-                     dofirstemfit=0b
+                     first_param = param
+                     first_nademfix = nademfix
+                     first_parinit = parinit
+                     first_modflux = passdat
+                     initnadem = transpose(reform(param[3:2+nnadem*4],4,nnadem))
+                     nademfix=rebin(transpose([1b,1b,1b,1b]),nnadem,4)
                   endelse
-               endif else begin
-                 refit = 0b
-                 first_param = param
-                 first_nademfix = nademfix
-                 first_parinit = parinit
-                 first_modflux = passdat
-                 initnadem = transpose(reform(param[3:2+nnadem*4],4,nnadem))
-                 nademfix=rebin(transpose([1b,1b,1b,1b]),nnadem,4)                
-               endelse
-               
-               endif else begin
-                  refit = 0b
-                  first_param = param
-                  first_nademfix = nademfix
-                  first_parinit = parinit
-                  first_modflux = passdat
-                  initnadem = transpose(reform(param[3:2+nnadem*4],4,nnadem))
-                  nademfix=rebin(transpose([1b,1b,1b,1b]),nnadem,4)
-               endelse
 
                endwhile
                            
@@ -538,11 +561,20 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                ilinelo = min((nadcube.iweq)[i,j,igdindices])
                ilinehi = max((nadcube.iweq)[i,j,igdindices])
                niline = n_elements((nadcube.dat)[i,j,*])
-               inotlinelo = dindgen(ilinelo-1)
-               inotlinehi = dindgen(niline-ilinehi-1) + ilinehi + 1
+               inotlinelo = indgen(ilinelo-1)
+               inotlinehi = indgen(niline-ilinehi-1) + fix(ilinehi) + 1
+               ; Also remove rest-frame NaD sky lines if badly subtracted
+               isky = where((nadcube.wave)[i,j,*] ge 5887d AND $
+                  (nadcube.wave)[i,j,*] le 5899d,ctsky)
+               if ctsky gt 0 then $
+                  inotlinelo = cgsetdifference(inotlinelo,isky)
+               if ctsky gt 0 then $
+                  inotlinehi = cgsetdifference(inotlinehi,isky)
                rms = sqrt(mean(((nadcube.dat)[i,j,[inotlinelo,inotlinehi]]-1d)^2d))
             endif else begin
-               rms = sqrt(mean(((nadcube.dat)[i,j,*]-1d)^2d))
+               inotsky = where((nadcube.wave)[i,j,*] le 5887 OR $
+                  (nadcube.wave)[i,j,*] ge 5899,ctnotsky)
+               rms = sqrt(mean(((nadcube.dat)[i,j,inotsky]-1d)^2d))
             endelse
             sigthresh = 1d
             ctbad = 0

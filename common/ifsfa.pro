@@ -938,11 +938,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
            endelse
 ;          Check data quality
-           if normnad ne !NULL then igd = where(normnad.nflux gt 0d,ctgd) $
+           if normnad ne !NULL then igdtmp = where(normnad.nflux gt 0d,ctgd) $
            else ctgd = 0
 ;          Compute empirical equivalent widths and emission-line fluxes
            if ctgd gt 0 then begin
-;          Create output data cube
+;             Create output data cube
               if firstnadnorm then begin
                  ilo = value_locate(cube.wave,fitranlo[0])+1
                  ihi = value_locate(cube.wave,fitranhi[1])
@@ -1025,6 +1025,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                    dat_normnadwave le fitranlo[1]) OR $
                                   (dat_normnadwave ge fitranhi[0] AND $
                                    dat_normnadwave le fitranhi[1]))
+                 ; Also remove rest-frame NaD sky lines if badly subtracted
+                 isky = where(dat_normnadwave ge 5887d AND $
+                     dat_normnadwave le 5899d,ctsky)
+                 if ctsky gt 0 then $
+                     inormfit = cgsetdifference(inormfit,isky)
                  nadcontrms = sqrt(mean((normnad.nflux[inormfit]-1d)^2d))
                  naderrmed = mean(normnad.nerr[inormfit])
                  naderrcor = nadcontrms/naderrmed

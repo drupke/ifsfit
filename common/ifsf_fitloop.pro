@@ -50,9 +50,12 @@
 ;      2016oct20, DSNR, fixed treatment of SIGINIT_GAS
 ;      2016nov17, DSNR, added flux calibration
 ;      2018jun25, DSNR, added MC error calculation on stellar parameters
+;      2021jan08, DSNR, removed error adjustment with reduced chi-squared
+;      2021jan15, DSNR, added capability to grab old MC calcs; set USEOLD in
+;                       MCERRORS hash
 ;
 ; :Copyright:
-;    Copyright (C) 2016--2018 David S. N. Rupke
+;    Copyright (C) 2016--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -314,13 +317,13 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 
             linepars = ifsf_sepfitpars(linelist,struct.param,$
                                        struct.perror,struct.parinfo)
-            if tag_exist(initdat,'argscheckcomp') then goodcomp = $
+            if tag_exist(initdat,'argscheckcomp') then newncomp = $
                call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
-                             ncomp,newncomp,siglim_gas,$
+                             ncomp,siglim_gas,$
                              _extra=initdat.argscheckcomp) $
-            else goodcomp = $
+            else newncomp = $
                call_function(initdat.fcncheckcomp,linepars,initdat.linetie,$
-                             ncomp,newncomp,siglim_gas)
+                             ncomp,siglim_gas)
 
             if newncomp.count() gt 0 then begin
                foreach nc,newncomp,line do $
@@ -342,16 +345,18 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 
             if tag_exist(initdat,'mcerrors') then begin
 
-;              Parameter values to collect
-               mcdist = hash()
-               mcdist['ct_ebv'] = dblarr(initdat.mcerrors.niter)
-               mcdist['ct_ppxf_sigma'] = dblarr(initdat.mcerrors.niter)
-               mcdist['zstar'] = dblarr(initdat.mcerrors.niter)
-               nwave = n_elements(struct.wave)
-               rans = randomn(seed,nwave,initdat.mcerrors.niter,/double)
-               model = struct.cont_fit + struct.emlin_fit
+               if not tag_exist(initdat,'useold') then begin
 
-               for k=0,initdat.mcerrors.niter-1 do begin
+;                 Parameter values to collect
+                  mcdist = hash()
+                  mcdist['ct_ebv'] = dblarr(initdat.mcerrors.niter)
+                  mcdist['ct_ppxf_sigma'] = dblarr(initdat.mcerrors.niter)
+                  mcdist['zstar'] = dblarr(initdat.mcerrors.niter)
+                  nwave = n_elements(struct.wave)
+                  rans = randomn(seed,nwave,initdat.mcerrors.niter,/double)
+                  model = struct.cont_fit + struct.emlin_fit
+
+                  for k=0,initdat.mcerrors.niter-1 do begin
 ;                  Previous attempt to correct for over- and under-estimated errors.
 ;                  Both MPFIT and PPXF documentation suggest that multiplying by
 ;                  sqrt(rchi^2) can fix this. For S7 data, this reduced the error
@@ -367,10 +372,10 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 ;                  errmed = mean((err[struct.gd_indx])[struct.ct_indx]/struct.cont_fit[struct.ct_indx])
 ;                  errcor = contrms/errmed
 ;                  print,errcor,struct.ct_rchisq
-                  erradj = struct.spec_err
-                  moderr = model + rans[*,k]*erradj
-                  imaxerr = where(struct.spec_err eq max(err))
-                  moderr[imaxerr] = 0d
+                     erradj = struct.spec_err
+                     moderr = model + rans[*,k]*erradj
+                     imaxerr = where(struct.spec_err eq max(err))
+                     moderr[imaxerr] = 0d
 
 ;; Option 1: re-run entire continuum + emission-line fit, two iterations
 ;                  zstar = zstar_init
@@ -423,44 +428,52 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
 ;                  endif else mcstruct = mcstructinit
             
 ; Option 2: re-run second stellar fit only
-                  if ~ onefit then begin
-                     zstar = zstar_init2
-                  endif else begin
-                     zstar = zstar_init
-                     maskwidths_tmp = 0d
-                     peakinit_tmp = 0d
-                     siginit_gas_tmp = 0d
-                  endelse
-                  if ~ tag_exist(initdat,'doemlinmask') then $
-                     initdat_tmp = create_struct(initdat,'doemlinmask',1b) $
-                  else initdat_tmp = initdat
-                  if ~ tag_exist(initdat,'noemlinfit') then $
-                     initdat_tmp = create_struct(initdat_tmp,'noemlinfit',1b)
+                     if ~ onefit then begin
+                        zstar = zstar_init2
+                     endif else begin
+                        zstar = zstar_init
+                        maskwidths_tmp = 0d
+                        peakinit_tmp = 0d
+                        siginit_gas_tmp = 0d
+                     endelse
+                     if ~ tag_exist(initdat,'doemlinmask') then $
+                        initdat_tmp = create_struct(initdat,'doemlinmask',1b) $
+                     else initdat_tmp = initdat
+                     if ~ tag_exist(initdat,'noemlinfit') then $
+                        initdat_tmp = create_struct(initdat_tmp,'noemlinfit',1b)
 
 ; For correctness, error here should be erradj, but for consistency with 
 ; first call we'll leave it alone. Difference is a constant scaling factor,
 ; so should in principle only affect reduced chi squared.
-                  mcstruct = ifsf_fitspec(struct.wave,moderr,$
-                                          struct.spec_err,$
-                                          dq[struct.fitran_indx],zstar,$
-                                          linelist,linelistz,$
-                                          ncomp,initdat_tmp,quiet=quiet,$
-                                          siglim_gas=siglim_gas,$
-                                          maskwidths=maskwidths_tmp,$
-                                          peakinit=peakinit_tmp,$
-                                          siginit_gas=siginit_gas_tmp,$
-                                          tweakcntfit=tweakcntfit,col=i+1,$
-                                          row=j+1)
+                     mcstruct = ifsf_fitspec(struct.wave,moderr,$
+                        struct.spec_err,$
+                        dq[struct.fitran_indx],zstar,$
+                        linelist,linelistz,$
+                        ncomp,initdat_tmp,quiet=quiet,$
+                        siglim_gas=siglim_gas,$
+                        maskwidths=maskwidths_tmp,$
+                        peakinit=peakinit_tmp,$
+                        siginit_gas=siginit_gas_tmp,$
+                        tweakcntfit=tweakcntfit,col=i+1,$
+                        row=j+1)
 
-
-
-                  mcdist['zstar',k] = mcstruct.zstar
-                  mcdist['ct_ppxf_sigma',k] = mcstruct.ct_ppxf_sigma
-                  mcdist['ct_ebv',k] = mcstruct.ct_ebv
+                     mcdist['zstar',k] = mcstruct.zstar
+                     mcdist['ct_ppxf_sigma',k] = mcstruct.ct_ppxf_sigma
+                     mcdist['ct_ebv',k] = mcstruct.ct_ebv
                   
-               endfor
+                  endfor
 
-               ct_errors = ifsf_pltmcstel(mcdist,outlab+'_cterrs.pdf')
+                  ct_errors = ifsf_pltmcstel(mcdist,outlab+'_cterrs.pdf')
+
+               endif else begin
+                  
+                  structtmp = struct
+                  restore,file=outlab+'.xdr'
+                  ct_errors = struct.ct_errors
+                  struct = structtmp
+                  
+               endelse
+
                struct = create_struct(struct,'ct_errors',ct_errors)
                
             endif

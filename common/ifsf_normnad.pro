@@ -8,7 +8,8 @@
 ;    IFSFIT
 ;
 ; :Returns:
-;    A structure of normalized flux and error vectors.
+;    A structure of normalized flux and error vectors. Returns zeros for
+;    normalized flux and error if data falls below a S/N cut.
 ;
 ; :Params:
 ;    wave: in, required, type=dblarr(N)
@@ -32,7 +33,7 @@
 ;    subtract: in, optional, type=byte
 ;      Subtract fitted continuum instead of dividing.
 ;    snavg_thresh: in, optional, type=double
-;      Average flux/err in fit region below which spaxel is rejected.
+;      Average S/N per pixel in fit region below which spaxel is rejected.
 ;    nosncut: in, optional, type=byte
 ; 
 ; :Author:
@@ -59,7 +60,7 @@
 ;                       subtracted data
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2017 David S. N. Rupke
+;    Copyright (C) 2013--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as

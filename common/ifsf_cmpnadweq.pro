@@ -2,9 +2,16 @@
 ;
 ;+
 ;
-; Compute absorption and emission-line equivalent widths for NaD. Note: the 
-; default boxcar kernel for automatic feature detection is optimized for the 
-; GMOS B600 grating.
+; Compute absorption and emission-line equivalent widths for NaD.
+; 
+; This algorithm will detect emission and absorption line regions regardless of
+; their relative position in wavelength space. However, it will only give correct
+; results for the equivalent width if the emission and absorption-line regions
+; do not overlap; otherwise any excess emission will be included in the absorption
+; line equivalent width calculation, and vice versa.
+;
+; Weq is set to 0 if AUTOWAVELIM is set and no lines are detected. Weq(EM) is set
+; to 0 if neither WAVELIM nor AUTOWAVELiM is set.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -26,8 +33,9 @@
 ; :Keywords:
 ;    wavelim: in, optional, type=dblarr(4)
 ;      Limits of integration for equivalent widths. First two elements are 
-;      wavelength ranges of absorption, second two are for emission.
-;    autowavelim: in, optional, type=byte
+;      wavelength ranges of absorption, second two are for emission. Only applies
+;      if autowavelim not set
+;    autowavelim: in, optional, type=dblarr(4)
 ;      Same as wavelim, except now the ranges are for finding the actual
 ;      absorption and emission limits using the automatic algorithm. If this 
 ;      keyword is selected, the output array has a second dimension
@@ -54,6 +62,10 @@
 ;      Index offset from absorption line for calculating emission line upper limit.
 ;    snflux: in, optional, type=dblarr(N)
 ;      Subtraction-normalized flux array.
+;    snrabsthresh: in, optional, type=double, default=1.6
+;      Threshold S/N per pixel for detecting a pixel that can be attributable 
+;      to possible absorption.
+;    snremthresh: in, optional, type=double, default=1.6
 ;    unerr: in, optional, type=dblarr(N)
 ;      Un-normalized error array.
 ;      
@@ -73,6 +85,7 @@
 ;      2014jul29, DSNR, updated input keywords for emission line limits
 ;      2016may03, DSNR, added trigger to deal with very noisy data or data
 ;                       where continuum goes below 0
+;      2021jan07, DSNR, updated documentation
 ;    
 ; :Copyright:
 ;    Copyright (C) 2014--2016 David S. N. Rupke
@@ -99,6 +112,7 @@ function ifsf_cmpnadweq,wave,flux,err,$
                         snremthresh=snremthresh
 
 ;  Thresholds for line detection   
+
    if ~ keyword_set(snrabsthresh) then snrabsthresh=1.6d
    if ~ keyword_set(snremthresh) then snremthresh=-1.6d
    
@@ -117,15 +131,14 @@ function ifsf_cmpnadweq,wave,flux,err,$
       goto,baddata
    endif
    
-;  If wavelength limits not set, then integration defaults to entire wavelength 
+;  If neither WAVELIM nor AUTOWAVELIM is set, then integration defaults to entire wavelength 
 ;  range and absorption only.
    if ~ keyword_set(wavelim) then begin
       iabslo = 1l
       iabsup = n_elements(wave)-1l
       iemlo = -1l
       iemup = -1l
-;  If wavelength limits are set manually for absorption and emission line 
-;  integrations
+;  If WAVELILM is set but AUTOWAVELIM is not set, then use these limits
    endif else if ~ keyword_set(autowavelim) then begin
       iabslo = value_locate(wave,wavelim[0])
       iabsup = value_locate(wave,wavelim[1])
@@ -133,11 +146,13 @@ function ifsf_cmpnadweq,wave,flux,err,$
       iemup = value_locate(wave,wavelim[3])
    endif
 
+;  If AUTOWAVELIM is set:
 ;  Algorithm for automatically finding wavelength ranges for absorption and 
 ;  emission line integration. The algorithm boxcar smooths the spectrum and 
 ;  error using a kernel equal to the size of a spectral resolution element. This
-;  is akin to averaging 5 adjacent points. If this average yields a point with
-;  SNR > 1, then 
+;  is akin to averaging -smoothkernel- adjacent points. If this average yields a point with
+;  SNR > snrabsthresh, then it's added to the list of absorption line indices.
+;  Same for emission, but SNR < snremthresh.
    if keyword_set(autowavelim) then begin
 ;     subtract/add 2 pixels to avoid edge effects
       i1abs = value_locate(wave,autowavelim[0])-2l
@@ -158,10 +173,10 @@ function ifsf_cmpnadweq,wave,flux,err,$
 ;     find significant absorption/emission features
       iabs = where(snr_abs ge snrabsthresh,ctabs)
       iem = where(snr_em le snremthresh,ctem)
-;     Make sure more than one point is found, and then assign lower and upper
-;     indices of range based on lowest wavelength and highest wavelength points
-;     found. The extra bit of logic makes sure that the indices don't stray
-;     outside the ranges of the truncated arrays.
+      ; Make sure more than one point is found, and then assign lower and upper
+      ; indices of range based on lowest wavelength and highest wavelength points
+      ; found. The extra bit of logic makes sure that the indices don't stray
+      ; outside the ranges of the truncated arrays.
       if ctabs gt 1 then begin
          iabslo = iabs[0]-2l lt 1 ? 1 : iabs[0]-2l
          iabsup = $
@@ -182,9 +197,13 @@ function ifsf_cmpnadweq,wave,flux,err,$
          iemlo=-1l
          iemup=-1l
       endelse
-   endif else ctabs=0
+   endif else begin
+      ctabs=0
+      ctem=0
+   endelse
       
-;  Compute equivalent widths.
+   ;  Compute equivalent widths.
+   ;  Absorption equivalent width
    if iabslo ne -1l AND iabsup ne -1l then begin
       weq_abs = total((1d -flux[iabslo:iabsup])*$
                       (wave[iabslo:iabsup]-$
@@ -196,6 +215,7 @@ function ifsf_cmpnadweq,wave,flux,err,$
       weq_abs = 0d
       weq_abs_e = 0d
    endelse
+   ;  Emission equivalent width
    if iemlo ne -1l AND iemup ne -1l then begin
       weq_em = total((1d -flux[iemlo:iemup])*$
                      (wave[iemlo:iemup]-wave[iemlo-1:iemup-1]))
@@ -210,6 +230,7 @@ function ifsf_cmpnadweq,wave,flux,err,$
          else fl_em_e = 0d
          emflux = [fl_em,fl_em_e]
       endif
+   ;  Emission equivalent width upper limit
    endif else if keyword_set(emul) AND ctabs gt 1 then begin
       weq_em = 0d
       weq_em_e = 0d
