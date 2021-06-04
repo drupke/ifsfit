@@ -902,7 +902,7 @@ pro ifsf_makemaps,initproc
                       (map_y - qso_fitpar[5]+1)^2d)
       map_rnuckpc_ifs = map_rnuc * kpc_per_pix
       psf1d_x = dindgen(101)/100d*max(map_rnuckpc_ifs)
-      psf1d_y = alog10(moffat(psf1d_x,[qso_fitpar[1],0d,$
+      psf1d_y = alog10(drt_moffat(psf1d_x,[qso_fitpar[1],0d,$
                               qso_fitpar[2]*kpc_per_pix,$
                               qso_fitpar[7]]))
 
@@ -1661,7 +1661,7 @@ pro ifsf_makemaps,initproc
 ;         (map_y - empsf_fitpar[5]+1)^2d)
 ;      map_rempsfkpc_ifs = map_rempsf * kpc_per_pix
 ;      empsf1d_x = dindgen(101)/100d*max(map_rempsfkpc_ifs)
-;      empsf1d_y = alog10(moffat(empsf1d_x,[empsf_fitpar[1],0d,$
+;      empsf1d_y = alog10(drt_moffat(empsf1d_x,[empsf_fitpar[1],0d,$
 ;         empsf_fitpar[2]*kpc_per_pix,$
 ;         empsf_fitpar[7]]))
 ;
@@ -2409,13 +2409,13 @@ pro ifsf_makemaps,initproc
          y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
          cgoplot,x,y,color='Black'
 ;        Moffat, index = 1.5
-         y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
+         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
          cgoplot,x,y,color='Red',/linesty
 ;        Moffat, index = 2.5
-         y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
+         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
          cgoplot,x,y,color='Red'
 ;        Moffat, index = 5
-         y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
+         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
          cgoplot,x,y,color='Blue'
       endif     
 
@@ -2464,13 +2464,13 @@ pro ifsf_makemaps,initproc
 ;            y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
 ;            cgoplot,x,y,color='Black'
 ;;           Moffat, index = 1.5
-;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
+;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
 ;            cgoplot,x,y,color='Red',/linesty
 ;;           Moffat, index = 2.5
-;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
+;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
 ;            cgoplot,x,y,color='Red'
 ;;           Moffat, index = 5
-;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
+;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
 ;            cgoplot,x,y,color='Blue'
 ;         endif
 
@@ -2516,13 +2516,13 @@ pro ifsf_makemaps,initproc
 ;            y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
 ;            cgoplot,x,y,color='Black'
 ;;           Moffat, index = 1.5
-;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
+;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
 ;            cgoplot,x,y,color='Red',/linesty
 ;;           Moffat, index = 2.5
-;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
+;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
 ;            cgoplot,x,y,color='Red'
 ;;           Moffat, index = 5
-;            y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
+;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
 ;            cgoplot,x,y,color='Blue'
 ;         endif
          
@@ -3819,13 +3819,13 @@ pro ifsf_makemaps,initproc
 ; Moffat index values chosen to match turbulence theory (5), IRAF default (2.5),
 ; and wingy profile (1.5). These are the same chosen by Trujillo et al. 2001.
 ;                    Moffat, index = 1.5
-                     y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
+                     y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
                      cgoplot,x,y,color='Red',/linesty
 ;                    Moffat, index = 2.5
-                     y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
+                     y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
                      cgoplot,x,y,color='Red'
 ;                    Moffat, index = 5
-                     y = alog10(moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
+                     y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
                      cgoplot,x,y,color='Blue'
                   endif
 
