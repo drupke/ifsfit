@@ -3,7 +3,9 @@
 ;+
 ;
 ; Function to do b-spline interpolation to spectrum. Uses IDLUTILS 
-; implementation (BSPLINE_ITERFIT).
+; implementation (BSPLINE_ITERFIT). Default invocation of 
+; BSPLINE_ITERFIT makes a knot every 50 (good pixels), uses cubic
+; piecewise polynomials, and iterates 10 times with +/-5sigma rejection.
 ;
 ; :Categories:
 ;    IFSFIT

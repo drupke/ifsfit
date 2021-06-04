@@ -41,19 +41,22 @@
 ;
 ;-
 pro ifsf_plotcompass,xarr,yarr,carr=carr,nolab=nolab,hsize=hsize,hthick=hthick,$
-                     thick=thick
+                     thick=thick,charsize=charsize
   COMPILE_OPT IDL2, HIDDEN
   if ~ keyword_set(carr) then carr='Black'
   if ~ keyword_set(hsize) then hsize=!D.X_SIZE / 64
   if ~ keyword_set(hthick) then hthick=1d
   if ~ keyword_set(thick) then thick=!P.thick
+  if ~ keyword_set(charsize) then $
+     if !P.charsize ne 0d then charsize=!P.charsize $
+        else charsize=1d
   cgarrow,xarr[0],yarr[0],xarr[1],yarr[1],/data,/solid,color=carr,hsize=hsize,$
     hthick=hthick,thick=thick
   cgarrow,xarr[0],yarr[0],xarr[2],yarr[2],/data,/solid,color=carr,hsize=hsize,$
     hthick=hthick,thick=thick
   if ~ keyword_set(nolab) then begin
-    cgtext,xarr[3],yarr[3],'N',color=carr,align=0.5
-    cgtext,xarr[4],yarr[4],'E',color=carr,align=0.5
+    cgtext,xarr[3],yarr[3],'N',color=carr,align=0.5,charsize=charsize
+    cgtext,xarr[4],yarr[4],'E',color=carr,align=0.5,charsize=charsize
   endif
 end
 

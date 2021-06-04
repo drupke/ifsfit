@@ -164,7 +164,7 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
      FOR M =0, N_ELEMENTS(wave)-1 DO $
         printf, lun, wave[M], modflux[M], continuum[M], flux[M], $
                 relativeflux[M], $
-                FORMAT='(F10.4,2X,F7.4,2X,E13.6,2X,E13.6,2X,F7.4)'
+                FORMAT='(F10.4,2X,F7.4,2X,E13.6,2X,E13.6,2X,F10.4)'
      FREE_LUN,lun
   
      openw,lun,output+'param.txt',/GET_LUN

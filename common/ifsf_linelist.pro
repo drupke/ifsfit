@@ -145,7 +145,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ;  Sources:
 ;    T = Margaret Trippe's informal COS linelist
 ;    P01 = Prochaska+01, Table 2
-;    (https://ui.adsabs.harvard.edu/#abs/2001ApJS..137...21P/abstract)
+;    (https://ui.adsabs.harvard.edu/abs/2001ApJS..137...21P/abstract)
 ;    S = Savaglio (http://www.pha.jhu.edu/~savaglio/gdds/absorption.dat)
 ;    Lower state is ground unless labeled s (*) => lower state is excited
 ;
@@ -221,9 +221,9 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['NI1200b']  = 1200.710d
       lines['NII915'] = 915.612d
       lines['NII1083'] = 1083.990d
-      lines['NIII989'] = 989.790d
-;   lines['NIIIs1183'] = 1183.031d ; T only; f_jk similar to NIII989
-;   lines['NIIIs1184'] = 1184.550d ; T only; f_jk similar to NIII989
+      lines['NIII990'] = 989.790d
+;   lines['NIIIs1183'] = 1183.031d ; T only; f_jk similar to NIII990
+;   lines['NIIIs1184'] = 1184.550d ; T only; f_jk similar to NIII990
 ;   lines['NIVs1168'] = 1168.599d; T only; not sure of line ID
       lines['NV1238'] = 1238.821d
       lines['NV1242'] = 1242.804d
@@ -270,7 +270,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['SIII1190'] = 1190.206d
       lines['SIV1062'] = 1062.656
       lines['SVI933'] = 933.376d
-      lines['SVI944'] = 944.525d
+      lines['SVI945'] = 944.525d
 
 ;  Includes all Si lines from P01 up to lambda = 1600 A
       lines['SiII989'] = 989.87d
@@ -657,7 +657,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       linelab['NI1200b']  = 'NI 1200'
       linelab['NII915'] = 'NII 915'
       linelab['NII1083'] = 'NII 1083'
-      linelab['NIII989'] = 'NIII 989'
+      linelab['NIII990'] = 'NIII 990'
       linelab['NV1238'] = 'NV 1238'
       linelab['NV1242'] = 'NV 1242'
 
@@ -697,7 +697,7 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       linelab['SIII1190'] = 'SIII 1190'
       linelab['SIV1062'] = 'SIV 1062'
       linelab['SVI933'] = 'SVI 933'
-      linelab['SVI944'] = 'SVI 944'
+      linelab['SVI945'] = 'SVI 945'
 
       linelab['SiII989'] ='SiII 989'
       linelab['SiII1020'] ='SiII 1020'

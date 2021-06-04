@@ -320,6 +320,8 @@ pro ifsf_makemaps,initproc
    dohstsm=0
    dohstcol=0
    dohstcolsm=0
+   
+   ; Blue image
    if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstbl') then begin
       dohstbl=1
       if tag_exist(initmaps.hstbl,'ext') then hstblext=initmaps.hstbl.ext $
@@ -426,7 +428,9 @@ pro ifsf_makemaps,initproc
          if tag_exist(initmaps.hstblsm,'bgsub') then $
             bhst_fov_sm_ns_rb -= initmaps.hstblsm.bgsub
       endif
-   endif      
+   endif    
+   
+   ; Red image  
    if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstrd') then begin
       dohstrd=1
       if tag_exist(initmaps.hstrd,'ext') then hstrdext=initmaps.hstrd.ext $
@@ -536,8 +540,12 @@ pro ifsf_makemaps,initproc
             rhst_fov_sm_ns_rb -= initmaps.hstrdsm.bgsub
       endif
    endif
+   
+   ; Flag for either blue or red image
    if dohstbl OR dohstrd then dohst=1b
-   if dohst AND tag_exist(initmaps,'hstcol') then begin
+   
+   ; Color image
+   if dohstbl AND dohstrd AND tag_exist(initmaps,'hstcol') then begin
       dohstcol=1
       if initmaps.hstbl.platescale ne initmaps.hstrd.platescale then begin
          print,'IFSF_MAKEMAPS: EROR: HST blue and red plate scales differ.'
@@ -682,7 +690,9 @@ pro ifsf_makemaps,initproc
                                   initmaps.hstcol.scllim,/noscl,/fov,$
                                   hstps=hstpsbl,buffac=hstcol_buffac)
    endif
-   if tag_exist(initmaps,'hst') AND tag_exist(initmaps,'hstcolsm') then begin
+   
+   ; Smoothed (convolved) color image
+   if dohstbl AND dohstrd AND tag_exist(initmaps,'hstcolsm') then begin
       dohstcolsm=1
 ;     Shift one image w.r.t. the other if necessary
 ;     Use red image as reference by default
@@ -782,13 +792,44 @@ pro ifsf_makemaps,initproc
                                    hstps=hstpsbl,buffac=hstcol_buffac)
       cshst_fov_rb = congrid(cshst_fov_ns,dx,dy,/interp,/center)
    endif
-   if dohst AND dohstcol AND tag_exist(initdat,'vormap') then begin
+   
+   ; Voronoi binned, smoothed color image
+   if dohstcolsm AND tag_exist(initdat,'vormap') then begin
       dohstcolvor=1
-      cshst_fov_rb = -2.5d*alog10(bhst_fov_sm_ns_rb/rhst_fov_sm_ns_rb) + zpbl - zprd
+
+      ; Error image estimate
+      varbl = sdevbl^2d ; from typical error in hstblsm
+      varrd = sdevrd^2d ; from typical error in hstrdsm
+      magfac = initdat.platescale / hstpsbl
+      varbl *= magfac ; because congrid resamples rather than averages
+      varrd *= magfac
+      ; Create variance maps based on Voronoi bins
+      ; Uses code from creation of bhst_fov_sm_ns_rb
+      tmp_bl_rb_var = dblarr(dx,dy) + varbl
+      tmp_rd_rb_var = dblarr(dx,dy) + varrd
+      nvor = max(initdat.vormap)
+      badvor = where(~ finite(initdat.vormap),ctbad)
+      if ctbad gt 0 then tmp_rb[badvor] = 0d
+      for i=1,nvor do begin
+         ivor = where(initdat.vormap eq i,ctbins)
+         tmp_bl_rb_var[ivor] = total(tmp_bl_rb_var[ivor])/(ctbins*ctbins)
+         tmp_rd_rb_var[ivor] = total(tmp_rd_rb_var[ivor])/(ctbins*ctbins)
+      endfor
+      bhst_fov_sm_ns_rb_var = tmp_bl_rb_var
+      rhst_fov_sm_ns_rb_var = tmp_rd_rb_var
+
+      cshst_fov_rb = -2.5d*alog10(bhst_fov_sm_ns_rb/rhst_fov_sm_ns_rb) + $
+         zpbl - zprd
+      ecshst_fov_rb = 2.5d*alog10(exp(1d))*$
+         sqrt(bhst_fov_sm_ns_rb_var/bhst_fov_sm_ns_rb^2d + $
+         rhst_fov_sm_ns_rb_var/rhst_fov_sm_ns_rb^2d)
       inan = where(finite(cshst_fov_rb,/nan),ctnan)
       if tag_exist(initmaps.hstcol,'galextcor') then $
          cshst_fov_rb -= initmaps.hstcol.galextcor
-      if ctnan gt 0 then cshst_fov_rb[inan] = bad
+      if ctnan gt 0 then begin
+         cshst_fov_rb[inan] = bad
+         ecshst_fov_rb[inan] = bad
+      endif
    endif
    hstrd=0
    hstbl=0
@@ -1541,8 +1582,8 @@ pro ifsf_makemaps,initproc
    sinangarr = sin(angarr_rad)
    cosangarr = cos(angarr_rad)
 ;  starting point and length of compass rose normalized to plot panel
-   xarr0_norm = 0.95
-   yarr0_norm = 0.05
+   xarr0_norm = 0.95d
+   yarr0_norm = 0.05d
    rarr_norm = 0.2
    rlaboff_norm = 0.05
    laboff_norm = 0.0
@@ -1569,9 +1610,9 @@ pro ifsf_makemaps,initproc
    yarr_kpc[4] = yarr_kpc[0] + (rarr_norm+rlaboff_norm)*Pdim*sinangarr
 
    minyarr_kpc = min(yarr_kpc)
-   if minyarr_kpc lt yran_kpc[0] then yarr_kpc -= minyarr_kpc - yran_kpc[0]
+   if minyarr_kpc lt yran_kpc[0] then yarr_kpc -= (minyarr_kpc - yran_kpc[0])*1.5d
    maxxarr_kpc = max(xarr_kpc)
-   if maxxarr_kpc gt xran_kpc[1] then xarr_kpc -= maxxarr_kpc - xran_kpc[1]
+   if maxxarr_kpc gt xran_kpc[1] then xarr_kpc -= (maxxarr_kpc - xran_kpc[1])*1.5d
 
 ;  Compute coordinates for disk axis lines
    diskaxes_endpoints = 0b
@@ -2730,7 +2771,19 @@ pro ifsf_makemaps,initproc
 
    endif
 
+   stel_sig = 0b
+   stel_errsig = 0b
    if tag_exist(initdat,'decompose_ppxf_fit') then begin
+
+      stel_sig = dblarr(dx,dy)+bad
+      stel_errlosig = dblarr(dx,dy)+bad
+      stel_errhisig = dblarr(dx,dy)+bad
+      stel_sig[igd] = contcube.stel_sigma[igd]
+      stel_errlosig_tmp = contcube.stel_sigma_err[*,*,0]
+      stel_errhisig_tmp = contcube.stel_sigma_err[*,*,1]
+      stel_errlosig[igd] = stel_errlosig_tmp[igd]
+      stel_errhisig[igd] = stel_errhisig_tmp[igd]
+      stel_errsig = [[[stel_errlosig]],[[stel_errhisig]]]
 
       map = contcube.stel_sigma
       maperr = contcube.stel_sigma_err
@@ -3394,6 +3447,7 @@ pro ifsf_makemaps,initproc
    if dohstcolsm AND tag_exist(initdat,'ebv_star') then begin
 
       map = cshst_fov_rb
+      emap = ecshst_fov_rb
       igd = where(cshst_fov_rb ne bad AND stel_ebv ne bad)
       xran = [min(map[igd])*0.95d,max(map[igd])*1.05d]
       yran = plotdat_stel_ebv[0:1]
@@ -3406,7 +3460,8 @@ pro ifsf_makemaps,initproc
              ytit='stellar E(B-V)',title=initdat.name
       cgoplot,map,stel_ebv,psym=16,symsize=0.75d,$
               err_ylow=stel_errebv[*,*,0],$
-              err_yhi=stel_errebv[*,*,1],/err_clip
+              err_yhi=stel_errebv[*,*,1],/err_clip,$
+              err_xlow=emap,err_xhi=emap
 ;     Calzetti magnitude difference between red and blue continuum filters,
 ;     assuming R_V = 4.05 (though other R_V give same answer) and E(B-V)=1
       calz_unred,[pivotbl,pivotrd],[1d,1d],1d,funred
@@ -3443,6 +3498,7 @@ pro ifsf_makemaps,initproc
 
             if ctgd gt 0 then begin
                cmap = cshst_fov_rb
+               ecmap = ecshst_fov_rb
                xran = [min(cmap[igd])*0.95d,max(cmap[igd])*1.05d]
                yran = plotdat_ebv[fluxtype,0:1]
 
@@ -3452,7 +3508,8 @@ pro ifsf_makemaps,initproc
                       xtit=initmaps.hstbl.label+'-'+initmaps.hstrd.label,$
                       ytit='gas E(B-V)'
                cgoplot,cmap[igd],map[igd],psym=16,symsize=0.75d,$
-                       err_ylow=maperr[igd],err_yhi=maperr[igd]
+                       err_ylow=maperr[igd],err_yhi=maperr[igd],$
+                       err_xlow=ecmap[igd],err_xhi=ecmap[igd]
 ;              Same model as above but with steeper slope
                xmod = [min(cmap[igd]),max(cmap[igd])]
                m /= 0.44d

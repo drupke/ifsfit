@@ -206,8 +206,8 @@ function ifsf_doubletfcn, wave, param,$
          modtmp*=ifsf_cmpsinglet(wave,param[ilo+i*4:ilo+(i+1)*4-1],$
                                  tratio,lratio)
 ;      igdvels = where(vels lt 0 AND vels gt -2.9d4,ctgdvels)
-;      gdvels = abs(vels[igdvels])
       igdvels = where(vels gt -2.9d4,ctgdvels)
+;      gdvels = abs(vels[igdvels])
       gdvels = vels[igdvels]
       gdmod = modtmp[igdvels]
 ;      dgdvels = gdvels[0:ctgdvels-2] - gdvels[1:ctgdvels-1]
