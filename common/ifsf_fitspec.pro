@@ -453,7 +453,11 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
         stel_mod = continuum - poly_mod
 
 ;       Adjust stellar redshift based on fit
-        zstar += sol[0]/c
+; From ppxf docs:
+; IMPORTANT: The precise relation between the output pPXF velocity
+; and redshift is Vel = c*np.log(1 + z).
+; See Section 2.3 of Cappellari (2017) for a detailed explanation.
+        zstar += exp(sol[0]/c) - 1d
         ppxf_sigma=sol[1]
 
 ;     From PPXF docs:

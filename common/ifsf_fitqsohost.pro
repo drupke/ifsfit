@@ -231,7 +231,7 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
       continuum = qsomod+cont_resid
 
 ;     Adjust stellar redshift based on fit
-      zstar += sol[0]/c
+      zstar += exp(sol[0]/c) - 1d
 
 ;     Refit QSO residual???
 ;      newresid=flux-cont_resid

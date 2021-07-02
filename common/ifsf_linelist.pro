@@ -76,9 +76,10 @@
 ;      2020jun05, DSNR, added [NeV], [NeIII], MgII doublet cases;
 ;                       now check lines/labels only on output lines
 ;      2020jun08, DSNR, now returns only line labels corresponding to output lines
+;      2021jun29, DSNR, changed OVI labels from 1031/1037 to 1032/1038
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2020 David S. N. Rupke, Anthony To
+;    Copyright (C) 2013--2021 David S. N. Rupke, Anthony To
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -679,8 +680,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       linelab['OI1039'] = 'OI 1039'
       linelab['OI1302'] = 'OI 1302'
       linelab['OI1355'] = 'OI 1355'
-      linelab['OVI1031'] = 'OVI 1031'
-      linelab['OVI1037'] = 'OVI 1037'
+      linelab['OVI1031'] = 'OVI 1032'
+      linelab['OVI1037'] = 'OVI 1038'
 
       linelab['PII963'] = 'PII 963'
       linelab['PII1152'] = 'PII 1152'

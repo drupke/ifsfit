@@ -192,6 +192,19 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
      fcnpltcont=initdat.fcnpltcont $
   else fcnpltcont='ifsf_pltcont'
 
+; Make hashes connecting lines tied TO with tied lines
+; Code from IFSF_CHECKCOMP
+; Find unique anchors
+  anchors = (initdat.linetie.values()).toarray()
+  sanchors = anchors[sort(anchors)]
+  uanchors = sanchors[uniq(sanchors)]
+; Find lines associated with each unique anchor. NEWLINETIE is a hash of lists,
+; with the keys being the lines that are tied TO and the list corresponding to
+; each key consisting of the tied lines.
+  newlinetie = hash(uanchors)
+  foreach val,newlinetie,key do newlinetie[key] = list()
+  foreach val,initdat.linetie,key do newlinetie[val].add,key
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -236,6 +249,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    if ~ tag_exist(initdat,'noemlinfit') then begin
+      ; structures for re-initializing initial conditions
+      emlz = hash()
+      emlsiginit = hash()
+      emlncomp = hash()      
+      ; structures for feeding to MAKEMAPS
       emlwav = hash()
       emlwaverr = hash()
       emlsig = hash()
@@ -258,6 +276,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          emlflx['f'+cstr+'pk']=hash()
          emlflxerr['f'+cstr+'pk']=hash()
       endfor
+      foreach line,newlinetie.keys() do begin
+         emlncomp[line]=intarr(cube.ncols,cube.nrows)
+         emlz[line]=dblarr(cube.ncols,cube.nrows,initdat.maxncomp)+bad
+         emlsiginit[line]=dblarr(cube.ncols,cube.nrows,initdat.maxncomp)+bad
+      endforeach
       foreach line,lines_with_doublets do begin
          emlweq['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
          emlflx['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
@@ -389,6 +412,23 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ; Plot emission-line data and print data to a file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;       compute z's
+        if ~ struct.noemlinfit then begin
+           emlz_spax = hash()
+           ; emlz_spax, emlncomp, and emlz have keys consisting only of lines tied to
+           foreach line,newlinetie.keys() do begin
+              ifit = where(linepars.wave[line,*] ne 0d AND $
+                           linepars.sigma[line,*] ne bad,ctfit)
+              emlncomp[line,i,j] = ctfit
+              emlz_spax[line] = dblarr(initdat.maxncomp) + bad
+              for k=0,ctfit-1 do begin
+                 emlz_spax[line,k] = (linepars.wave[line,k]/linelist[line])-1d
+                 ; this gets assigned later during sorting
+                 ; emlz[line,i,j,k] = emlz_spax[line,k]
+              endfor
+           endforeach
+        endif
+
         if not keyword_set(noplots) then begin
 
 ;          Plot emission lines
@@ -398,10 +438,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     fcnpltlin=initdat.fcnpltlin else fcnpltlin='ifsf_pltlin'
                  if tag_exist(initdat,'argspltlin1') then $
                     call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
-                                   outfile+'_lin1'
+                                   outfile+'_lin1',emlz_spax
                  if tag_exist(initdat,'argspltlin2') then $
                     call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
-                                   outfile+'_lin2'
+                                   outfile+'_lin2',emlz_spax
               endif
            endif
 
@@ -458,26 +498,36 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                  if flipsort[i,j] then isort = reverse(isort)
            endif
            if thisncomp gt 0 then begin
-             foreach line,lines_with_doublets do begin
-                kcomp = 1
-                foreach sindex,isort do begin
-                   cstr='c'+string(kcomp,format='(I0)')
-                   emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
-                   emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
-                   emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
-                   emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
-                   emlweq['f'+cstr,line,i,j]=lineweqs.comp[line,sindex]
-                   emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
-                   emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
-                   emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
-                   emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
-                   kcomp++
+              foreach line,lines_with_doublets do begin
+                 kcomp = 1
+                 foreach sindex,isort do begin
+                    cstr='c'+string(kcomp,format='(I0)')
+                    emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
+                    emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
+                    emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
+                    emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
+                    emlweq['f'+cstr,line,i,j]=lineweqs.comp[line,sindex]
+                    emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
+                    emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
+                    emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
+                    emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
+                    kcomp++
                  endforeach
               endforeach
+              foreach line, newlinetie.keys() do begin
+                 kcomp = 0
+                 foreach sindex,isort do begin
+                    emlz[line,i,j,kcomp] = emlz_spax[line,sindex]
+                    emlsiginit[line,i,j,kcomp] = linepars.sigma[line,sindex]
+                    kcomp++
+                 endforeach
+              endforeach
+
 ;             Print line fluxes to a text file
               if not linepars.nolines then $ 
                  ifsf_printlinpar,lines_with_doublets,linlun,i+1,j+1,$
                                   initdat.maxncomp,linepars
+
            endif
         endif
         
@@ -1108,7 +1158,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif
         endforeach
      endif
-;    Compute CVDFs
+;    Compute CVDFs and write emission-line hashes to a file
      if not tag_exist(initdat,'nocvdf') then begin
         if tag_exist(initdat,'cvdf_vlimits') then vlimits=initdat.cvdf_vlimits $
         else vlimits=0
@@ -1123,11 +1173,11 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         save,emlwav,emlwaverr,emlsig,emlsigerr,emlweq,emlflx,emlflxerr,$
              file=initdat.outdir+initdat.label+'.lin.xdr'
      endelse
+;    Save emission-line z's and ncomp's to a file
+     save,emlz,emlncomp,emlsiginit,file=initdat.outdir+initdat.label+'.lininit.xdr'
   endif
 
-  ;  if tag_exist(initdat,'decompose_ppxf_fit') OR $
-  ;     tag_exist(initdat,'decompose_qso_fit') then $
-  save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
+   save,contcube,file=initdat.outdir+initdat.label+'.cont.xdr'
 
    if tag_exist(initdat,'host') then begin
 ;     Change initial wavelength -- use last restored fit structure. For some 
@@ -1148,10 +1198,17 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          sxaddpar,newheader_dat,'CDELT1',cdelt1
          sxaddpar,newheader_var,'CDELT1',cdelt1
          sxaddpar,newheader_dq,'CDELT1',cdelt1
-         writefits,initdat.host.dat_fits,cube.phu,header.phu
-         writefits,initdat.host.dat_fits,$
-                   reform(hostcube.dat,n_elements(hostcube.dat)),$
-                   newheader_dat,/append
+;        case of no PHU
+         if datext lt 0 then begin
+            writefits,initdat.host.dat_fits,$
+               reform(hostcube.dat,n_elements(hostcube.dat)),$
+               newheader_dat
+         endif else begin
+            writefits,initdat.host.dat_fits,cube.phu,header.phu
+            writefits,initdat.host.dat_fits,$
+               reform(hostcube.dat,n_elements(hostcube.dat)),$
+               newheader_dat,/append
+         endelse
          if dqext eq 2 AND varext eq 3 then begin
             writefits,initdat.host.dat_fits,$
                       reform(hostcube.dq,n_elements(hostcube.dat)),$

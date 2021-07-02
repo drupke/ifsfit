@@ -49,6 +49,7 @@ function ifsf_convolve_s7nad_valdes,templam,temp,datlam,dat,newdat,z
    sigtofwhm = 2d*sqrt(2d*alog(2d))
 
    sig_valdes_A = 1.35d*(1d + z) / sigtofwhm
+   ; multiply here b/c R is bigger for smaller dlambda or dvel
    sig_s7b_R = 3000d * sigtofwhm
    sig_s7r_R = 7000d * sigtofwhm
    mergelam_A = 5600d ; where blue and red spectra are stitched

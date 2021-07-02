@@ -68,7 +68,9 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_pltlin,instr,pltpar,outfile
+pro ifsf_pltlin,instr,pltpar,outfile,emlz
+
+   bad = 1d99
 
    set_plot,'Z'
    device,decomposed=0,set_resolution=[1500,900],set_pixel_depth=24
@@ -92,7 +94,7 @@ pro ifsf_pltlin,instr,pltpar,outfile
    pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
                   oxmar=[22,0],oymar=[10,0],xgap=20,ygap=6)
 
-  ncomp = instr.param[1]
+  maxncomp = instr.param[1]
   colors = ['Magenta','Green','Orange','Teal']
 
   wave = instr.wave
@@ -172,7 +174,7 @@ pro ifsf_pltlin,instr,pltpar,outfile
                xtickn=replicate(' ',60),ytit=ytit,/noerase,$
                axiscol='White',col='White',/norm,/xsty,/ysty,thick=1
         cgoplot,wave,ymod,color='Red',thick=4
-        for j=1,ncomp do begin
+        for j=1,maxncomp do begin
            flux = ifsf_cmplin(instr,linlab[i],j,/velsig)
            cgoplot,wave,yran[0]+flux,color=colors[j-1],linesty=2,thick=2
            if linoth[0,i] ne '' then begin
@@ -188,6 +190,17 @@ pro ifsf_pltlin,instr,pltpar,outfile
         cgtext,xran[0]+(xran[1]-xran[0])*0.05d,$
                yran[0]+(yran[1]-yran[0])*0.85d,$
                linlab[i],charsize=1.5,charthick=2,/dat
+; z labels
+        if emlz.haskey(linlab[i])then begin
+           for j=0,maxncomp-1 do begin
+              if emlz[linlab[i],j] ne bad then begin
+                 cgtext,xran[0]+(xran[1]-xran[0])*0.78d,$
+                    yran[0]+(yran[1]-yran[0])*(0.92d - double(j)*0.1d),$
+                    string(emlz[linlab[i],j],format='(D0.4)'),$
+                    charsize=1.5,charthick=2,/dat,color=colors[j]
+              endif
+           endfor
+        endif
         if nmasked gt 0 then $
            for j=0,nmasked-1 do $
               cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
