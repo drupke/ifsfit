@@ -613,6 +613,7 @@ pro ifsf_makemaps,initproc
          size_hst = size(hstrd)
          pxhst = round(size_hst[1]/10)
          pyhst = round(size_hst[2]/10)
+         sdevreg = intarr(4,4)
          sdevreg[*,0] = [3*pxhst,4*pxhst,3*pyhst,4*pyhst]
          sdevreg[*,1] = [3*pxhst,4*pxhst,6*pyhst,7*pyhst]
          sdevreg[*,2] = [6*pxhst,7*pxhst,3*pyhst,4*pyhst]
@@ -795,7 +796,7 @@ pro ifsf_makemaps,initproc
    
    ; Voronoi binned, smoothed color image
    if dohstcolsm AND tag_exist(initdat,'vormap') then begin
-      dohstcolvor=1
+      dohstcolvor=1b
 
       ; Error image estimate
       varbl = sdevbl^2d ; from typical error in hstblsm
@@ -830,7 +831,7 @@ pro ifsf_makemaps,initproc
          cshst_fov_rb[inan] = bad
          ecshst_fov_rb[inan] = bad
       endif
-   endif
+   endif else dohstcolvor=0b
    hstrd=0
    hstbl=0
    hstcol=0
@@ -1082,12 +1083,12 @@ pro ifsf_makemaps,initproc
             ebvmed = hash()
             foreach key,initmaps.ebv.calc do begin
                if tag_exist(initmaps,'argslineratios') then $
-                  ebvtmp = $
-                     ifsf_lineratios(emlflx[key],emlflxerr[key],linelist,/ebvonly,$
-                                     errlo=errtmp,_extra=initmaps.argslineratios) $
-               else ebvtmp = $
+                  argslineratios = initmaps.argslineratios $
+               else $
+                  argslineratios = !NULL
+               ebvtmp = $
                   ifsf_lineratios(emlflx[key],emlflxerr[key],linelist,/ebvonly,$
-                                  errlo=errtmp)
+                                  errlo=errtmp,_extra=initmaps.argslineratios)
                ebv[key] = ebvtmp['ebv']
                errebv[key] = errtmp['ebv']
                igdebv = where(ebv[key] ne bad,ctgdebv)
@@ -1152,9 +1153,14 @@ pro ifsf_makemaps,initproc
       if tag_exist(initmaps,'lr') then begin
          if tag_exist(initmaps.lr,'calc') then begin
             foreach key,initmaps.lr.calc do begin
+               if tag_exist(initmaps,'argslineratios') then $
+                  argslineratios = initmaps.argslineratios $
+               else $
+                  argslineratios=!NULL
                lrtmp = $
                   ifsf_lineratios(emlflx[key],emlflxerr[key],linelist,/lronly,$
-                                  errlo=errlotmp,errhi=errhitmp)
+                                  errlo=errlotmp,errhi=errhitmp,$
+                                  _extra=argslineratios)
                lr[key] = hash()
                lrerrlo[key] = hash()
                lrerrhi[key] = hash()
@@ -1163,7 +1169,6 @@ pro ifsf_makemaps,initproc
                   lrerrlo[key,lrloop] = errlotmp[lrloop]
                   lrerrhi[key,lrloop] = errhitmp[lrloop]
                endforeach
-
 
 ;              Compute electron densities
 ;              Use #s from Sanders, Shapley, et al. 2015
@@ -1893,14 +1898,14 @@ pro ifsf_makemaps,initproc
          if dohstbl AND dohstrd then begin
             ctmap = (double(rhst_fov_sm_ns_rb)+double(bhst_fov_sm_ns_rb))/2d
             if tag_exist(initmaps.hstblsm,'beta') then $
-               beta=initmaps.hstblsm.beta $
+               beta=initmaps.hstblsm.sclargs.beta $
             else if tag_exist(initmaps.hstrdsm,'beta') then $
-               beta=initmaps.hstrdsm.beta $
+               beta=initmaps.hstrdsm.sclargs.beta $
             else beta=1d
             if tag_exist(initmaps.hstblsm,'stretch') then $
-               stretch=initmaps.hstblsm.stretch $
+               stretch=initmaps.hstblsm.sclargs.stretch $
             else if tag_exist(initmaps.hstrdsm,'stretch') then $
-               stretch=initmaps.hstrdsm.stretch $
+               stretch=initmaps.hstrdsm.sclargs.stretch $
             else stretch=1
             if tag_exist(initmaps.hstblsm,'scllim') then $
                scllim=initmaps.hstblsm.scllim $
@@ -1921,10 +1926,10 @@ pro ifsf_makemaps,initproc
          endif else begin
             ctmap = rhst_fov_sm_ns_rb
             if tag_exist(initmaps.hstrdsm,'beta') then $
-               beta=initmaps.hstrdsm.beta $
+               beta=initmaps.hstrdsm.sclargs.beta $
             else beta=1d
             if tag_exist(initmaps.hstrdsm,'stretch') then $
-               stretch=initmaps.hstrdsm.stretch $
+               stretch=initmaps.hstrdsm.sclargs.stretch $
             else stretch=1
             if tag_exist(initmaps.hstrdsm,'scllim') then $
                scllim=initmaps.hstrdsm.scllim $
@@ -3447,7 +3452,7 @@ pro ifsf_makemaps,initproc
    if dohstcolsm AND tag_exist(initdat,'ebv_star') then begin
 
       map = cshst_fov_rb
-      emap = ecshst_fov_rb
+      ; presently error in color only computed for Voronoi case
       igd = where(cshst_fov_rb ne bad AND stel_ebv ne bad)
       xran = [min(map[igd])*0.95d,max(map[igd])*1.05d]
       yran = plotdat_stel_ebv[0:1]
@@ -3458,10 +3463,17 @@ pro ifsf_makemaps,initproc
       cgplot,[0],/xsty,/ysty,/nodata,xran=xran,yran=yran,$
              xtit=initmaps.hstbl.label+'-'+initmaps.hstrd.label,$
              ytit='stellar E(B-V)',title=initdat.name
-      cgoplot,map,stel_ebv,psym=16,symsize=0.75d,$
-              err_ylow=stel_errebv[*,*,0],$
-              err_yhi=stel_errebv[*,*,1],/err_clip,$
-              err_xlow=emap,err_xhi=emap
+      if dohstcolvor then begin
+         emap = ecshst_fov_rb
+         cgoplot,map,stel_ebv,psym=16,symsize=0.75d,$
+            err_ylow=stel_errebv[*,*,0],$
+            err_yhi=stel_errebv[*,*,1],/err_clip,$
+            err_xlow=emap,err_xhi=emap
+      endif else begin
+         cgoplot,map,stel_ebv,psym=16,symsize=0.75d,$
+            err_ylow=stel_errebv[*,*,0],$
+            err_yhi=stel_errebv[*,*,1],/err_clip
+      endelse
 ;     Calzetti magnitude difference between red and blue continuum filters,
 ;     assuming R_V = 4.05 (though other R_V give same answer) and E(B-V)=1
       calz_unred,[pivotbl,pivotrd],[1d,1d],1d,funred
@@ -3498,7 +3510,6 @@ pro ifsf_makemaps,initproc
 
             if ctgd gt 0 then begin
                cmap = cshst_fov_rb
-               ecmap = ecshst_fov_rb
                xran = [min(cmap[igd])*0.95d,max(cmap[igd])*1.05d]
                yran = plotdat_ebv[fluxtype,0:1]
 
@@ -3507,9 +3518,15 @@ pro ifsf_makemaps,initproc
                cgplot,[0],/xsty,/ysty,/nodata,xran=xran,yran=yran,$
                       xtit=initmaps.hstbl.label+'-'+initmaps.hstrd.label,$
                       ytit='gas E(B-V)'
-               cgoplot,cmap[igd],map[igd],psym=16,symsize=0.75d,$
-                       err_ylow=maperr[igd],err_yhi=maperr[igd],$
-                       err_xlow=ecmap[igd],err_xhi=ecmap[igd]
+               if dohstcolvor then begin
+                  ecmap = ecshst_fov_rb
+                  cgoplot,cmap[igd],map[igd],psym=16,symsize=0.75d,$
+                     err_ylow=maperr[igd],err_yhi=maperr[igd],$
+                     err_xlow=ecmap[igd],err_xhi=ecmap[igd]
+               endif else begin
+                  cgoplot,cmap[igd],map[igd],psym=16,symsize=0.75d,$
+                     err_ylow=maperr[igd],err_yhi=maperr[igd]
+               endelse
 ;              Same model as above but with steeper slope
                xmod = [min(cmap[igd]),max(cmap[igd])]
                m /= 0.44d
@@ -3523,7 +3540,7 @@ pro ifsf_makemaps,initproc
    endif
    
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Plots of line ratios
+;; Plots of line ratios: VO87
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    if tag_exist(initmaps,'lr') then begin
@@ -3550,172 +3567,246 @@ pro ifsf_makemaps,initproc
                endif
             endfor
 
-;           Figure out correct image size in inches
-            xpanel_in = 1.75d
-            margin_in = 0.5d
-            topmargin_in = 0.5d
-            halfmargin_in = margin_in/1d
-            xsize_in = xpanel_in*double(npx) + margin_in
-            aspectrat_fov=double(dx)/double(dy)
-            ysize_in = (xpanel_in * 1d/aspectrat_fov + margin_in) + $
-                       (xpanel_in + 2d*margin_in) + topmargin_in
-;           Sizes and positions of image windows in real and normalized coordinates
-            pan_xfrac = xpanel_in/xsize_in
-            pan_yfrac = xpanel_in/aspectrat_fov/ysize_in
-            sqpan_yfrac = xpanel_in/ysize_in
-            mar_xfrac = margin_in/xsize_in
-            mar_yfrac = margin_in/ysize_in
-            topmar_yfrac = topmargin_in/ysize_in
-            hmar_xfrac = halfmargin_in/xsize_in
-            hmar_yfrac = halfmargin_in/ysize_in
-            pos_top = dblarr(4,npx)
-            pos_toptit = dblarr(2,npx)
-            pos_mid = dblarr(4,npx)
-            pos_midtit = dblarr(2,npx)
-            pos_bot = dblarr(4,npx)
-            for k=0,npx-1 do begin
-               pos_top[*,k] = [mar_xfrac+double(k)*pan_xfrac,$
-                         1d - (mar_yfrac+pan_yfrac) - topmar_yfrac,$
-                         mar_xfrac+double(k+1)*pan_xfrac,$
-                         1d - mar_yfrac - topmar_yfrac]
-               pos_bot[*,k] = [mar_xfrac+double(k)*pan_xfrac,$
-                         mar_yfrac,$
-                         mar_xfrac+double(k+1)*pan_xfrac,$
-                         mar_yfrac+sqpan_yfrac]
-            endfor
-            pos_title1 = [mar_xfrac+double(npx)*pan_xfrac/2d,$
-                          1d - topmar_yfrac*0.45d]
-            pos_title2 = [mar_xfrac+double(npx)*pan_xfrac/2d,$
-                          1d - topmar_yfrac*0.85d]
+            ; make sure there are any VO line ratios!
+            if lrsort ne !NULL then begin
 
-            cgps_open,initdat.mapdir+initdat.label+'lr_'+fluxtype+'.eps',$
-                      charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
-            cbform = '(D0.2)'
+;              Figure out correct image size in inches
+               xpanel_in = 1.75d
+               margin_in = 0.5d
+               topmargin_in = 0.5d
+               halfmargin_in = margin_in/1d
+               xsize_in = xpanel_in*double(npx) + margin_in
+               aspectrat_fov=double(dx)/double(dy)
+               ysize_in = (xpanel_in * 1d/aspectrat_fov + margin_in) + $
+                          (xpanel_in + 2d*margin_in) + topmargin_in
+   ;           Sizes and positions of image windows in real and normalized coordinates
+               pan_xfrac = xpanel_in/xsize_in
+               pan_yfrac = xpanel_in/aspectrat_fov/ysize_in
+               sqpan_yfrac = xpanel_in/ysize_in
+               mar_xfrac = margin_in/xsize_in
+               mar_yfrac = margin_in/ysize_in
+               topmar_yfrac = topmargin_in/ysize_in
+               hmar_xfrac = halfmargin_in/xsize_in
+               hmar_yfrac = halfmargin_in/ysize_in
+               pos_top = dblarr(4,npx)
+               pos_toptit = dblarr(2,npx)
+               pos_mid = dblarr(4,npx)
+               pos_midtit = dblarr(2,npx)
+               pos_bot = dblarr(4,npx)
+               for k=0,npx-1 do begin
+                  pos_top[*,k] = [mar_xfrac+double(k)*pan_xfrac,$
+                            1d - (mar_yfrac+pan_yfrac) - topmar_yfrac,$
+                            mar_xfrac+double(k+1)*pan_xfrac,$
+                            1d - mar_yfrac - topmar_yfrac]
+                  pos_bot[*,k] = [mar_xfrac+double(k)*pan_xfrac,$
+                            mar_yfrac,$
+                            mar_xfrac+double(k+1)*pan_xfrac,$
+                            mar_yfrac+sqpan_yfrac]
+               endfor
+               pos_title1 = [mar_xfrac+double(npx)*pan_xfrac/2d,$
+                             1d - topmar_yfrac*0.45d]
+               pos_title2 = [mar_xfrac+double(npx)*pan_xfrac/2d,$
+                             1d - topmar_yfrac*0.85d]
+   
+               cgps_open,initdat.mapdir+initdat.label+'lr_'+fluxtype+'.eps',$
+                         charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
+               cbform = '(D0.2)'
 
-;           Loop through plot panels
-            for j=0,npx-1 do begin
-
-               map = lr[fluxtype,lrsort[j]]
-               maperrlo = lrerrlo[fluxtype,lrsort[j]]
-               maperrhi = lrerrhi[fluxtype,lrsort[j]]
-               ibd = where(map eq bad OR ~ finite(map),ctbd)
-               igd = where(map ne bad AND finite(map),ctgd)
-
-;              Set up range
-               if hasrangefile then begin
-                  ithisline = where(rangeline eq lrsort[j] AND $
-                                    rangequant eq fluxtype,ctthisline)
-                  if ctthisline eq 1 then auto=0b
-               endif else auto=1b
-               plotdat = $
-                  ifsf_plotrange(auto=auto,$
-                                 mapgd=map[igd],divinit=0.5d,$
-                                 ncbdivmax=ncbdivmax,$
-                                 rline=rangeline,matline=lrsort[j],$
-                                 rcomp=rangecomp,$
-                                 rquant=rangequant,matquant=fluxtype,$
-                                 rncbdiv=rangencbdiv,$
-                                 rlo=rangelo,rhi=rangehi)
-
-               mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-                               min=plotdat[0],max=plotdat[1])
-               cgloadct,74,/reverse
-               cgimage,mapscl,/keep,pos=pos_top[*,j],opos=truepos,$
-                       /noerase,missing_value=bad,missing_index=255,$
-                       missing_color='white'
-               cgplot,[0],xsty=5,ysty=5,position=truepos,$
-                      /nodata,/noerase
-               if j eq 0 then nolab=0b else nolab=1b
-               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
-                                   center_nuclei_kpc_y,nolab=nolab
-               xoffset = pan_xfrac*0.05
-               yoffset = mar_yfrac*0.2
-               cbpos=[truepos[0]+xoffset,truepos[3],truepos[2]-xoffset,$
-                      truepos[3]+yoffset]
-               ticknames = string(dindgen(plotdat[3]+1)*$
-                                  plotdat[2]/double(plotdat[3]) - $
-                                  (plotdat[2] - plotdat[1]),format=cbform)
-               cgcolorbar,position=cbpos,divisions=plotdat[3],$
-                          ticknames=ticknames,/top,charsize=0.6
-               yoffset = mar_yfrac*0.65
-               if lrsort[j] eq 'o3hb' then panel_title='[OIII]/H$\beta$'
-               if lrsort[j] eq 'n2ha' then panel_title='[NII]/H$\alpha$'
-               if lrsort[j] eq 'o1ha' then panel_title='[OI]/H$\alpha$'
-               if lrsort[j] eq 's2ha' then panel_title='[SII]/H$\alpha$'
-               cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
-                      truepos[3]+yoffset,panel_title,$
-                      charsize=1.05,align=0.5,/norm
-
-               if lrsort[j] eq 'o3hb' then begin
-                  map_o3hb = map
-                  maperrlo_o3hb = maperrlo
-                  maperrhi_o3hb = maperrhi
-                  igd_o3hb = igd
-                  plotdat_o3hb = plotdat
-               endif
-
-               if npy eq 2 AND j ne 0 then begin
-
-                  if lrsort[j] eq 'n2ha' then begin
-                     xran = [-1.99d,0.99d]
-                     yran = [-1.19d,1.49d]
-                     xkew1 = 0.05d*indgen(110)-5d
-                     ykew1 = 0.61d / (xkew1-0.47d)+1.19d
-                     xkew2 = 0.05d*indgen(41)-2d
-                     ykew2 = 0.61d / (xkew2-0.05d)+1.3d
+   ;           Loop through plot panels
+               for j=0,npx-1 do begin
+   
+                  map = lr[fluxtype,lrsort[j]]
+                  maperrlo = lrerrlo[fluxtype,lrsort[j]]
+                  maperrhi = lrerrhi[fluxtype,lrsort[j]]
+                  ibd = where(map eq bad OR ~ finite(map),ctbd)
+                  igd = where(map ne bad AND finite(map),ctgd)
+   
+   ;              Set up range
+                  if hasrangefile then begin
+                     ithisline = where(rangeline eq lrsort[j] AND $
+                                       rangequant eq fluxtype,ctthisline)
+                     if ctthisline eq 1 then auto=0b
+                  endif else auto=1b
+                  plotdat = $
+                     ifsf_plotrange(auto=auto,$
+                                    mapgd=map[igd],divinit=0.5d,$
+                                    ncbdivmax=ncbdivmax,$
+                                    rline=rangeline,matline=lrsort[j],$
+                                    rcomp=rangecomp,$
+                                    rquant=rangequant,matquant=fluxtype,$
+                                    rncbdiv=rangencbdiv,$
+                                    rlo=rangelo,rhi=rangehi)
+   
+                  mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+                                  min=plotdat[0],max=plotdat[1])
+                  cgloadct,74,/reverse
+                  cgimage,mapscl,/keep,pos=pos_top[*,j],opos=truepos,$
+                          /noerase,missing_value=bad,missing_index=255,$
+                          missing_color='white'
+                  cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                         /nodata,/noerase
+                  if j eq 0 then nolab=0b else nolab=1b
+                  ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                                      center_nuclei_kpc_y,nolab=nolab
+                  xoffset = pan_xfrac*0.05
+                  yoffset = mar_yfrac*0.2
+                  cbpos=[truepos[0]+xoffset,truepos[3],truepos[2]-xoffset,$
+                         truepos[3]+yoffset]
+                  ticknames = string(dindgen(plotdat[3]+1)*$
+                                     plotdat[2]/double(plotdat[3]) - $
+                                     (plotdat[2] - plotdat[1]),format=cbform)
+                  cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                             ticknames=ticknames,/top,charsize=0.6
+                  yoffset = mar_yfrac*0.65
+                  if lrsort[j] eq 'o3hb' then panel_title='[OIII]/H$\beta$'
+                  if lrsort[j] eq 'n2ha' then panel_title='[NII]/H$\alpha$'
+                  if lrsort[j] eq 'o1ha' then panel_title='[OI]/H$\alpha$'
+                  if lrsort[j] eq 's2ha' then panel_title='[SII]/H$\alpha$'
+                  cgtext,truepos[0]+(truepos[2]-truepos[0])/2d,$
+                         truepos[3]+yoffset,panel_title,$
+                         charsize=1.05,align=0.5,/norm
+   
+                  if lrsort[j] eq 'o3hb' then begin
+                     map_o3hb = map
+                     maperrlo_o3hb = maperrlo
+                     maperrhi_o3hb = maperrhi
+                     igd_o3hb = igd
+                     plotdat_o3hb = plotdat
                   endif
-                  if lrsort[j] eq 'o1ha' then begin
-                     xran = [-2.19d,0.79d]
-                     yran = [-1.19d,1.49d]
-                     xkew1 = 0.05*indgen(85)-5
-                     ykew1 = 0.73d / (xkew1+0.59d)+1.33d
-                     xkew2 = 0.5d*indgen(2)-1.1d
-                     ykew2 = 1.18d*xkew2 + 1.30d
+   
+                  if npy eq 2 AND j ne 0 then begin
+   
+                     if lrsort[j] eq 'n2ha' then begin
+                        xran = [-1.99d,0.99d]
+                        yran = [-1.19d,1.49d]
+                        xkew1 = 0.05d*indgen(110)-5d
+                        ykew1 = 0.61d / (xkew1-0.47d)+1.19d
+                        xkew2 = 0.05d*indgen(41)-2d
+                        ykew2 = 0.61d / (xkew2-0.05d)+1.3d
+                     endif
+                     if lrsort[j] eq 'o1ha' then begin
+                        xran = [-2.19d,0.79d]
+                        yran = [-1.19d,1.49d]
+                        xkew1 = 0.05*indgen(85)-5
+                        ykew1 = 0.73d / (xkew1+0.59d)+1.33d
+                        xkew2 = 0.5d*indgen(2)-1.1d
+                        ykew2 = 1.18d*xkew2 + 1.30d
+                     endif
+                     if lrsort[j] eq 's2ha' then begin
+                        xran = [-1.99d,0.99d]
+                        yran = [-1.19d,1.49d]
+                        xkew1 = 0.05*indgen(105)-5
+                        ykew1 = 0.72d / (xkew1-0.32d)+1.30d
+                        xkew2 = 0.5d*indgen(2)-0.4d
+                        ykew2 = 1.89d*xkew2+0.76d
+                     endif
+   
+                     igdvo = cgsetintersection(igd,igd_o3hb)
+   
+                     if j eq 1 then ytit = '[OIII]/H$\beta$' else ytit=''
+                     if j gt 1 then ytickf='(A1)' else ytickf='(D0.1)'
+                     cgplot,[0],/xsty,/ysty,xran=xran,yran=yran,pos=pos_bot[*,j],$
+                                /nodata,/noerase,xtit=panel_title,ytit=ytit,$
+                                aspect=1d,ytickf=ytickf
+                     cgoplot,map[igdvo],map_o3hb[igdvo],psym=16,symsize=0.01,$
+                             err_xlow=maperrlo[igdvo],err_xhigh=maperrhi[igdvo],$
+                             err_ylow=maperrlo_o3hb[igdvo],$
+                             err_yhigh=maperrhi_o3hb[igdvo],$
+                             err_color='Red',err_thick=2,/err_clip,$
+                             err_width=0d
+                     cgoplot,map[igdvo],map_o3hb[igdvo],psym=16,symsize=0.5d
+                     cgoplot,xkew1,ykew1
+                     cgoplot,xkew2,ykew2,linesty=1
+   
                   endif
-                  if lrsort[j] eq 's2ha' then begin
-                     xran = [-1.99d,0.99d]
-                     yran = [-1.19d,1.49d]
-                     xkew1 = 0.05*indgen(105)-5
-                     ykew1 = 0.72d / (xkew1-0.32d)+1.30d
-                     xkew2 = 0.5d*indgen(2)-0.4d
-                     ykew2 = 1.89d*xkew2+0.76d
-                  endif
+   
+               endfor
+   
+   ;           Title
+               cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
+               cgtext,pos_title1[0],pos_title1[1],$
+                      initdat.name+':',$
+                      charsize=1.25d,align=0.5
+               cgtext,pos_title2[0],pos_title2[1],$
+                      'Line Ratios',$
+                      charsize=1.25d,align=0.5
+   
+               cgps_close
 
-                  igdvo = cgsetintersection(igd,igd_o3hb)
-
-                  if j eq 1 then ytit = '[OIII]/H$\beta$' else ytit=''
-                  if j gt 1 then ytickf='(A1)' else ytickf='(D0.1)'
-                  cgplot,[0],/xsty,/ysty,xran=xran,yran=yran,pos=pos_bot[*,j],$
-                             /nodata,/noerase,xtit=panel_title,ytit=ytit,$
-                             aspect=1d,ytickf=ytickf
-                  cgoplot,map[igdvo],map_o3hb[igdvo],psym=16,symsize=0.01,$
-                          err_xlow=maperrlo[igdvo],err_xhigh=maperrhi[igdvo],$
-                          err_ylow=maperrlo_o3hb[igdvo],$
-                          err_yhigh=maperrhi_o3hb[igdvo],$
-                          err_color='Red',err_thick=2,/err_clip,$
-                          err_width=0d
-                  cgoplot,map[igdvo],map_o3hb[igdvo],psym=16,symsize=0.5d
-                  cgoplot,xkew1,ykew1
-                  cgoplot,xkew2,ykew2,linesty=1
-
-               endif
-
-            endfor
-
-;           Title
-            cgplot,[0],xsty=5,ysty=5,position=[0,0,1,1],/nodata,/noerase
-            cgtext,pos_title1[0],pos_title1[1],$
-                   initdat.name+':',$
-                   charsize=1.25d,align=0.5
-            cgtext,pos_title2[0],pos_title2[1],$
-                   'Line Ratios',$
-                   charsize=1.25d,align=0.5
-
-            cgps_close
+            endif
 
          endfor
       endif
    endif
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Maps of generic line ratios
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   pos = cglayout([1,1])
+
+   if tag_exist(initmaps,'lr') AND $
+      tag_exist(initmaps,'argslineratios') then begin
+      if tag_exist(initmaps.lr,'calc') AND $
+         tag_exist(initmaps.argslineratios,'lrlist') then begin
+         ; Loop through types
+         foreach fluxtype, initmaps.lr.calc do begin
+            ; Loop through ratios
+            foreach lrline, initmaps.argslineratios.lrlist, lrlab do begin
+
+               map = lr[fluxtype,lrlab]
+               maperrlo = lrerrlo[fluxtype,lrlab]
+               maperrhi = lrerrhi[fluxtype,lrlab]
+               ibd = where(map eq bad OR ~ finite(map),ctbd)
+               igd = where(map ne bad AND finite(map),ctgd)
+
+               ;              Set up range
+               if hasrangefile then begin
+                  ithisline = where(rangeline eq lrlab AND $
+                     rangequant eq fluxtype,ctthisline)
+               if ctthisline eq 1 then auto=0b
+               endif else auto=1b
+               plotdat = $
+                  ifsf_plotrange(auto=auto,$
+                     mapgd=map[igd],divinit=0.5d,$
+                     ncbdivmax=ncbdivmax,$
+                     rline=rangeline,matline=lrlab,$
+                     rcomp=rangecomp,$
+                     rquant=rangequant,matquant=fluxtype,$
+                     rncbdiv=rangencbdiv,$
+                     rlo=rangelo,rhi=rangehi)
+
+               mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+                  min=plotdat[0],max=plotdat[1])
+               cgps_open,initdat.mapdir+initdat.label+'lr_'+lrlab+'_'+fluxtype+$
+                  '.eps',charsize=1,/encap,/inches,$
+                  xs=plotquantum*2d,ys=plotquantum*2d*aspectrat,$
+                  /qui,/nomatch
+               cbform = '(D0.2)'
+               cgloadct,74,/reverse
+               cgimage,mapscl,/keep,opos=truepos,missing_value=bad,$
+                  missing_index=255,missing_color='white',pos=pos[*,0]
+               cgplot,[0],xsty=5,ysty=5,position=truepos,$
+                  /nodata,/noerase
+               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                  center_nuclei_kpc_y
+               cbpos=[pos[2,0]-0.02,pos[1,0],pos[2,0],pos[3,0]]
+               ticknames = string(dindgen(plotdat[3]+1)*$
+                  plotdat[2]/double(plotdat[3]) - $
+                  (plotdat[2] - plotdat[1]),format=cbform)
+               cgcolorbar,position=cbpos,divisions=plotdat[3],$
+                     ticknames=ticknames,/ver,/right,charsize=0.6
+               ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
+                  (dzran - zran[1]),format=cbform)
+               ;cgtext,0.96,0.57,textoidl('# of Absorption Components'),orient=270,/normal,$
+               ;   align=0.5
+
+            endforeach
+         endforeach
+      endif
+   endif
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Emission line radial profiles

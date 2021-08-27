@@ -2,7 +2,7 @@
 ;
 ;+
 ;
-; Fit O VI and N V doublets. Plot fit and write fit parameters to a file.
+; Fit UV doublets. Plot fit and write fit parameters to a file.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -95,7 +95,8 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                     cols=cols,rows=rows,verbose=verbose,$
                     noxdr=noxdr,noplot=noplot,weights=weights,$
                     noerr=noerr,nomc=nomc,init=init,$
-                    argsgalinfo=argsgalinfo,argslinelist=argslinelist
+                    argsgalinfo=argsgalinfo,argslinelist=argslinelist,$
+                    nsplit=nsplit
 
    bad = 1d99
    doublet_emrat_init = 1.5d
@@ -112,6 +113,7 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
    time = 0
    if keyword_set(verbose) then quiet=0 else quiet=1
    if ~ keyword_set(noplot) then noplot=0 else noplot=1
+   if ~ keyword_set(nsplit) then nsplit=1
 
    ; Get initial fit parameters and galaxy properties
    redshift = 0d
@@ -124,17 +126,19 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
    maxncomp = initstr.maxncomp
    
    ; Get linelist
-   if keyword_set(argslinelist) then $
+   if keyword_set(argslinelist) then begin
       linelist = $
          ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
                         'NV1238','NV1242','PV1117','PV1128','MgII2796','MgII2803',$
                         'FeII2585','FeII2599','FeII2373','FeII2382'],$
-                        _extra=argslinelist) $
-   else $
+                        _extra=argslinelist)
+   endif else begin
       linelist = $
          ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
                         'NV1238','NV1242','PV1117','PV1128','MgII2796','MgII2803',$
                         'FeII2585','FeII2599','FeII2373','FeII2382'])
+      argslinelist = !NULL
+   endelse
 
    if tag_exist(initstr,'taumax') then taumax=initstr.taumax $
    else taumax = 5d
@@ -329,26 +333,27 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                                    weq=weq,doubletemflux=doubletemflux,$
                                    vels=veltmp,vwtabs=vwtabs)
 
-;;        Compute errors in fit
-;         if ~ keyword_set(noerr) then begin
-;            if dofirstemfit then doubletemfix_use = first_doubletemfix $
-;            else doubletemfix_use = doubletemfix
-;            if keyword_set(nomc) then plotonly=1b else plotonly=0b
-;            errors = ifsf_fitdoubleterr([nhei,ndoubletabs,ndoubletem],(doubletcube.wave)[*],$
-;                                    modspec,(doubletcube.err)[*],$
-;                                    parinit,$
-;                                    outfile+'_doublet_errs.ps',outfile+'_doublet_mc.xdr',$
-;                                    dofirstemfit=dofirstemfit,$
-;                                    first_parinit=first_parinit,$
-;                                    first_modflux=first_modflux,$
-;                                    heifix=heifix,doubletabsfix=doubletabsfix,$
-;                                    doubletemfix=doubletemfix_use,$
-;                                    niter=initstr.mcniter,$
-;                                    nsplit=nsplit,quiet=quiet,weqerr=weqerr,$
-;                                    doubletemfluxerr=doubletemfluxerr,noplot=noplot,$
-;                                    plotonly=plotonly)
-;         endif
-;         
+;        Compute errors in fit
+         if ~ keyword_set(noerr) then begin
+            if dofirstemfit then doubletemfix_use = first_doubletemfix $
+            else doubletemfix_use = doubletemfix
+            if keyword_set(nomc) then plotonly=1b else plotonly=0b
+            if tag_exist(initstr,'mcniter') then mcniter=initstr.mcniter $
+            else mcniter = 0b
+            errors = ifsf_fitdoubleterr(doublet,[ndoubletabs,ndoubletem],$
+               (doubletcube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
+               modspec[initstr.fitindex[0]:initstr.fitindex[1]],$
+               (doubletcube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
+               initstr.continuum[initstr.fitindex[0]:initstr.fitindex[1]],$
+               parinit,outfile+'_doublet_errs.ps',outfile+'_doublet_mc.xdr',$
+               dofirstemfit=dofirstemfit,first_parinit=first_parinit,$
+               first_modflux=first_modflux,doubletabsfix=doubletabsfix,$
+               doubletemfix=doubletemfix_use,niter=mcniter,$
+               nsplit=nsplit,quiet=quiet,weqerr=weqerr,$
+               doubletemfluxerr=doubletemfluxerr,noplot=noplot,$
+               plotonly=plotonly)
+         endif
+         
 ;         ifsf_printdoubletpar,doubletparlun,i+1,j+1,param
 
 ;        Initialize cubes to hold physical quantities
@@ -368,7 +373,7 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                 totfluxemerr: dblarr(ncols,nrows,2)+bad,$
 ;               doublet absorption line parameters
                 cf: dblarr(ncols,nrows,maxncomp)+bad,$
-                cferr: dblarr(ncols,nrows,maxncomp,2)+bad,$
+                cftauerr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 tau: dblarr(ncols,nrows,maxncomp)+bad,$
                 tauerr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 waveabs: dblarr(ncols,nrows,maxncomp)+bad,$
@@ -394,36 +399,36 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
          doubletfit.weqabs[i,j,0:ndoubletabs]=weq.abs
          doubletfit.weqem[i,j,0:ndoubletem]=weq.em
          doubletfit.totfluxem[i,j,0:ndoubletem]=doubletemflux
-;         if ~ keyword_set(noerr) then begin
-;            doubletfit.weqabserr[i,j,*]=weqerr[0,*]
-;            doubletfit.weqemerr[i,j,*]=weqerr[1,*]
-;            doubletfit.totfluxemerr[i,j,*]=doubletemfluxerr
-;         endif
+         if ~ keyword_set(noerr) then begin
+            doubletfit.weqabserr[i,j,*]=weqerr[0,*]
+            doubletfit.weqemerr[i,j,*]=weqerr[1,*]
+            doubletfit.totfluxemerr[i,j,*]=doubletemfluxerr
+         endif
          if ndoubletabs gt 0 then begin
-            iarr = 3+ dindgen(ndoubletabs)*4
+            iarr = 2+dindgen(ndoubletabs)*4
             doubletfit.cf[i,j,0:ndoubletabs-1]=param[iarr]
             doubletfit.tau[i,j,0:ndoubletabs-1]=param[iarr+1]
             doubletfit.waveabs[i,j,0:ndoubletabs-1]=param[iarr+2]
             doubletfit.sigmaabs[i,j,0:ndoubletabs-1]=param[iarr+3]
-;            if ~ keyword_set(noerr) then begin
-;               doubletfit.cferr[i,j,0:ndoubletabs-1,*]=errors[iarr-3,*]
-;               doubletfit.tauerr[i,j,0:ndoubletabs-1,*]=errors[iarr-3+1,*]
-;               doubletfit.waveabserr[i,j,0:ndoubletabs-1,*]=errors[iarr-3+2,*]
-;               doubletfit.sigmaabserr[i,j,0:ndoubletabs-1,*]=errors[iarr-3+3,*]
-;            endif
+            if ~ keyword_set(noerr) then begin
+               doubletfit.cftauerr[i,j,0:ndoubletabs-1,*]=errors[iarr-2,*]
+               doubletfit.tauerr[i,j,0:ndoubletabs-1,*]=errors[iarr-2+1,*]
+               doubletfit.waveabserr[i,j,0:ndoubletabs-1,*]=errors[iarr-2+2,*]
+               doubletfit.sigmaabserr[i,j,0:ndoubletabs-1,*]=errors[iarr-2+3,*]
+            endif
          endif
          if ndoubletem gt 0 then begin
-            iarr = 3+ndoubletabs*4 + dindgen(ndoubletem)*4
+            iarr = 2+ndoubletabs*4 + dindgen(ndoubletem)*4
             doubletfit.waveem[i,j,0:ndoubletem-1]=param[iarr]
             doubletfit.sigmaem[i,j,0:ndoubletem-1]=param[iarr+1]
             doubletfit.flux[i,j,0:ndoubletem-1]=param[iarr+2]
             doubletfit.frat[i,j,0:ndoubletem-1]=param[iarr+3]
-;            if ~ keyword_set(noerr) then begin
-;               doubletfit.waveemerr[i,j,0:ndoubletem-1,*]=errors[iarr-3,*]
-;               doubletfit.sigmaemerr[i,j,0:ndoubletem-1,*]=errors[iarr-3+1,*]
-;               doubletfit.fluxerr[i,j,0:ndoubletem-1,*]=errors[iarr-3+2,*]
-;               doubletfit.fraterr[i,j,0:ndoubletem-1,*]=errors[iarr-3+3,*]               
-;            endif
+            if ~ keyword_set(noerr) then begin
+               doubletfit.waveemerr[i,j,0:ndoubletem-1,*]=errors[iarr-2,*]
+               doubletfit.sigmaemerr[i,j,0:ndoubletem-1,*]=errors[iarr-2+1,*]
+               doubletfit.fluxerr[i,j,0:ndoubletem-1,*]=errors[iarr-2+2,*]
+               doubletfit.fraterr[i,j,0:ndoubletem-1,*]=errors[iarr-2+3,*]               
+            endif
          endif
 
 nofit:
@@ -497,6 +502,13 @@ finish:
       close, lun
       FREE_LUN, lun
    endif
+
+   if ~ keyword_set(noxdr) then begin
+      if tag_exist(initstr,'outxdr') then outxdr=initstr.outxdr $
+      else outxdr=initstr.outdir+initstr.galaxy+doublet+'_fit.xdr'
+      save,doubletfit,file=outxdr
+   endif
+
 
 fullstop:
 

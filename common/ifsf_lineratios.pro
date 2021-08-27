@@ -14,6 +14,7 @@
 ;           = 'n2ha', 'n2ha_err'
 ;           = 'o1ha', 'o1ha_err'
 ;           = 'o3hb', 'o3hb_err'
+;    Now will also return generic (non-VO87) line ratio.
 ;
 ; :Params:
 ;    flux: in, required, type=hash(lines,nx,ny)
@@ -23,12 +24,22 @@
 ;      Hash of wavelengths, as output by IFSF_LINELIST.
 ;
 ; :Keywords:
+;    caseb: in, optional, type=hash
+;      Hash with key-value pairs that are concatenated H line names and case B
+;      flux ratios for those line names.
 ;    ebvonly: in, optional, type=byte
 ;      Compute extinction values only.
+;    fcnebv: in, optional, type=string, default='ifsf_ebv_ccm'
+;      Function for computing selective extinction / colour excess
+;    lrlist: in, optional, hash
+;      Hash with key-value pairs that are line ratio labels and two-element
+;      string arrays of line labels
 ;    lronly: in, optional, type=byte
 ;      Compute line ratios only.
 ;    noerr: in, optional, type=byte
 ;      Turns off error processing.
+;    rv: in, optional, type=double, default=3.1
+;      Normalized extinction value.
 ;
 ; :Author:
 ;    David S. N. Rupke::
@@ -46,9 +57,10 @@
 ;      2016oct10, DSNR, removed extinction correction from line ratios;
 ;                       set E(B-V) to 0 if Halpha/Hbeta too low; added
 ;                       [SII]/Ha
+;      2021aug27, DSNR, added ability to import non-VO line ratio list
 ;
 ; :Copyright:
-;    Copyright (C) 2014--2016 David S. N. Rupke
+;    Copyright (C) 2014--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -67,7 +79,7 @@
 ;-
 function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
                          lronly=lronly,errlo=errlo,errhi=errhi,rv=rv,$
-                         fcnebv=fcnebv,caseb=caseb
+                         fcnebv=fcnebv,caseb=caseb,lrlist=lrlist
 
 
    if ~ keyword_set(rv) then rv=3.1d
@@ -183,24 +195,27 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
    
 ;  Compute line ratios
 
-   linrats = ['n2ha','o1ha','s2ha','o3hb','s2']
-   lrlines = [['[NII]6583','Halpha'],$
-              ['[OI]6300','Halpha'],$
-              ['[SII]6716+[SII]6731','Halpha'],$
-              ['[OIII]5007','Hbeta'],$
-              ['[SII]6716','[SII]6731']]
+   if not keyword_set(lrlist) then begin
+      lrlabs = ['n2ha','o1ha','s2ha','o3hb','s2']
+      lrlines = [['[NII]6583','Halpha'],$
+         ['[OI]6300','Halpha'],$
+         ['[SII]6716+[SII]6731','Halpha'],$
+         ['[OIII]5007','Hbeta'],$
+         ['[SII]6716','[SII]6731']]
+      lrlist = hash()
+      for i=0,n_elements(lrlabs)-1 do lrlist[lrlabs[i]]=lrlines[*,i]
+   endif
 
    if ~ keyword_set(ebvonly) then begin
-      for i=0,n_elements(linrats)-1 do begin
-         if flux.haskey(lrlines[0,i]) AND $
-            flux.haskey(lrlines[1,i]) then begin
+      foreach lrline, lrlist, lrlab do begin
+         if flux.haskey(lrline[0]) AND flux.haskey(lrline[1]) then begin
     
-            igdlr = cgsetintersection(igd[lrlines[0,i]],igd[lrlines[1,i]])
+            igdlr = cgsetintersection(igd[lrline[0]],igd[lrline[1]])
             lr = dblarr(nx,ny) + bad
-            lr_lin = flux[lrlines[0,i],igdlr]/$
-                     flux[lrlines[1,i],igdlr]
+            lr_lin = flux[lrline[0],igdlr]/$
+                     flux[lrline[1],igdlr]
             lr[igdlr] = alog10(lr_lin)
-            out[linrats[i]] = lr
+            out[lrlab] = lr
             if doerr then begin
 ;               lr_err = dblarr(nx,ny) + bad
 ;               lr_err[igdlr] = $
@@ -212,17 +227,17 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
                lr_errhi = dblarr(nx,ny) + bad
                lr_err_lin = $
                    lr_lin*$
-                   sqrt((fluxerr[lrlines[0,i],igdlr]/$
-                         flux[lrlines[0,i],igdlr])^2d + $
-                        (fluxerr[lrlines[1,i],igdlr]/$
-                         flux[lrlines[1,i],igdlr])^2d)
+                   sqrt((fluxerr[lrline[0],igdlr]/$
+                         flux[lrline[0],igdlr])^2d + $
+                        (fluxerr[lrline[1],igdlr]/$
+                         flux[lrline[1],igdlr])^2d)
                lr_errlo[igdlr] = lr[igdlr] - alog10(lr_lin - lr_err_lin)
                lr_errhi[igdlr] = alog10(lr_lin + lr_err_lin) - lr[igdlr]
-               errlo[linrats[i]] = lr_errlo
-               errhi[linrats[i]] = lr_errhi
+               errlo[lrlab] = lr_errlo
+               errhi[lrlab] = lr_errhi
             endif
          endif
-      endfor      
+      endforeach   
    endif
    
    return,out

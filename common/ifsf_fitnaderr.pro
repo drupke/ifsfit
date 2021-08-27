@@ -131,7 +131,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
 
    bad = 1d99
    plotquantum = 2.5 ; in inches
-   nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
+   ;nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
 
    if ~ keyword_set(fitfcn) then fitfcn = 'ifsf_nadfcn'
    if ~ keyword_set(niter) then niter = 1000

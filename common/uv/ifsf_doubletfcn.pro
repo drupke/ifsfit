@@ -81,7 +81,8 @@ function ifsf_doubletfcn, wave, param,$
                           moddoubletabs=moddoubletabs, $
                           moddoubletem=moddoubletem, $
                           doubletemflux=doubletemflux, $
-                          vels=vels,vwtabs=vwtabs
+                          vels=vels,vwtabs=vwtabs, $
+                          specres=specres
 
 ;  Default to NV unless otherwise specified
    if keyword_set(doubletname) then begin
@@ -106,7 +107,7 @@ function ifsf_doubletfcn, wave, param,$
 ;        Data from Morton 2003
          LogLF = 3.236d - 2.933d
          tratio = 10d^LogLF
-         lratio = 2802.7056d/2795.5301d
+         lratio = 2803.530d/2796.352d
       endif else if doubletname eq 'FeIIUV1' then begin
 ;        Data from Morton 2003
          LogLF = 2.793d - 2.252d
