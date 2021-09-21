@@ -342,16 +342,18 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
             else mcniter = 0b
             errors = ifsf_fitdoubleterr(doublet,[ndoubletabs,ndoubletem],$
                (doubletcube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
+               veltmp[initstr.fitindex[0]:initstr.fitindex[1]],$
                modspec[initstr.fitindex[0]:initstr.fitindex[1]],$
                (doubletcube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
                initstr.continuum[initstr.fitindex[0]:initstr.fitindex[1]],$
-               parinit,outfile+'_doublet_errs.ps',outfile+'_doublet_mc.xdr',$
+               parinit,outfile+doublet+'_fit_errs.ps',$
+               outfile+doublet+'_fit_mc.xdr',$
                dofirstemfit=dofirstemfit,first_parinit=first_parinit,$
                first_modflux=first_modflux,doubletabsfix=doubletabsfix,$
                doubletemfix=doubletemfix_use,niter=mcniter,$
                nsplit=nsplit,quiet=quiet,weqerr=weqerr,$
                doubletemfluxerr=doubletemfluxerr,noplot=noplot,$
-               plotonly=plotonly)
+               plotonly=plotonly,vwtrmserr=vwtrmserr,vwtavgerr=vwtavgerr)
          endif
          
 ;         ifsf_printdoubletpar,doubletparlun,i+1,j+1,param
@@ -364,9 +366,13 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                 chisq_emonly: dblarr(ncols,nrows)+bad,$
                 dof: dblarr(ncols,nrows)+bad,$
                 niter: dblarr(ncols,nrows)+bad,$
-;               Equivalent widths and fluxes
+;               Equivalent widths and fluxes and average velocities
                 weqabs: dblarr(ncols,nrows,1+maxncomp)+bad,$
                 weqabserr: dblarr(ncols,nrows,2)+bad,$
+                vwtavg: dblarr(ncols,nrows)+bad,$
+                vwtavgerr: dblarr(ncols,nrows,2)+bad,$
+                vwtrms: dblarr(ncols,nrows)+bad,$
+                vwtrmserr: dblarr(ncols,nrows,2)+bad,$
                 weqem: dblarr(ncols,nrows,1+maxncomp)+bad,$
                 weqemerr: dblarr(ncols,nrows,2)+bad,$
                 totfluxem: dblarr(ncols,nrows,1+maxncomp)+bad,$
@@ -397,10 +403,14 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
          doubletfit.dof[i,j]=dof
          doubletfit.niter[i,j]=niter
          doubletfit.weqabs[i,j,0:ndoubletabs]=weq.abs
+         doubletfit.vwtavg[i,j]=vwtabs[0]
+         doubletfit.vwtrms[i,j]=vwtabs[1]
          doubletfit.weqem[i,j,0:ndoubletem]=weq.em
          doubletfit.totfluxem[i,j,0:ndoubletem]=doubletemflux
          if ~ keyword_set(noerr) then begin
             doubletfit.weqabserr[i,j,*]=weqerr[0,*]
+            doubletfit.vwtavgerr[i,j,*]=vwtavgerr
+            doubletfit.vwtrmserr[i,j,*]=vwtrmserr
             doubletfit.weqemerr[i,j,*]=weqerr[1,*]
             doubletfit.totfluxemerr[i,j,*]=doubletemfluxerr
          endif
@@ -470,9 +480,9 @@ finish:
       printf, lun, 'Absorption',FORMAT='(A0)'
       printf, lun, lineofdashes
       printf, lun, param[0], '[Number of Components]',FORMAT='(I-3,A0)'
-      printf, lun, weq.abs[0], ' [Total equivalent width in A]',FORMAT='(D0.4,A0)'
-      printf, lun, vwtabs[0], ' [Weighted avg. vel. in km/s]',FORMAT='(D0.2,A0)'
-      printf, lun, vwtabs[1], ' [Weighted RMS vel. in km/s]',FORMAT='(D0.2,A0)'
+      printf, lun, weq.abs[0], weqerr[0,0], weqerr[0,1],' [Total equivalent width in A, +/-1sig errors]',FORMAT='(3D8.4,A0)'
+      printf, lun, vwtabs[0], vwtavgerr[0], vwtavgerr[1], ' [Weighted avg. vel. in km/s, +/-1sig errors]',FORMAT='(3D8.2,A0)'
+      printf, lun, vwtabs[1], vwtrmserr[0], vwtrmserr[1], ' [Weighted RMS vel. in km/s, +/-1sig errors]',FORMAT='(3D8.2,A0)'
       printf, lun, lineofdashes
       printf, lun,'Cov. Factor','Tau',$
               'Wave(A)','Sigma(km/s)','Vel(km/s)',$

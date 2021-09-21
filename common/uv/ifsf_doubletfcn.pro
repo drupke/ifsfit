@@ -8,7 +8,7 @@
 ;    IFSFIT
 ;
 ; :Returns:
-;    A doublet absorption specturm.
+;    A doublet absorption spectrum.
 ;
 ; :Params:
 ;    wave: in, required, type=dblarr(N)

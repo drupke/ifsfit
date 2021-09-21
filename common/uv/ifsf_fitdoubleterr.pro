@@ -111,12 +111,12 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
+function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit,$
    outplot,outfile,dofirstemfit=dofirstemfit,first_modflux=first_modflux,$
    first_parinit=first_parinit,fitfcn=fitfcn,niter=niter,nsplit=nsplit,$
    doubletabsfix=doubletabsfix,doubletemfix=doubletemfix,quiet=quiet,$
    noplot=noplot,weqerr=weqerr,doubletemfluxerr=doubletemfluxerr,$
-   plotonly=plotonly,specres=specres
+   plotonly=plotonly,specres=specres,vwtavgerr=vwtavgerr,vwtrmserr=vwtrmserr
 
    bad = 1d99
    plotquantum = 2.5 ; in inches
@@ -137,6 +137,8 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
    ;  Outputs
    errors = dblarr(ncomp[0]*4+ncomp[1]*4,2)
    weqerr=dblarr(2,2)
+   vwtavgerr=dblarr(2)
+   vwtrmserr=dblarr(2)
    doubletemfluxerr=dblarr(2)
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -174,6 +176,8 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
             if ncompuse[1] gt 0 then empar = dblarr(niter,4,ncompuse[1])+bad $
             else empar=0
             weq=dblarr(niter,2)
+            vwtavg=dblarr(niter)
+            vwtrms=dblarr(niter)
             doubletemflux=dblarr(niter)
             for k=0,niter-1 do begin
 
@@ -191,8 +195,10 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
 
                weq_i=1
                doubletemflux_i=1
+               vwtabs_i=1
                dumy = call_function(fitfcn,wave,param,weq=weq_i,$
-                  doubletemflux=doubletemflux_i,cont=cont,_extra=argsfitdoublet)
+                  doubletemflux=doubletemflux_i,cont=cont,_extra=argsfitdoublet,$
+                  vwtabs=vwtabs_i,vels=vels)
 
                if ncompuse[0] gt 0 then begin
                   ilo = 2
@@ -203,6 +209,8 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
                   empar[k,*,*] = reform(param[ilo:ilo+4*ncompuse[1]-1],4,ncompuse[1])
                endif
                weq[k,*] = [weq_i.abs[0],weq_i.em[0]]
+               vwtavg[k] = vwtabs_i[0]
+               vwtrms[k] = vwtabs_i[1]
                doubletemflux[k] = doubletemflux_i[0]
 
                if k mod 100 eq 0 then $
@@ -224,9 +232,10 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
                '                 functargs=argsfitdoublet,'+$
                '                 npegged=npegged,ftol=1D-6,errmsg=errmsg)',$
                'weq_i=1',$
+               'vwtabs_i=1',$
                'doubletemflux_i=1',$
                'dumy = call_function(fitfcn,wave,param,weq=weq_i,doubletemflux=doubletemflux_i,'+$
-               '                    cont=cont,_extra=argsfitdoublet)',$
+               '                    cont=cont,_extra=argsfitdoublet,vwtabs=vwtabs_i,vels=vels)',$
                'if ncompuse[0] gt 0 then begin',$
                '   ilo = 2',$
                '   if n_elements(abspar) eq 0 then'+$
@@ -239,26 +248,36 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
                '      empar = reform(param[ilo:ilo+4*ncompuse[1]-1],1,4,ncompuse[1])'+$
                '   else empar = [empar,reform(param[ilo:ilo+4*ncompuse[1]-1],1,4,ncompuse[1])]',$
                'endif else empar=0',$
-               'if n_elements(weq) eq 0 then'+$
-               '   weq=reform([weq_i.abs[0],weq_i.em[0]],1,2)'+$
-               'else weq=[weq,reform([weq_i.abs[0],weq_i.em[0]],1,2)]',$
+               'if n_elements(weq) eq 0 then begin',$
+               '   weq=reform([weq_i.abs[0],weq_i.em[0]],1,2)',$
+               '   vwtavg=vwtabs_i[0]',$
+               '   vwtrms=vwtabs_i[1]',$
+               'endif else begin',$
+               '   weq=[weq,reform([weq_i.abs[0],weq_i.em[0]],1,2)]',$
+               '   vwtavg=[vwtavg,vwtabs_i[0]]',$
+               '   vwtrms=[vwtrms,vwtabs_i[1]]',$
+               'endelse',$
                'if n_elements(doubletemflux) eq 0 then'+$
                '   doubletemflux=doubletemflux_i[0]'+$
                'else doubletemflux=[doubletemflux,doubletemflux_i[0]]'],$
-               varnames=['modfluxinit','rans','err','fitfcn','wave','ncompuse',$
+               varnames=['modfluxinit','rans','err','fitfcn','wave','vels','ncompuse',$
                'cont','quiet'],$
                struct2pass1=parinituse,struct2pass2=argslinefit,$
                struct2pass3=argsfitdoublet,$
-               outvar=['abspar','empar','weq','doubletemflux'],$
+               outvar=['abspar','empar','weq','doubletemflux','vwtavg','vwtrms'],$
                nsplit=nsplit,silent=quiet,quietchild=quiet
             abspar=abspar0
             empar=empar0
             weq=weq0
+            vwtavg=vwtavg0
+            vwtrms=vwtrms0
             doubletemflux=doubletemflux0
             for k=1,nsplit-1 do begin
                abspar=[abspar,scope_varfetch('abspar'+string(k,format='(I0)'))]
                empar=[empar,scope_varfetch('empar'+string(k,format='(I0)'))]
                weq=[weq,scope_varfetch('weq'+string(k,format='(I0)'))]
+               vwtavg=[vwtavg,scope_varfetch('vwtavg'+string(k,format='(I0)'))]
+               vwtrms=[vwtrms,scope_varfetch('vwtrms'+string(k,format='(I0)'))]
                doubletemflux=[doubletemflux,scope_varfetch('doubletemflux'+string(k,format='(I0)'))]
             endfor
 
@@ -268,11 +287,15 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
             if j eq 0 then begin
                first_empar = empar
                first_weq = weq
+               first_vwtavg = vwtavg
+               first_vwtrms = vwtrms
                first_doubletemflux = doubletemflux
             endif
             if j eq 1 then begin
                empar = first_empar
                weq[*,1] = first_weq[*,1]
+               vwtavg = first_vwtavg
+               vwtrms = first_vwtrms
                doubletemflux = first_doubletemflux
             endif
          endif
@@ -281,7 +304,8 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
 
       ;  Save MC results to a file.
       doubletmc = {doubletabs: abspar, doubletem: empar, doubletweq: weq, $
-         doubletemflux: doubletemflux}
+         doubletemflux: doubletemflux, doubletvwtavg: vwtavg, $
+         doubletvwtrms: vwtrms}
       save,doubletmc,file=outfile
 
    endif else begin
@@ -290,6 +314,8 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
       abspar=doubletmc.doubletabs
       empar=doubletmc.doubletem
       weq=doubletmc.doubletweq
+      vwtavg=doubletmc.doubletvwtavg
+      vwtrms=doubletmc.doubletvwtrms
       doubletemflux=doubletmc.doubletemflux
 
    endelse
@@ -431,6 +457,21 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,modflux,err,cont,parinit,$
       endif
       cgtext,0.5,0.99,'doublet equivalent widths'+$
          string(i+1,format='(I0)'),/norm,align=0.5
+
+   endif
+   ;
+   ; absorption doublet velocities
+   ;
+   if ncomp[0] gt 0 then begin
+      ; vwtavg
+      vwtavgerr = $
+         ifsf_pltmcdist(vwtavg,position=pos[*,0],$
+            xtitle='Average depth-weighted velocity (km/s)',$
+            xran=[min(vwtavg),max(vwtavg)])
+      vwtrmserr = $
+         ifsf_pltmcdist(vwtrms,position=pos[*,1],$
+            xtitle='RMS depth-weighted velocity (km/s)',$
+            xran=[min(vwtrms),max(vwtrms)],/noerase)
 
    endif
 
