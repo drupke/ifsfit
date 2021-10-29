@@ -78,11 +78,12 @@
 ;-
 function ifsf_doubletfcn, wave, param,$
                           cont=cont,doubletname=doubletname,weq=weq,$
-                          moddoubletabs=moddoubletabs, $
-                          moddoubletem=moddoubletem, $
-                          doubletemflux=doubletemflux, $
+                          modabs=modabs, $
+                          modem=modem, $
+                          emflux=emflux, $
                           vels=vels,vwtabs=vwtabs, $
-                          specres=specres
+                          specres=specres,upsample=upsample,$
+                          cfcorr=cfcorr
 
 ;  Default to NV unless otherwise specified
    if keyword_set(doubletname) then begin
@@ -128,90 +129,173 @@ function ifsf_doubletfcn, wave, param,$
    endelse
 
    c = 299792.458d
+   fwhmtosig = 2d*sqrt(2d*alog(2d))
 
 ;  Numbers of components
-   ndoubletabs = param[0]
-   ndoubletem = param[1]
+   nabs = param[0]
+   nem = param[1]
 
    nwave = n_elements(wave)
+   dwave = wave[1:nwave-1] - wave[0:nwave-2]
 
-   modflux = dblarr(nwave)+1d
+   ;  Upsample wave
+   ;  [Upsample must be odd.] This is the factor by which to "upsample" the
+   ;  spectra (opposite of bin!) for the model computation. Problem for cases
+   ;  where sigma << spectral resolution.
+   ;  Factor here should be high enough that model contains say ~10 points within
+   ;  mean +/- 2.5 sigma (99.8% of area). So if minimum possible sigma = 5 km/s,
+   ;  upsample = 7, native dispersion = 0.44 (as for WiFeS), and a line at 6000 A,
+   ;  then there is a point every 3 km/s, vs. 5-sigma = 25 km/s for the line.
+   if keyword_set(upsample) then begin
+      waveuse = rebin(reform(wave,nwave),nwave*upsample)
+      nwaveuse = n_elements(waveuse)
+      ;   waveuse = waveuse[0:nwaveuse-fac_upsample]
+      ;   nwaveuse -= fac_upsample-1
+      dwaveuse = waveuse[1:nwaveuse-1] - waveuse[0:nwaveuse-2]
+      ;  Indices for downsampling back to original resolution
+      dslo = ceil(double(upsample)/2d)
+      dshi = nwaveuse-(1+floor(double(upsample)/2d))
+   endif else begin
+      waveuse=wave
+      nwaveuse=nwave
+      dwaveuse=dwave
+      dslo=1 ; come back to this;  should be 0 or 1, not sure
+      dshi=nwave-1 ; come back to this; should be nwave-2 or nwave-1, not sure
+   endelse
+
+   modflux = dblarr(nwaveuse)+1d
 ;  doublet emission
-   ilo = 2+ndoubletabs*4
-   if ndoubletem gt 0 then moddoubletem=dblarr(nwave,ndoubletem)+1d $
-   else moddoubletem=0
-   for i=0,ndoubletem-1 do begin
-      arg1 = ((wave-param[ilo+i*4])/$
+   ilo = 2+nabs*4
+   if nem gt 0 then begin
+      modemuse=dblarr(nwaveuse,nem)+1d
+      modem=dblarr(nwave,nem)+1d
+   endif else modem=0
+   for i=0,nem-1 do begin
+      arg1 = ((waveuse-param[ilo+i*4])/$
              (2d*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
-      arg2 = ((lratio * wave-param[ilo+i*4])/$
+      arg2 = ((lratio * waveuse-param[ilo+i*4])/$
              (2d*param[ilo+i*4]*param[1+ilo+i*4]/c))^2d
       mask1 = (arg1 lt 80)
       mask2 = (arg2 lt 80)
-      moddoubletem[*,i]+=param[2+ilo+i*4]*(mask1*exp(-arg1*mask1) + $
-                                       param[3+ilo+i*4]*mask2*exp(-arg2*mask2))
+      modemuse[*,i]+=param[2+ilo+i*4]*(mask1*exp(-arg1*mask1) + $
+         param[3+ilo+i*4]*mask2*exp(-arg2*mask2))
       modflux+=param[2+ilo+i*4]*(mask1*exp(-arg1*mask1) + $
-                                 param[3+ilo+i*4]*mask2*exp(-arg2*mask2))      
+         param[3+ilo+i*4]*mask2*exp(-arg2*mask2))      
+      modtmpem = rebin(modemuse[dslo:dshi,i],nwave-1)
+      modem[*,i] = [modtmpem[0],modtmpem]
    endfor
 ;  doublet absorption
    ilo = 2
-   if ndoubletabs gt 0 then begin
-      moddoubletabs = dblarr(nwave,ndoubletabs)+1d
+   if nabs gt 0 then begin
+      if keyword_set(cfcorr) then begin
+         ccmodabsuse = dblarr(nwaveuse,nabs)+1d
+         ccmodabs = dblarr(nwave,nabs)+1d
+         ccmodtmpuse = dblarr(nwaveuse)+1d
+         ccmodtmp = dblarr(nwave)+1d
+      endif
+      modabsuse = dblarr(nwaveuse,nabs)+1d
+      modabs = dblarr(nwave,nabs)+1d
+      modtmpuse = dblarr(nwaveuse)+1d
       modtmp = dblarr(nwave)+1d
-      for i=0,ndoubletabs-1 do begin
-         moddoubletabs[*,i]*=ifsf_cmpdoublet(wave,param[ilo+i*4:ilo+(i+1)*4-1],$
-                                             tratio,lratio)
-         modtmp*=ifsf_cmpdoublet(wave,param[ilo+i*4:ilo+(i+1)*4-1],$
-                                 tratio,lratio)
+      for i=0,nabs-1 do begin
+         modabsuse[*,i]*=ifsf_cmpdoublet(waveuse,param[ilo+i*4:ilo+(i+1)*4-1],$
+            tratio,lratio)
+         modtmpuse*=ifsf_cmpdoublet(waveuse,param[ilo+i*4:ilo+(i+1)*4-1],$
+            tratio,lratio)
+         modtmpabs = rebin(modabsuse[dslo:dshi,i],nwave-1)
+         modabs[*,i] = [modtmpabs[0],modtmpabs]
+         if keyword_set(cfcorr) then begin
+            ccmodabsuse[*,i]*=ifsf_cmpdoublet(waveuse,$
+               [1d,param[1+ilo+i*4:ilo+(i+1)*4-1]],$
+               tratio,lratio)
+            ccmodtmpuse*=ifsf_cmpdoublet(waveuse,$
+               [1d,param[1+ilo+i*4:ilo+(i+1)*4-1]],$
+               tratio,lratio)
+            ccmodtmpabs = rebin(ccmodabsuse[dslo:dshi,i],nwave-1)
+            ccmodabs[*,i] = [ccmodtmpabs[0],ccmodtmpabs]
+         endif
       endfor
-      modflux *= modtmp
-   endif else moddoubletabs=0
+      modflux *= modtmpuse
+      modtmptmp = rebin(modtmpuse[dslo:dshi],nwave-1)
+      modtmp = [modtmptmp[0],modtmptmp]
+      if keyword_set(cfcorr) then begin
+         ccmodtmptmp = rebin(ccmodtmpuse[dslo:dshi],nwave-1)
+         ccmodtmp = [ccmodtmptmp[0],ccmodtmptmp]
+      endif
+   endif else modabs=0
 
 ;  Optionally, compute equivalent widths
+;  Note that we're doing this using the original binning ... and prior to convolution
    if keyword_set(weq) then begin
-      dwave = wave[1:nwave-1] - wave[0:nwave-2]
-      if ndoubletem gt 0 then begin
-         emweq = dblarr(ndoubletem+1)
-         for i=0,ndoubletem-1 do $
-            emweq[i+1] = total((1d - moddoubletem[1:nwave-1,i])*dwave)
-         emweq[0] = total(emweq[1:ndoubletem])
+      if nem gt 0 then begin
+         emweq = dblarr(nem+1)
+         for i=0,nem-1 do $
+            emweq[i+1] = total((1d - modem[1:nwave-1,i])*dwave)
+         emweq[0] = total(emweq[1:nem])
       endif else emweq=0d
-      if ndoubletabs gt 0 then begin
-         absweq = dblarr(ndoubletabs+1)
-         for i=0,ndoubletabs-1 do $
-            absweq[i+1] = total((1d - moddoubletabs[1:nwave-1,i])*dwave)
+      if keyword_set(cfcorr) then begin
+         modabsuse = ccmodabs
+         modtmpuse = ccmodtmp
+      endif else begin
+         modabsuse = modabs
+         modtmpuse = modtmp
+      endelse
+      if nabs gt 0 then begin
+         absweq = dblarr(nabs+1)
+         for i=0,nabs-1 do $
+            absweq[i+1] = total((1d - modabsuse[1:nwave-1,i])*dwave)
 ;        Total doublet equivalent width has to be calculated from full absorption
 ;        spectrum, rather than taken as the total of separate components.
-         absweq[0] = total((1d - modtmp[1:nwave-1])*dwave)
+         absweq[0] = total((1d - modtmpuse[1:nwave-1])*dwave)
       endif else absweq=0d
       weq = {em: emweq,abs: absweq}
    endif
-   if keyword_set(doubletemflux) AND keyword_set(cont) then begin
-      dwave = wave[1:nwave-1] - wave[0:nwave-2]
-      if ndoubletem gt 0 then begin
-         doubletemflux = dblarr(ndoubletem+1)
-         for i=0,ndoubletem-1 do $
-            doubletemflux[i+1] = $
-               total((moddoubletem[1:nwave-1,i]*cont[1:nwave-1]-cont[1:nwave-1])*dwave)
-         doubletemflux[0] = total(doubletemflux[1:ndoubletem])
-      endif else doubletemflux=0d
-   endif else doubletemflux=0d
+   if keyword_set(emflux) AND keyword_set(cont) then begin
+      if nem gt 0 then begin
+         emflux = dblarr(nem+1)
+         for i=0,nem-1 do $
+            emflux[i+1] = $
+               total((modem[1:nwave-1,i]*cont[1:nwave-1]-cont[1:nwave-1])*dwave)
+         emflux[0] = total(emflux[1:nem])
+      endif else emflux=0d
+   endif else emflux=0d
 
-;  Weighted average velocity and weighted RMS width
-;  Trump et al. 2006, ApJS, 165, 1
-;  Section 4.5
-   if keyword_set(vwtabs) AND keyword_set(vels) AND ndoubletabs gt 0 then begin
-;     Compute singlet version of profile
+   ;  Convolve model with line spread function, represented by a Gaussian
+   if keyword_set(specres) then begin
+      fwhm_pix = specres*fwhmtosig/mean(dwaveuse)
+      npix = fix(fwhm_pix*5d)
+      if not npix then npix++
+      kernel = psf_gaussian(npix=npix,ndim=1,/double,fwhm=fwhm_pix)
+      modflux_con = convol(modflux,kernel,/normalize,/edge_mirror)
+   endif else $
+      modflux_con = modflux
+
+   if keyword_set(upsample) then begin
+      ;  Downsample back to original resolution
+      modflux_con_ds = rebin(modflux_con[dslo:dshi],nwave-1)
+      modflux_con_ds = [modflux_con_ds[0],modflux_con_ds]
+   endif else $
+      modflux_con_ds = modflux_con
+
+   ;  Weighted absorption average velocity and weighted RMS width
+   ;  Note that we're doing this using the original binning ... and w/o convolution
+   ;  Trump et al. 2006, ApJS, 165, 1
+   ;  Section 4.5
+   if keyword_set(vwtabs) AND keyword_set(vels) AND nabs gt 0 then begin
+      ;     Compute singlet version of profile
       ilo = 2
       modtmp = dblarr(nwave)+1d
-      for i=0,ndoubletabs-1 do $
-         modtmp*=ifsf_cmpsinglet(wave,param[ilo+i*4:ilo+(i+1)*4-1],$
-                                 tratio,lratio)
-;      igdvels = where(vels lt 0 AND vels gt -2.9d4,ctgdvels)
+      for i=0,nabs-1 do begin
+         if keyword_set(cfcorr) then paruse = [1d,param[1+ilo+i*4:ilo+(i+1)*4-1]] $
+         else paruse = param[ilo+i*4:ilo+(i+1)*4-1]
+         modtmp*=ifsf_cmpsinglet(wave,paruse,tratio,lratio)
+      endfor
+      ;      igdvels = where(vels lt 0 AND vels gt -2.9d4,ctgdvels)
       igdvels = where(vels gt -2.9d4,ctgdvels)
-;      gdvels = abs(vels[igdvels])
+      ;      gdvels = abs(vels[igdvels])
       gdvels = vels[igdvels]
       gdmod = modtmp[igdvels]
-;      dgdvels = gdvels[0:ctgdvels-2] - gdvels[1:ctgdvels-1]
+      ;      dgdvels = gdvels[0:ctgdvels-2] - gdvels[1:ctgdvels-1]
       dgdvels = gdvels[1:ctgdvels-1] - gdvels[0:ctgdvels-2]
       AIabs = total((1d - gdmod[1:ctgdvels-1])*dgdvels)
       if AIabs gt 0d then begin
@@ -224,6 +308,6 @@ function ifsf_doubletfcn, wave, param,$
       vwtabs = [vwtavgabs,vwtrmsabs]
    endif
 
-   return,modflux
+   return,modflux_con_ds
    
 end

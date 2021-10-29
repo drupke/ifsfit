@@ -39,10 +39,13 @@
 ; :Keywords:
 ;    taumax: in, optional, type=double, default=5d
 ;      Upper limit to optical depth.
-;    doubletabsfix: in, required, type=bytarr(ndoubletabs,4)
+;    doubletabsfix: in, required, type=bytarr(nabs,4)
 ;      Input this array with parameters to be fixed set to 1.
-;    doubletemfix: in, required, type=bytarr(ndoubletem,4)
+;    doubletemfix: in, required, type=bytarr(nem,4)
 ;      Input this array with parameters to be fixed set to 1.
+;    zvar: in, optional, type=double, default=0.001
+;      How much wavelength can vary from initial guess, in z space;
+;      bounds on wavelength are wave_init*[1-zvar,1+zvar]
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -56,9 +59,12 @@
 ;    ChangeHistory::      
 ;      2014may09, DSNR, created
 ;      2014may28, DSNR, added NADEMFIX parameter
+;      2021oct20, DSNR, changed default wavelength variation width for em/abs
+;        lines from +/-10 A and +/-2 A to wave_init*[1-zvar,1+zvar], with default
+;        zvar=0.001
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2016 David S. N. Rupke
+;    Copyright (C) 2014--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -76,7 +82,7 @@
 ;
 ;-
 function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,$
-                          siglimdoubletem,taumax=taumax,$
+                          siglimdoubletem,taumax=taumax,zvar=zvar,$
                           doubletabsfix=doubletabsfix,doubletemfix=doubletemfix
                       
    if doublet eq 'OVI' then begin
@@ -106,39 +112,40 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
    c = 299792.458d
    
    if not keyword_set(taumax) then taumax=5d
+   if not keyword_set(zvar) then zvar=0.001d
 
 ;  Get numbers of components
    size_doubletabs = size(initdoubletabs)
    size_doubletem = size(initdoubletem)
-   if size_doubletabs[0] eq 1 then ndoubletabs = 1 $
-   else if size_doubletabs[0] gt 1 then ndoubletabs = fix(size_doubletabs[1]) $
-   else ndoubletabs=0l
-   if size_doubletem[0] eq 1 then ndoubletem = 1 $
-   else if size_doubletem[0] gt 1 then ndoubletem = fix(size_doubletem[1]) $
-   else ndoubletem=0l
+   if size_doubletabs[0] eq 1 then nabs = 1 $
+   else if size_doubletabs[0] gt 1 then nabs = fix(size_doubletabs[1]) $
+   else nabs=0l
+   if size_doubletem[0] eq 1 then nem = 1 $
+   else if size_doubletem[0] gt 1 then nem = fix(size_doubletem[1]) $
+   else nem=0l
   
 ;  Initialize PARINFO  
    parinfo = REPLICATE({value:0d, fixed:0b, limited:[0B,0B], tied:'', $
                        limits:[0d,0d], step:0d, mpprint:0b, mpside:2, $
                        parname:'', line:'', comp:0d}, $
-                       2+ndoubletabs*4+ndoubletem*4)
+                       2+nabs*4+nem*4)
 
 ;  Record numbers of components
-   parinfo[0].value = ndoubletabs
+   parinfo[0].value = nabs
    parinfo[0].fixed = 1B
    parinfo[0].parname = 'No. of Doublet absorption components'
-   parinfo[1].value = ndoubletem
+   parinfo[1].value = nem
    parinfo[1].fixed = 1B
    parinfo[1].parname = 'No. of Doublet emission components'
 
 ;  doublet absorption
-   if ndoubletabs gt 0 then begin
+   if nabs gt 0 then begin
 ;     Initial values
       ilo = 2
-      parinfo[ilo:ilo+ndoubletabs*4-1].value = $
-         reform(transpose(initdoubletabs),ndoubletabs*4)
+      parinfo[ilo:ilo+nabs*4-1].value = $
+         reform(transpose(initdoubletabs),nabs*4)
 ;     Index arrays
-      ind_c = ilo + indgen(ndoubletabs)*4
+      ind_c = ilo + indgen(nabs)*4
       ind_t = ind_c + 1
       ind_w = ind_c + 2
       ind_s = ind_c + 3
@@ -157,39 +164,39 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
       parinfo[ind_s].limits[1]  = siglimdoubletabs[1]
       parinfo[ind_w].limited[0] = 1B
       parinfo[ind_w].limited[1] = 1B
-      for i=0,ndoubletabs-1 do begin
-         parinfo[ilo+2+i*4].limits[0] = initdoubletabs[i,2]-2d
-         parinfo[ilo+2+i*4].limits[1] = initdoubletabs[i,2]+2d
+      for i=0,nabs-1 do begin
+         parinfo[ilo+2+i*4].limits[0] = initdoubletabs[i,2]*(1d - zvar)
+         parinfo[ilo+2+i*4].limits[1] = initdoubletabs[i,2]*(1d + zvar)
       endfor
       if keyword_set(doubletabsfix) then $
-         parinfo[ilo:ilo+ndoubletabs*4-1].fixed = $
-            reform(transpose(doubletabsfix),ndoubletabs*4)
+         parinfo[ilo:ilo+nabs*4-1].fixed = $
+            reform(transpose(doubletabsfix),nabs*4)
 ;     Labels
       parinfo[ind_c].parname = 'covering_factor'
       parinfo[ind_t].parname = 'optical_depth'
       parinfo[ind_w].parname = 'wavelength'
       parinfo[ind_s].parname = 'sigma'
-      parinfo[ilo:ilo+ndoubletabs*4-1].line = linename
-      parinfo[ilo:ilo+ndoubletabs*4-1].comp = rebin(indgen(ndoubletabs)+1,ndoubletabs*4)
+      parinfo[ilo:ilo+nabs*4-1].line = linename
+      parinfo[ilo:ilo+nabs*4-1].comp = rebin(indgen(nabs)+1,nabs*4)
    endif
 
 ;  doublet emission
-   if ndoubletem gt 0 then begin
+   if nem gt 0 then begin
 ;     Initial values
-;      ilo = 3+nhei*3+ndoubletabs*4
-      ilo = 2+ndoubletabs*4
-      parinfo[ilo:ilo+ndoubletem*4-1].value = reform(transpose(initdoubletem),ndoubletem*4)
+;      ilo = 3+nhei*3+nabs*4
+      ilo = 2+nabs*4
+      parinfo[ilo:ilo+nem*4-1].value = reform(transpose(initdoubletem),nem*4)
 ;     Index arrays
-      ind_w = ilo + indgen(ndoubletem)*4
+      ind_w = ilo + indgen(nem)*4
       ind_s = ind_w + 1
       ind_f = ind_w + 2
       ind_r = ind_w + 3
 ;     Limits + fixed/free
       parinfo[ind_w].limited[0] = 1B
       parinfo[ind_w].limited[1] = 1B
-      for i=0,ndoubletem-1 do begin
-         parinfo[ilo+i*4].limits[0] = initdoubletem[i,0]-10d
-         parinfo[ilo+i*4].limits[1] = initdoubletem[i,0]+10d
+      for i=0,nem-1 do begin
+         parinfo[ilo+i*4].limits[0] = initdoubletem[i,0]*(1d - zvar)
+         parinfo[ilo+i*4].limits[1] = initdoubletem[i,0]*(1d + zvar)
       endfor
       parinfo[ind_s].limited[0] = 1B
       parinfo[ind_s].limited[1] = 1B
@@ -202,16 +209,16 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
       parinfo[ind_r].limits[0]  = 1d
       parinfo[ind_r].limits[1]  = tratio
       if keyword_set(doubletemfix) then $
-         parinfo[ilo:ilo+ndoubletem*4-1].fixed = $
-            reform(transpose(doubletemfix),ndoubletem*4)
+         parinfo[ilo:ilo+nem*4-1].fixed = $
+            reform(transpose(doubletemfix),nem*4)
 ;     Labels
       parinfo[ind_w].parname = 'wavelength'
       parinfo[ind_s].parname = 'sigma'
       parinfo[ind_f].parname = 'flux_peak'
       parinfo[ind_r].parname = 'flux_ratio_redblue'
-      parinfo[ilo:ilo+ndoubletem*4-1].line = linename
-      parinfo[ilo:ilo+ndoubletem*4-1].comp = $
-         rebin(indgen(ndoubletem)+1,ndoubletem*4)
+      parinfo[ilo:ilo+nem*4-1].line = linename
+      parinfo[ilo:ilo+nem*4-1].comp = $
+         rebin(indgen(nem)+1,nem*4)
    endif
 
 ;  Check parinit initial values vs. limits

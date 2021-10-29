@@ -81,8 +81,6 @@
 ;      First element of first dimension is absorption, second is emission.
 ;    nademfluxerr: out, optional, type=dblarr(2)
 ;      Low and high emission line flux errors.
-;    specres: in, required, type=double, def=0.64d
-;      Estimated spectral resolution in wavelength units (sigma).
 ;      
 ; :Author:
 ;    David S. N. Rupke::
@@ -119,7 +117,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
+function ifsf_fitnaderr,argsfitnad,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
                         dofirstemfit=dofirstemfit,$
                         first_modflux=first_modflux,$
                         first_parinit=first_parinit,$
@@ -127,7 +125,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
                         heifix=heifix,nadabsfix=nadabsfix,nademfix=nademfix,$
                         quiet=quiet,noplot=noplot,$
                         weqerr=weqerr,nademfluxerr=nademfluxerr,$
-                        plotonly=plotonly,specres=specres
+                        plotonly=plotonly
 
    bad = 1d99
    plotquantum = 2.5 ; in inches
@@ -142,12 +140,12 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
    if ncomp[1] gt 0 AND ~ keyword_set(nadabsfix) then nadabsfix=bytarr(ncomp[1],4)
    if ncomp[2] gt 0 AND ~ keyword_set(nademfix) then nademfix=bytarr(ncomp[2],4)
    nwave = n_elements(wave)
-   argsfitnad = {specres: specres}
 
 ;  Outputs
    errors = dblarr(ncomp[0]*3+ncomp[1]*4+ncomp[2]*4,2)
    weqerr=dblarr(2,2)
    nademfluxerr=dblarr(2)
+   
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Monte Carlo
@@ -174,6 +172,11 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          ncompuse = ncomp
       endelse
 
+      ; Use a Gaussian random seed with sigma = uncertainty. RANDOMN produces
+      ; a draw from a Gaussian with sigma=1, so when we multiply by our error
+      ; this scales the x-value of the distribution by using the
+      ; x=1 value from the RANDOMN draw. (It doesn't scale the y-value of the
+      ; Gaussian distribution in fluxes....)
       rans = randomn(seed,nwave,niter,/double)
 
 ;     This block processes on one core...
@@ -204,7 +207,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
             weq_i=1
             nademflux_i=1
             dumy = ifsf_nadfcn(wave,param,weq=weq_i,nademflux=nademflux_i,$
-                               cont=cont,specres=specres)
+                               cont=cont,specres=argsfitnad.specres,$
+                               upsample=argsfitnad.upsample)
 
             if ncompuse[0] gt 0 then begin
                ilo = 3
@@ -233,7 +237,6 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
          split_for,0,niter-1,commands=[$
             'resolve_routine, '+string(39B)+'mpfit'+string(39B)+', /EITHER, /NO_RECOMPILE',$
             'modflux_use = modfluxinit + rans[*,i]*err',$
-            'argsfitnad = {specres: specres}',$
             'param = Mpfitfun(fitfcn,wave,modflux_use,err,'+$
             '                 parinfo=parinituse,perror=perror,maxiter=100,'+$
             '                 bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,'+$
@@ -243,7 +246,8 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
             'weq_i=1',$
             'nademflux_i=1',$
             'dumy = ifsf_nadfcn(wave,param,weq=weq_i,nademflux=nademflux_i,'+$
-            '                   cont=cont,specres=specres)',$
+            '                   cont=cont,specres=argsfitnad.specres,'+$
+            '                   upsample=argsfitnad.upsample)',$
             'if ncompuse[0] gt 0 then begin',$
             '   ilo = 3',$
             '   if n_elements(heipar) eq 0 then'+$
@@ -269,7 +273,7 @@ function ifsf_fitnaderr,ncomp,wave,modflux,err,cont,parinit,outplot,outfile,$
             '   nademflux=nademflux_i[0]'+$
             'else nademflux=[nademflux,nademflux_i[0]]'],$
             varnames=['modfluxinit','rans','err','fitfcn','wave','ncompuse',$
-                      'cont','specres'],$
+                      'cont','argsfitnad'],$
             struct2pass1=parinituse,struct2pass2=argslinefit,$
             outvar=['heipar','abspar','empar','weq','nademflux'],$
             nsplit=nsplit,silent=quiet,quietchild=quiet

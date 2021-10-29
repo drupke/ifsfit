@@ -8,7 +8,7 @@
 ;    IFSFIT
 ;
 ; :Returns:
-;    Produces a plot ([gal_col_row]_doublet_fit.jpg) for each fit, and a
+;    Produces a plot ([gal_col_row]_multiplet_multipletfit.jpg) for each fit, and a
 ;    parameter file ([gal].doublet.dat) containing the fit parameters for
 ;    all spaxels.
 ;
@@ -17,17 +17,17 @@
 ;      Directory path where spectra data is located and where results 
 ;      are to be output.
 ;    galshort: in, required, type=string
-;      Shorthand for galaxy to fit.
+;      Shorthand for galaxy to multipletfit.
 ;    multiplet: in, required, type=string
-;      Multiplet profiles to fit. Captilization is required.
+;      Multiplet profiles to multipletfit. Captilization is required.
 ;
 ; :Keywords:
 ;    cols: in, optional, type=intarr, default=all
 ;      Columns to fit, in 1-offset format. Either a scalar or a
-;      two-element vector listing the first and last columns to fit.
+;      two-element vector listing the first and last columns to multipletfit.
 ;    rows: in, optional, type=intarr, default=all
 ;      Rows to fit, in 1-offset format. Either a scalar or a
-;      two-element vector listing the first and last rows to fit. 
+;      two-element vector listing the first and last rows to multipletfit. 
 ;    init: in, optional, type=byte
 ;      Plot initial guess rather than fitting.
 ;    noerr: in, optional, type=byte
@@ -40,7 +40,7 @@
 ;    noplot: in, optional, type=byte
 ;      Do not produce plots.
 ;    noxdr: in, optional, type=byte
-;      Do no write XDR file with fit parameters.
+;      Do not write XDR file with fit parameters.
 ;    verbose: in, optional, type=byte
 ;      Print error and progress messages. Propagates to most/all
 ;      subroutines.
@@ -88,7 +88,7 @@
 pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
                       cols=cols,rows=rows,verbose=verbose,$
                       noxdr=noxdr,noplot=noplot,weights=weights,$
-                      noerr=noerr,nomc=nomc,init=init,$
+                      noerr=noerr,nomc=nomc,init=init,nsplit=nsplit,$
                       argsgalinfo=argsgalinfo
 
    bad = 1d99
@@ -110,7 +110,10 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
    maxncomp = initstr.maxncomp
    
    ; Get linelist
-   linelist = ifsf_linelist([initstr.reflinename,initstr.linenames])
+   if ~ tag_exist(initstr,'argslinelist') then argslinelist = {} $
+   else argslinelist = initstr.argslinelist
+   linelist = ifsf_linelist([initstr.reflinename,initstr.linenames],$
+      _extra=argslinelist)
 
    if tag_exist(initstr,'taumax') then taumax=initstr.taumax $
    else taumax = 5d
@@ -127,6 +130,20 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
            cont: initstr.continuum, $
            flux: initstr.flux $   
            }
+
+   ; spectral resolution, in A, sigma
+   if ~ tag_exist(initstr,'specres') then specres=0b $
+   else specres=initstr.specres
+   ; factor to bin upward for cases sigma << specres
+   if ~ tag_exist(initstr,'upsample') then upsample=0b $
+   else upsample=initstr.upsample
+
+   argsfit = {refloglf:initstr.refloglf,$
+      refmultwave:initstr.refmultwave,$
+      loglf:initstr.loglf,$
+      multwave:initstr.multwave,$
+      specres: specres, $
+      upsample: upsample}
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
@@ -176,10 +193,12 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
             absfix=reform((initstr.abs_fix)[i,j,0:nabs-1,*],nabs,4) $
          else absfix=0b
 
+         if ~ tag_exist(initstr,'argsinitpar') then argsinitpar={} $
+         else argsinitpar = initstr.argsinitpar
          parinit = $
             call_function(initstr.fcninitpar,initabs,$
                           initstr.abs_siglim,initstr.reflinename,$
-                          absfix=absfix,taumax=taumax)
+                          absfix=absfix,taumax=taumax,_extra=argsinitpar)
 
 ;        Plot initial guess if requested
          if keyword_set(init) then begin
@@ -193,14 +212,16 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
                                  (cube.flux)[ilo:ihi],$
                                  parinit.value,linelist,initstr,multiplet,dir,$
                                  outfile+multiplet+'_init',zuse,/init,$
-                                 _extra=initstr.argspltmultiplet $
+                                 _extra=initstr.argspltmultiplet,$
+                                 specres=specres,upsample=upsample $
             else $
                ifsf_pltmultiplet,galshort,(cube.wave)[ilo:ihi],$
                                  (cube.dat)[ilo:ihi],$
                                  (cube.cont)[ilo:ihi],$
                                  (cube.flux)[ilo:ihi],$
                                  parinit.value,linelist,initstr,multiplet,dir,$
-                                 outfile+multiplet+'_init',zuse,/init
+                                 outfile+multiplet+'_init',zuse,/init,$
+                                 specres=specres,upsample=upsample
                        
             goto,fullstop
          endif
@@ -214,10 +235,7 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
                             bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                             nfev=nfev,niter=niter,status=status,quiet=quiet,$
                             npegged=npegged,ftol=1D-6,errmsg=errmsg,$
-                            functargs={refloglf:initstr.refloglf,$
-                                       refmultwave:initstr.refmultwave,$
-                                       loglf:initstr.loglf,$
-                                       multwave:initstr.multwave})
+                            functargs=argsfit)
          endif else begin
            param = Mpfitfun(initstr.fcnfitmultiplet,$
                             (cube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
@@ -227,14 +245,11 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
                             bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                             nfev=nfev,niter=niter,status=status,quiet=quiet,$
                             npegged=npegged,ftol=1D-6,errmsg=errmsg,$
-                            functargs={refloglf:initstr.refloglf,$
-                                       refmultwave:initstr.refmultwave,$
-                                       loglf:initstr.loglf,$
-                                       multwave:initstr.multwave},/WEIGHTS)          
+                            functargs=argsfit,/WEIGHTS)          
          endelse
          if status eq 5 then print,'IFSF_FITMULTIPLET: Max. iterations reached.'
          if status eq 0 OR status eq -16 then begin
-            print,'IFSF_FITMULTIPLET: Error in MPFIT. Aborting.'
+            print,'IFSF_FITMULTIPLET: Error in MPmultipletfit. Aborting.'
             goto,finish
          endif
 
@@ -242,7 +257,7 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
 ;        
 ;        If the data was not first processed with IFSF, then set the redshift
 ;        for plotting to be the systemic redshift. Otherwise, use the stellar 
-;        redshift determined from the fit.
+;        redshift determined from the multipletfit.
 ;         if ~ tag_exist(initstr,'noemlinfit') then zuse = struct.zstar $
 ;         else 
          zuse = initstr.zsys_gas
@@ -254,26 +269,50 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
                                 (cube.cont)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 (cube.flux)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 param,linelist,initstr,multiplet,dir,outfile+multiplet+'_fit',zuse,$
+                                specres=specres,upsample=upsample,$
                                 _extra=initstr.argspltmultiplet $
             else $
                ifsf_pltmultiplet,galshort,(cube.wave)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 (cube.dat)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 (cube.cont)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 (cube.flux)[initstr.plotindex[0]:initstr.plotindex[1]],$
-                                param,linelist,initstr,multiplet,dir,outfile+multiplet+'_fit',zuse
+                                param,linelist,initstr,multiplet,dir,outfile+multiplet+'_fit',zuse,$
+                                specres=specres,upsample=upsample
          endif
 
 ;        Compute model equivalent widths
          weq=1d
+         vwtabs=1d
+;        Velocity array
+         delz = cube.wave/(linelist[initstr.reflinename]*(1d + redshift)) - 1d
+         veltmp = c*((delz+1d)^2d -1d)/((delz+1d)^2d +1d)
          modspec = ifsf_multipletfcn(cube.wave,param,refloglf=initstr.refloglf,$
                                      refmultwave=initstr.refmultwave,$
                                      loglf=initstr.loglf,multwave=initstr.multwave,$
-                                     weq=weq)
+                                     weq=weq,vels=veltmp,vwtabs=vwtabs,$
+                                     specres=specres,upsample=upsample)
 
+;        Compute errors in fit
+         if ~ keyword_set(noerr) then begin
+            if keyword_set(nomc) then plotonly=1b else plotonly=0b
+            if tag_exist(initstr,'mcniter') then mcniter=initstr.mcniter $
+            else mcniter = 0b
+            errors = ifsf_fitmultipleterr(argsfit,nabs,$
+               (cube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
+               veltmp[initstr.fitindex[0]:initstr.fitindex[1]],$
+               modspec[initstr.fitindex[0]:initstr.fitindex[1]],$
+               (cube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
+               initstr.continuum[initstr.fitindex[0]:initstr.fitindex[1]],$
+               parinit,outfile+multiplet+'_fit_errs.ps',$
+               outfile+multiplet+'_fit_mc.xdr',$
+               absfix=absfix,niter=mcniter,$
+               nsplit=nsplit,quiet=quiet,weqerr=weqerr,noplot=noplot,$
+               plotonly=plotonly,vwtrmserr=vwtrmserr,vwtavgerr=vwtavgerr)
+         endif
 
 ;        Initialize cubes to hold physical quantities
          if firstfit then begin
-            fit = $
+            multipletfit = $
 ;               Fit properties
                {chisq: dblarr(ncols,nrows)+bad,$
                 dof: dblarr(ncols,nrows)+bad,$
@@ -281,9 +320,13 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
 ;               Equivalent widths and fluxes
                 weqabs: dblarr(ncols,nrows,1+maxncomp)+bad,$
                 weqabserr: dblarr(ncols,nrows,2)+bad,$
+                vwtavg: dblarr(ncols,nrows)+bad,$
+                vwtavgerr: dblarr(ncols,nrows,2)+bad,$
+                vwtrms: dblarr(ncols,nrows)+bad,$
+                vwtrmserr: dblarr(ncols,nrows,2)+bad,$
 ;               multiplet absorption line parameters
                 cf: dblarr(ncols,nrows,maxncomp)+bad,$
-                cferr: dblarr(ncols,nrows,maxncomp,2)+bad,$
+                cftauerr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 tau: dblarr(ncols,nrows,maxncomp)+bad,$
                 tauerr: dblarr(ncols,nrows,maxncomp,2)+bad,$
                 waveabs: dblarr(ncols,nrows,maxncomp)+bad,$
@@ -293,16 +336,27 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
             firstfit = 0
          endif
 ;        Populate cubes of physical properties
-         fit.chisq[i,j]=chisq
-         fit.dof[i,j]=dof
-         fit.niter[i,j]=niter
-         fit.weqabs[i,j,0:nabs]=weq.abs
+         multipletfit.chisq[i,j]=chisq
+         multipletfit.dof[i,j]=dof
+         multipletfit.niter[i,j]=niter
+         multipletfit.weqabs[i,j,0:nabs]=weq.abs
+         if ~ keyword_set(noerr) then begin
+            multipletfit.weqabserr[i,j,*]=weqerr
+            multipletfit.vwtavgerr[i,j,*]=vwtavgerr
+            multipletfit.vwtrmserr[i,j,*]=vwtrmserr
+         endif
          if nabs gt 0 then begin
             iarr = 1 + dindgen(nabs)*4
-            fit.cf[i,j,0:nabs-1]=param[iarr]
-            fit.tau[i,j,0:nabs-1]=param[iarr+1]
-            fit.waveabs[i,j,0:nabs-1]=param[iarr+2]
-            fit.sigmaabs[i,j,0:nabs-1]=param[iarr+3]
+            multipletfit.cf[i,j,0:nabs-1]=param[iarr]
+            multipletfit.tau[i,j,0:nabs-1]=param[iarr+1]
+            multipletfit.waveabs[i,j,0:nabs-1]=param[iarr+2]
+            multipletfit.sigmaabs[i,j,0:nabs-1]=param[iarr+3]
+            if ~ keyword_set(noerr) then begin
+               multipletfit.cftauerr[i,j,0:nabs-1,*]=errors[iarr-1,*]
+               multipletfit.tauerr[i,j,0:nabs-1,*]=errors[iarr-1+1,*]
+               multipletfit.waveabserr[i,j,0:nabs-1,*]=errors[iarr-1+2,*]
+               multipletfit.sigmaabserr[i,j,0:nabs-1,*]=errors[iarr-1+3,*]
+            endif
          endif
 
 nofit:
@@ -313,8 +367,8 @@ nofit:
 
 ;  Velocity calculations
    comps=maxncomp
-   delz=MAKE_ARRAY(comps)
-   velocity=MAKE_ARRAY(comps)
+   delz=MAKE_ARRAY(comps,/double)
+   velocity=MAKE_ARRAY(comps,/double)
    FOR M = 0, comps-1 DO BEGIN
       delz[M] = param[3+4*M]/(linelist[initstr.reflinename]*(1d + redshift)) - 1d
       velocity[M] = c*((delz[M]+1d)^2d -1d)/((delz[M]+1d)^2d +1d)
@@ -323,17 +377,36 @@ nofit:
 finish:
   
    if ~ keyword_set(noxdr) then begin
+      lineofdashes = strjoin(replicate('-',62))
       output=initstr.outdir+initstr.galaxy+multiplet+'par_best.txt'
       openw, lun, output, /GET_LUN
-      printf, lun, param[0], '[Number of Absorption Components]',FORMAT='(I-3,A0)'
-      printf, lun, weq.abs[0], ' [Total equivalent width in A]',FORMAT='(D0.4,A0)'
-      printf, lun,'Covering Factor','Optical Depth',$
-                  'Wavelength(A)','Sigma(km/s)','Velocity(km/s)',$
-                  FORMAT='(5A-20)'
-      FOR M = 0, maxncomp-1 DO $
-         printf,lun, param[1+4*M:1+4*M+3],velocity[M],FORMAT='(5F-20.4)'
-      FREE_LUN, lun
+      printf, lun, param[0], '[Number of Components]',FORMAT='(I-3,A0)'
+      if ~ keyword_set(noerr) then begin
+         printf, lun, weq.abs[0], weqerr[0], weqerr[1],' [Total equivalent width in A, +/-1sig errors]',FORMAT='(3D8.4,A0)'
+         printf, lun, vwtabs[0], vwtavgerr[0], vwtavgerr[1], ' [Weighted avg. vel. in km/s, +/-1sig errors]',FORMAT='(3D8.2,A0)'
+         printf, lun, vwtabs[1], vwtrmserr[0], vwtrmserr[1], ' [Weighted RMS vel. in km/s, +/-1sig errors]',FORMAT='(3D8.2,A0)'
+      endif else begin
+         printf, lun, weq.abs[0],' [Total equivalent width in A]',FORMAT='(D8.4,A0)'
+         printf, lun, vwtabs[0],' [Weighted avg. vel. in km/s]',FORMAT='(D8.2,A0)'
+         printf, lun, vwtabs[1],' [Weighted RMS vel. in km/s]',FORMAT='(D8.2,A0)'
+      endelse
+      printf, lun, lineofdashes
+      printf, lun,'Cov. Factor','Tau','Wave(A)','Sigma(km/s)','Vel(km/s)',$
+              FORMAT='(A-12,A-12,A-12,A-12,A-12)'
+      printf, lun, lineofdashes
+      FOR M = 0, comps-1 DO BEGIN
+         printf,lun, param[1+4*M:1+4*M+3],velocity[M],$
+                FORMAT='(F-12.4,F-12.4,F-12.4,F-12.4,F-12.4)'
+      ENDFOR
+      free_lun,lun
    endif
+
+   if ~ keyword_set(noxdr) then begin
+      if tag_exist(initstr,'outxdr') then outxdr=initstr.outxdr $
+      else outxdr=initstr.outdir+initstr.galaxy+multiplet+'_fit.xdr'
+      save,multipletfit,file=outxdr
+   endif
+
 
 fullstop:
 

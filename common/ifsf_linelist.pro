@@ -356,20 +356,21 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['MgII2803'] = 2803.530 ; f = 0.3054
       lines['MgII2796+MgII2803'] = (2796.352d + 2803.530d)/2d ; f = 0.3054
       lines['MgI2852'] = 2852.965 ; f = 1.81
+; FeII line wavelengths from NIST ASD except in one case
 ;;  UV5
-;      lines['FeII2249'] = 2249.1795d
+      lines['FeII2249'] = 2249.87517d
 ;;  UV4
-;      lines['FeII2260'] = 2260.0809d
-;      lines['FeII2233'] = 2233.7532d
+      lines['FeII2260'] = 2260.77905d
+      lines['FeII2233'] = 2234.447d
 ;;  UV3
-;      lines['FeII2343'] = 2343.4948d ; f = 0.1140 (~2 times smaller than 2599 line)
+      lines['FeII2343'] = 2344.21273d ; f = 0.1140 (~2 times smaller than 2599 line)
 ;;  UV2
-;      lines['FeII2366'] = 2366.8674d
-;      lines['FeII2373'] = 2373.73528d; f = 0.0313 (~8 times smaller than 2599 line)
-;      lines['FeII2382'] = 2382.03733d; f = 0.320 (larger than 2599 line)
+      lines['FeII2366'] = 2367.5905d ; from Morton 2003; not in NIST ASD
+      lines['FeII2373'] = 2374.46008d; f = 0.0313 (~8 times smaller than 2599 line)
+      lines['FeII2382'] = 2382.76390d; f = 0.320 (larger than 2599 line)
 ;;  UV1
-;      lines['FeII2585'] = 2585.87560d ; f = 0.0691 (~3.5 times smaller than 2599 line)
-;      lines['FeII2599'] = 2599.39515d ; f = 0.239
+      lines['FeII2585'] = 2586.64935d ; f = 0.0691 (~3.5 times smaller than 2599 line)
+      lines['FeII2599'] = 2600.17210d ; f = 0.239
 ;;  non-resonant lines from Finley+17
 ;;  UV3
 ;      lines['FeII*2364'] = 2364.8278d ; goes with 2343

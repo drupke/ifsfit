@@ -76,7 +76,11 @@
 ;-
 pro ifsf_pltmultiplet,gal,wave,relativeflux,continuum,flux,param,linelist,$
                       initstr,multiplet,directoryname,outfile,zsys,$
-                      xran=xran,yran=yran,init=init,zres=zres,smooth=smooth
+                      xran=xran,yran=yran,init=init,zres=zres,smooth=smooth,$
+                      specres=specres,upsample=upsample
+
+  if ~  keyword_set(specres) then specres=0b
+  if ~  keyword_set(upsample) then upsample=0b
 
 ; Default wavelengths
   c = 299792.458d
@@ -91,7 +95,7 @@ pro ifsf_pltmultiplet,gal,wave,relativeflux,continuum,flux,param,linelist,$
   modflux = ifsf_multipletfcn(wave,param,refloglf=initstr.refloglf,$
                               refmultwave=initstr.refmultwave,$
                               loglf=initstr.loglf,multwave=initstr.multwave,$
-                              modabs=modabs)
+                              modabs=modabs,specres=specres,upsample=upsample)
   size_abs = size(modabs)
   if size_abs[0] eq 1 then nabs = 1 $
   else if size_abs[0] eq 2 then nabs = fix(size_abs[2]) $

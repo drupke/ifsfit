@@ -79,7 +79,11 @@
 ;-
 pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
                     directoryname,outfile,zsys,linelist,$
-                    xran=xran,yran=yran,init=init
+                    xran=xran,yran=yran,init=init,specres=specres,$
+                    upsample=upsample
+
+  if ~  keyword_set(specres) then specres=0b
+  if ~  keyword_set(upsample) then upsample=0b
 
 ; Default wavelengths
   c = 299792.458d
@@ -113,19 +117,19 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
      w_doublet1 = linelist['FeII2373']*(1d +zsys)
      w_doublet2 = linelist['FeII2382']*(1d +zsys)
   END
-  moddoubletabs=1
-  moddoubletem=1
+  modabs=1
+  modem=1
   modflux = ifsf_doubletfcn(wave,param,doubletname=doublet,$
-                            moddoubletabs=moddoubletabs,$
-                            moddoubletem=moddoubletem)
-  size_doubletabs = size(moddoubletabs)
-  if size_doubletabs[0] eq 1 then ndoubletabs = 1 $
-  else if size_doubletabs[0] eq 2 then ndoubletabs = fix(size_doubletabs[2]) $
-  else ndoubletabs=0l
-  size_doubletem = size(moddoubletem)
-  if size_doubletem[0] eq 1 then ndoubletem = 1 $
-  else if size_doubletem[0] eq 2 then ndoubletem = fix(size_doubletem[2]) $
-  else ndoubletem=0l
+                            modabs=modabs,$
+                            modem=modem,specres=specres,upsample=upsample)
+  size_doubletabs = size(modabs)
+  if size_doubletabs[0] eq 1 then nabs = 1 $
+  else if size_doubletabs[0] eq 2 then nabs = fix(size_doubletabs[2]) $
+  else nabs=0l
+  size_doubletem = size(modem)
+  if size_doubletem[0] eq 1 then nem = 1 $
+  else if size_doubletem[0] eq 2 then nem = fix(size_doubletem[2]) $
+  else nem=0l
 
 ; PLOT
   
@@ -149,8 +153,8 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
   cgoplot,[w_doublet1,w_doublet1],yran,color='Green',linesty=2
   cgoplot,[w_doublet2,w_doublet2],yran,color='Green',linesty=2
 ;  for i=0,nhei-1 do cgoplot,wave,modhei[*,i],color='Cyan',thick=2
-  for i=0,ndoubletabs-1 do cgoplot,wave,moddoubletabs[*,i],color='Cyan',thick=2
-  for i=0,ndoubletem-1 do cgoplot,wave,moddoubletem[*,i],color='Cyan',thick=2
+  for i=0,nabs-1 do cgoplot,wave,modabs[*,i],color='Cyan',thick=2
+  for i=0,nem-1 do cgoplot,wave,modem[*,i],color='Cyan',thick=2
   cgoplot,wave,modflux,color='Red',thick=4
 
   if ~keyword_set(init) then $
@@ -173,10 +177,10 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
      FREE_LUN,lun
   
      openw,lun, output+'modabs'+'.txt',/GET_LUN
-     abssize = size(moddoubletabs)
+     abssize = size(modabs)
      abssize=abssize(1)
-     printf, lun, ndoubletabs, abssize, FORMAT='(I4,2X,I4)'
-     for i=0,ndoubletabs-1 do printf, lun, moddoubletabs[*,i], FORMAT='(F10.7)'
+     printf, lun, nabs, abssize, FORMAT='(I4,2X,I4)'
+     for i=0,nabs-1 do printf, lun, modabs[*,i], FORMAT='(F10.7)'
      free_lun, lun
 
   endif

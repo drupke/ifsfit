@@ -120,13 +120,20 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
    tags4d = ['CFERR','TAUERR','WAVEABSERR','SIGMAABSERR',$
              'WAVEEMERR','SIGMAEMERR','FLUXERR','FRATERR']
 
-;  Estimated spectral resolution for GMOS, B600 grating based on measurements.
-;  Website says R = 1688 at 4610 A for 0.5" slit, with IFU 0.31" eff. slit.
-;  This gives 1.69 A FWHM. I measure sometimes closer to 1.5-1.6.
-;  Sigma is then in the range 0.64 -- 0.72. Use the former for flexibility.
-   if ~ tag_exist(initnad,'specres') then specres = 0.64d $
+;;  OLD DEFAULT:
+;;  Estimated spectral resolution for GMOS, B600 grating based on measurements.
+;;  Website says R = 1688 at 4610 A for 0.5" slit, with IFU 0.31" eff. slit.
+;;  This gives 1.69 A FWHM. I measure sometimes closer to 1.5-1.6.
+;;  Sigma is then in the range 0.64 -- 0.72. Use the former for flexibility.
+;   if ~ tag_exist(initnad,'specres') then specres=0.64d $
+
+;  spectral resolution, in A, sigma
+   if ~ tag_exist(initnad,'specres') then specres=0b $
    else specres = initnad.specres
-   argsfitnad = {specres: specres}
+   ; factor to bin upward for cases sigma << specres
+   if ~ tag_exist(initstr,'upsample') then upsample=0b $
+   else upsample=initstr.upsample
+   argsfitnad = {specres: specres, upsample: upsample}
 
    ifsf_printnadpar,nadparlun,outfile=initdat.outdir+initdat.label+'.nad.dat'
 
@@ -667,7 +674,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             if dofirstemfit then nademfix_use = first_nademfix $
             else nademfix_use = nademfix
             if keyword_set(nomc) then plotonly=1b else plotonly=0b
-            errors = ifsf_fitnaderr([nhei,nnadabs,nnadem],passwav,$
+            errors = ifsf_fitnaderr(argsfitnad,[nhei,nnadabs,nnadem],passwav,$
                                     modspec,passerr,passcont,$
                                     parinit,$
                                     outfile+'_nad_errs.ps',outfile+'_nad_mc.xdr',$
@@ -679,7 +686,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                                     niter=initnad.mcniter,$
                                     nsplit=nsplit,quiet=quiet,weqerr=weqerr,$
                                     nademfluxerr=nademfluxerr,noplot=noplot,$
-                                    plotonly=plotonly,specres=specres)
+                                    plotonly=plotonly)
          endif
          
          ifsf_printnadpar,nadparlun,i+1,j+1,param

@@ -31,6 +31,9 @@
 ;      continuum, as well.
 ;    specres: in, optional, type=double, def=0.64d
 ;      Estimated spectral resolution in wavelength units (sigma).
+;    upsample: in, optional, type=integer, def=0
+;      Factor by which to "upsample" the spectra (opposite of bin!) for the 
+;      model computation.
 ;    wavhei: out, optional, type=dblarr(nhei)
 ;      Wavelengths of HeI emission lines in obs. frame
 ;    wavnadabs: out, optional, type=dblarr(nnadabs)
@@ -62,9 +65,10 @@
 ;      2017may18, DSNR, upsample spectra to avoid undersampling model in case of
 ;                       v. narrow components
 ;      2020jun25, DSNR, option to output lambda(NaD em)
+;      2021oct21, DSNR, made upsample parameter
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2020 David S. N. Rupke
+;    Copyright (C) 2014--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -84,7 +88,7 @@
 function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
                       modnadem=modnadem, weq=weq, nademflux=nademflux, $
                       cont=cont, specres=specres, wavnadabs=wavnadabs, $
-                      wavnadem=wavnadem,wavhei=wavhei
+                      wavnadem=wavnadem,wavhei=wavhei, upsample=upsample
 
 
 
@@ -98,8 +102,10 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    nnadabs = param[1]
    nnadem = param[2]
 
-;  Upsample wave
    nwave = n_elements(wave)
+   dwave = wave[1:nwave-1] - wave[0:nwave-2]
+
+;  Upsample wave
 ;  [Upsample must be odd.] This is the factor by which to "upsample" the 
 ;  spectra (opposite of bin!) for the model computation. Problem for cases 
 ;  where sigma << spectral resolution.
@@ -107,18 +113,23 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
 ;  mean +/- 2.5 sigma (99.8% of area). So if minimum possible sigma = 5 km/s,
 ;  upsample = 7, native dispersion = 0.44 (as for WiFeS), and a line at 6000 A,
 ;  then there is a point every 3 km/s, vs. 5-sigma = 25 km/s for the line.
-   fac_upsample = 7
-   waveuse = rebin(reform(wave,nwave),nwave*fac_upsample)
-   nwaveuse = n_elements(waveuse)
+   if keyword_set(upsample) then begin
+      waveuse = rebin(reform(wave,nwave),nwave*upsample)
+      nwaveuse = n_elements(waveuse)
 ;   waveuse = waveuse[0:nwaveuse-fac_upsample]
 ;   nwaveuse -= fac_upsample-1
-
-   dwave = wave[1:nwave-1] - wave[0:nwave-2]
-   dwaveuse = waveuse[1:nwaveuse-1] - waveuse[0:nwaveuse-2]
-
+      dwaveuse = waveuse[1:nwaveuse-1] - waveuse[0:nwaveuse-2]
 ;  Indices for downsampling back to original resolution
-   dslo = ceil(double(fac_upsample)/2d)
-   dshi = nwaveuse-(1+floor(double(fac_upsample)/2d))
+      dslo = ceil(double(upsample)/2d)
+      dshi = nwaveuse-(1+floor(double(upsample)/2d))
+   endif else begin
+      waveuse=wave
+      nwaveuse=nwave
+      dwaveuse=dwave
+      dslo=1
+      dshi=nwave-1
+   endelse
+
 
 ;  HeI emission
    modflux = dblarr(nwaveuse)+1d
@@ -190,6 +201,7 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
    endelse
 
 ;  Optionally, compute equivalent widths
+;  Note that we're doing this using the original binning ... and prior to convolution
    if keyword_set(weq) then begin
       if nnadem gt 0 then begin
          emweq = dblarr(nnadem+1)
@@ -228,8 +240,11 @@ function ifsf_nadfcn, wave, param, modhei=modhei, modnadabs=modnadabs, $
       modflux_con = modflux
       
    ;     Downsample back to original resolution
-   modflux_con_ds = rebin(modflux_con[dslo:dshi],nwave-1)
-   modflux_con_ds = [modflux_con_ds[0],modflux_con_ds]
+   if keyword_set(upsample) then begin
+      modflux_con_ds = rebin(modflux_con[dslo:dshi],nwave-1)
+      modflux_con_ds = [modflux_con_ds[0],modflux_con_ds]
+   endif else $
+      modflux_con_ds = modflux_con
    
    return,modflux_con_ds
 

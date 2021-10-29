@@ -2,7 +2,7 @@
 ;
 ;+
 ;
-; Monte Carlo the errors in a doublet fit. The input is a doublet fit and the 
+; Monte Carlo the errors in a UV doublet fit. The input is a doublet fit and the 
 ; associated data. The error spectrum is varied as a randomized Gaussian and added to the
 ; best-fit model at each wavelength, and the result is refit. The resulting
 ; best-fit distributions are parameterized by the median and 68% confidence
@@ -26,10 +26,10 @@
 ;    Nparams x 2 array of parameter errors (below and above the median),
 ;    PDF file of histograms of parameter distributions, and XDR file of
 ;    Monte Carlo-ed distributions. In output array, order of parameters is
-;    HeI emission, doublet absorption, and doublet emission.
+;    doublet absorption and doublet emission.
 ;
 ; :Params:
-;    ncomp: in, required, type=dblarr(3)
+;    ncomp: in, required, type=dblarr(2)
 ;      Number of doublet absorption and doublet emission compoennts.
 ;    wave: in, required, type=dblarr(N)
 ;      Wavelengths to fit.
@@ -64,7 +64,7 @@
 ;    nsplit: in, optional, type=integer, default=1
 ;      Number of independent child processes into which the Monte Carlo
 ;      computation is split.
-;    doubletemfix: in, optional, type=bytarr(Ncomp_doubletem,3)
+;    emfix: in, optional, type=bytarr(Ncomp_em,3)
 ;      Array of fix/free flags for doublet emission parameters; same as that used
 ;      in the fit to the data.
 ;    plotonly: in, optional, type=boolean
@@ -76,7 +76,7 @@
 ;    weqerr: out, optional, type=dblarr(2,2)
 ;      Emission and absorption line equivalent width errors (low and high).
 ;      First element of first dimension is absorption, second is emission.
-;    doubletemfluxerr: out, optional, type=dblarr(2)
+;    emfluxerr: out, optional, type=dblarr(2)
 ;      Low and high emission line flux errors.
 ;    specres: in, required, type=double, def=0.64d
 ;      Estimated spectral resolution in wavelength units (sigma).
@@ -111,12 +111,12 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit,$
+function ifsf_fitdoubleterr,argsfit,ncomp,wave,vels,modflux,err,cont,parinit,$
    outplot,outfile,dofirstemfit=dofirstemfit,first_modflux=first_modflux,$
    first_parinit=first_parinit,fitfcn=fitfcn,niter=niter,nsplit=nsplit,$
-   doubletabsfix=doubletabsfix,doubletemfix=doubletemfix,quiet=quiet,$
-   noplot=noplot,weqerr=weqerr,doubletemfluxerr=doubletemfluxerr,$
-   plotonly=plotonly,specres=specres,vwtavgerr=vwtavgerr,vwtrmserr=vwtrmserr
+   absfix=absfix,emfix=emfix,quiet=quiet,$
+   noplot=noplot,weqerr=weqerr,emfluxerr=emfluxerr,$
+   plotonly=plotonly,vwtavgerr=vwtavgerr,vwtrmserr=vwtrmserr
 
    bad = 1d99
    plotquantum = 2.5 ; in inches
@@ -126,20 +126,18 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
    if ~ keyword_set(nsplit) then nsplit = 1
    if ~ keyword_set(quiet) then quiet=0
    if ~ keyword_set(noplot) then noplot=0
-   if ncomp[0] gt 0 AND ~ keyword_set(doubletabsfix) then $
-      doubletabsfix=bytarr(ncomp[0],4)
-   if ncomp[1] gt 0 AND ~ keyword_set(doubletemfix) then $
-      doubletemfix=bytarr(ncomp[1],4)
+   if ncomp[0] gt 0 AND ~ keyword_set(absfix) then $
+      absfix=bytarr(ncomp[0],4)
+   if ncomp[1] gt 0 AND ~ keyword_set(emfix) then $
+      emfix=bytarr(ncomp[1],4)
    nwave = n_elements(wave)
-   if ~ keyword_set(specres) then specres = 0b
-   argsfitdoublet = {doubletname: doubletname, specres: specres}
 
    ;  Outputs
    errors = dblarr(ncomp[0]*4+ncomp[1]*4,2)
    weqerr=dblarr(2,2)
    vwtavgerr=dblarr(2)
    vwtrmserr=dblarr(2)
-   doubletemfluxerr=dblarr(2)
+   emfluxerr=dblarr(2)
 
    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
    ; Monte Carlo
@@ -166,6 +164,11 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
             ncompuse = ncomp
          endelse
 
+         ; Use a Gaussian random seed with sigma = uncertainty. RANDOMN produces
+         ; a draw from a Gaussian with sigma=1, so when we multiply by our error
+         ; this scales the x-value of the distribution by using the
+         ; x=1 value from the RANDOMN draw. (It doesn't scale the y-value of the
+         ; Gaussian distribution in fluxes....)
          rans = randomn(seed,nwave,niter,/double)
 
          ;     This block processes on one core...
@@ -178,7 +181,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
             weq=dblarr(niter,2)
             vwtavg=dblarr(niter)
             vwtrms=dblarr(niter)
-            doubletemflux=dblarr(niter)
+            emflux=dblarr(niter)
             for k=0,niter-1 do begin
 
                modflux_use = modfluxinit + rans[*,k]*err
@@ -188,17 +191,18 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
                   bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                   nfev=nfev,niter=niter_mpfit,status=status,quiet=quiet,$
                   npegged=npegged,ftol=1D-6,errmsg=errmsg,$
-                  functargs=argsfitdoublet)
+                  functargs=argsfit)
                if status eq 5 then message,'Max. iterations reached.',/cont
                if status eq 0 OR status eq -16 then $
                   message,'Error in MPFIT.'
 
                weq_i=1
-               doubletemflux_i=1
+               emflux_i=1
                vwtabs_i=1
                dumy = call_function(fitfcn,wave,param,weq=weq_i,$
-                  doubletemflux=doubletemflux_i,cont=cont,_extra=argsfitdoublet,$
-                  vwtabs=vwtabs_i,vels=vels)
+                  emflux=emflux_i,cont=cont,_extra=argsfit,$
+                  vwtabs=vwtabs_i,vels=vels,specres=argsfit.specres,$
+                  upsample=argsfit.upsample)
 
                if ncompuse[0] gt 0 then begin
                   ilo = 2
@@ -211,7 +215,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
                weq[k,*] = [weq_i.abs[0],weq_i.em[0]]
                vwtavg[k] = vwtabs_i[0]
                vwtrms[k] = vwtabs_i[1]
-               doubletemflux[k] = doubletemflux_i[0]
+               emflux[k] = emflux_i[0]
 
                if k mod 100 eq 0 then $
                   message,'Iteration '+string(k,format='(I0)'),/cont
@@ -229,13 +233,14 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
                '                 parinfo=parinituse,perror=perror,maxiter=100,'+$
                '                 bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,'+$
                '                 nfev=nfev,niter=niter_mpfit,status=status,quiet=quiet,'+$
-               '                 functargs=argsfitdoublet,'+$
+               '                 functargs=argsfit,'+$
                '                 npegged=npegged,ftol=1D-6,errmsg=errmsg)',$
                'weq_i=1',$
                'vwtabs_i=1',$
-               'doubletemflux_i=1',$
-               'dumy = call_function(fitfcn,wave,param,weq=weq_i,doubletemflux=doubletemflux_i,'+$
-               '                    cont=cont,_extra=argsfitdoublet,vwtabs=vwtabs_i,vels=vels)',$
+               'emflux_i=1',$
+               'dumy = call_function(fitfcn,wave,param,weq=weq_i,emflux=emflux_i,'+$
+               '   cont=cont,_extra=argsfit,vwtabs=vwtabs_i,vels=vels,'+$
+               '   specres=argsfit.specres,upsample=argsfit.upsample)',$
                'if ncompuse[0] gt 0 then begin',$
                '   ilo = 2',$
                '   if n_elements(abspar) eq 0 then'+$
@@ -257,28 +262,28 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
                '   vwtavg=[vwtavg,vwtabs_i[0]]',$
                '   vwtrms=[vwtrms,vwtabs_i[1]]',$
                'endelse',$
-               'if n_elements(doubletemflux) eq 0 then'+$
-               '   doubletemflux=doubletemflux_i[0]'+$
-               'else doubletemflux=[doubletemflux,doubletemflux_i[0]]'],$
+               'if n_elements(emflux) eq 0 then'+$
+               '   emflux=emflux_i[0]'+$
+               'else emflux=[emflux,emflux_i[0]]'],$
                varnames=['modfluxinit','rans','err','fitfcn','wave','vels','ncompuse',$
                'cont','quiet'],$
                struct2pass1=parinituse,struct2pass2=argslinefit,$
-               struct2pass3=argsfitdoublet,$
-               outvar=['abspar','empar','weq','doubletemflux','vwtavg','vwtrms'],$
+               struct2pass3=argsfit,$
+               outvar=['abspar','empar','weq','emflux','vwtavg','vwtrms'],$
                nsplit=nsplit,silent=quiet,quietchild=quiet
             abspar=abspar0
             empar=empar0
             weq=weq0
             vwtavg=vwtavg0
             vwtrms=vwtrms0
-            doubletemflux=doubletemflux0
+            emflux=emflux0
             for k=1,nsplit-1 do begin
                abspar=[abspar,scope_varfetch('abspar'+string(k,format='(I0)'))]
                empar=[empar,scope_varfetch('empar'+string(k,format='(I0)'))]
                weq=[weq,scope_varfetch('weq'+string(k,format='(I0)'))]
                vwtavg=[vwtavg,scope_varfetch('vwtavg'+string(k,format='(I0)'))]
                vwtrms=[vwtrms,scope_varfetch('vwtrms'+string(k,format='(I0)'))]
-               doubletemflux=[doubletemflux,scope_varfetch('doubletemflux'+string(k,format='(I0)'))]
+               emflux=[emflux,scope_varfetch('emflux'+string(k,format='(I0)'))]
             endfor
 
          endelse
@@ -289,14 +294,14 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
                first_weq = weq
                first_vwtavg = vwtavg
                first_vwtrms = vwtrms
-               first_doubletemflux = doubletemflux
+               first_emflux = emflux
             endif
             if j eq 1 then begin
                empar = first_empar
                weq[*,1] = first_weq[*,1]
                vwtavg = first_vwtavg
                vwtrms = first_vwtrms
-               doubletemflux = first_doubletemflux
+               emflux = first_emflux
             endif
          endif
 
@@ -304,7 +309,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
 
       ;  Save MC results to a file.
       doubletmc = {doubletabs: abspar, doubletem: empar, doubletweq: weq, $
-         doubletemflux: doubletemflux, doubletvwtavg: vwtavg, $
+         doubletemflux: emflux, doubletvwtavg: vwtavg, $
          doubletvwtrms: vwtrms}
       save,doubletmc,file=outfile
 
@@ -316,7 +321,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
       weq=doubletmc.doubletweq
       vwtavg=doubletmc.doubletvwtavg
       vwtrms=doubletmc.doubletvwtrms
-      doubletemflux=doubletmc.doubletemflux
+      emflux=doubletmc.doubletemflux
 
    endelse
 
@@ -333,7 +338,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
    ;
    for i=0,ncomp[0]-1 do begin
       ;     covering factor x optical depth
-      if (~ doubletabsfix[i,0] OR ~ doubletabsfix[i,1]) then begin
+      if (~ absfix[i,0] OR ~ absfix[i,1]) then begin
          dat = abspar[*,0,i]*abspar[*,1,i]
          errtmp = $
             ifsf_pltmcdist(dat,position=pos[*,0],xtitle='C$\down$f x $\tau$',$
@@ -345,7 +350,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
             bins=0.1d,mininput=0d,min_value=0d
       ;     optical depth
       isame = uniq(float(abspar[*,1,i]))
-      if ~ doubletabsfix[i,1] AND n_elements(isame) ne 1  then begin
+      if ~ absfix[i,1] AND n_elements(isame) ne 1  then begin
          dat_tmp = abspar[*,1,i]
          igd_tmp = where(dat_tmp ne 0 AND dat_tmp ne bad)
          dat = alog10(dat_tmp[igd_tmp])
@@ -357,14 +362,14 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
             ytit='',xtit='log($\tau$)',xticks=2,nbins=1,bins=0.1d,$
             mininput=0d,min_value=0d
       ;     wavelength
-      if ~ doubletabsfix[i,2] then $
+      if ~ absfix[i,2] then $
          errors[i*4+2,*] = $
             ifsf_pltmcdist(abspar[*,2,i],position=pos[*,2],$
                xtitle='$\lambda$ ($\Angstrom$)',/noerase) $
       else cghistoplot,dat,pos=pos[*,2],missing=bad,/noerase,ytit='',$
          xtit='$\lambda$ ($\Angstrom$)',xticks=2,nbins=1,bins=1d
       ;     sigma
-      if ~ doubletabsfix[i,3] then $
+      if ~ absfix[i,3] then $
          errors[i*4+3,*] = $
             ifsf_pltmcdist(abspar[*,3,i],position=pos[*,3],$
                xtitle='$\sigma$ (km/s)',/noerase,$
@@ -380,7 +385,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
    ;
    for i=0,ncomp[1]-1 do begin
       ;     wavelength
-      if ~ doubletemfix[i,0] then $
+      if ~ emfix[i,0] then $
          errors[ncomp[0]*4+i*4,*] = $
             ifsf_pltmcdist(empar[*,0,i],position=pos[*,0],$
                xtitle='$\lambda$ ($\Angstrom$)') $
@@ -388,7 +393,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
          xtit='$\lambda$ ($\Angstrom$)',xticks=2,nbins=1,binsize=1d
       ;     sigma
       isame = uniq(float(empar[*,1,i])) ; float deals with machine precision issues
-      if ~ doubletemfix[i,1] AND n_elements(isame) ne 1 then $
+      if ~ emfix[i,1] AND n_elements(isame) ne 1 then $
          errors[ncomp[0]*4+i*4+1,*] = $
             ifsf_pltmcdist(empar[*,1,i],position=pos[*,1],$
                xtitle='$\sigma$ (km/s)',/noerase,$
@@ -398,7 +403,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
          mininput=0d,min_value=0d
       ;     peak flux
       inonzero = where(empar[*,2,i] ne 0d,ctnonzero)
-      if ~ doubletemfix[i,2] AND ctnonzero gt 0 then $
+      if ~ emfix[i,2] AND ctnonzero gt 0 then $
          errors[ncomp[0]*4+i*4+2,*] = $
             ifsf_pltmcdist(empar[*,2,i],position=pos[*,2],$
                xtitle='F$\down\\lambda$ (peak)',/noerase,$
@@ -408,7 +413,7 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
          mininput=0d,min_value=0d
       ;     flux ratio
       isame = uniq(float(empar[*,3,i])) ; float deals with machine precision issues
-      if ~ doubletemfix[i,3] AND n_elements(isame) ne 1 then $
+      if ~ emfix[i,3] AND n_elements(isame) ne 1 then $
          errors[ncomp[0]*4+i*4+3,*] = $
             ifsf_pltmcdist(empar[*,3,i],position=pos[*,3],$
                xtitle='F$\down2$/F$\down1$',/noerase) $
@@ -444,19 +449,18 @@ function ifsf_fitdoubleterr,doubletname,ncomp,wave,vels,modflux,err,cont,parinit
             xtit='W$\downeq$ (em, $\Angstrom$)',xticks=2,nbins=1,binsize=0.1d,$
             maxinput=0d,max_value=0d
          ;        flux
-         dat = doubletemflux
+         dat = emflux
          inonzero = where(dat ne 0d,ctnonzero)
          if ctnonzero gt 0 then $
-            doubletemfluxerr = $
-               ifsf_pltmcdist(doubletemflux,position=pos[*,3],xtitle='Flux (em)',$
-                  mininput=0d,min_value=0d,xran=[0,max(doubletemflux)],$
+            emfluxerr = $
+               ifsf_pltmcdist(dat,position=pos[*,3],xtitle='Flux (em)',$
+                  mininput=0d,min_value=0d,xran=[0,max(dat)],$
                   /noerase) $
          else cghistoplot,dat,pos=pos[*,3],missing=bad,/noerase,ytit='',$
             xtit='Flux (em)',xticks=2,nbins=1,binsize=0.1d,$
             mininput=0d,min_value=0d
       endif
-      cgtext,0.5,0.99,'doublet equivalent widths'+$
-         string(i+1,format='(I0)'),/norm,align=0.5
+      cgtext,0.5,0.99,'doublet equivalent widths',/norm,align=0.5
 
    endif
    ;

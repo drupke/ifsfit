@@ -95,8 +95,7 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
                     cols=cols,rows=rows,verbose=verbose,$
                     noxdr=noxdr,noplot=noplot,weights=weights,$
                     noerr=noerr,nomc=nomc,init=init,$
-                    argsgalinfo=argsgalinfo,argslinelist=argslinelist,$
-                    nsplit=nsplit
+                    argsgalinfo=argsgalinfo,nsplit=nsplit
 
    bad = 1d99
    doublet_emrat_init = 1.5d
@@ -111,6 +110,8 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
 
    starttime = systime(1)
    time = 0
+   ext='.txt'
+
    if keyword_set(verbose) then quiet=0 else quiet=1
    if ~ keyword_set(noplot) then noplot=0 else noplot=1
    if ~ keyword_set(nsplit) then nsplit=1
@@ -126,34 +127,39 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
    maxncomp = initstr.maxncomp
    
    ; Get linelist
-   if keyword_set(argslinelist) then begin
-      linelist = $
-         ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
-                        'NV1238','NV1242','PV1117','PV1128','MgII2796','MgII2803',$
-                        'FeII2585','FeII2599','FeII2373','FeII2382'],$
-                        _extra=argslinelist)
-   endif else begin
-      linelist = $
-         ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
-                        'NV1238','NV1242','PV1117','PV1128','MgII2796','MgII2803',$
-                        'FeII2585','FeII2599','FeII2373','FeII2382'])
-      argslinelist = !NULL
-   endelse
+   if ~ tag_exist(initstr,'argslinelist') then argslinelist = {} $
+   else argslinelist = initstr.argslinelist
+   linelist = $
+      ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
+         'NV1238','NV1242','PV1117','PV1128','MgII2796','MgII2803',$
+         'FeII2585','FeII2599','FeII2373','FeII2382'],$
+         _extra=argslinelist)
 
    if tag_exist(initstr,'taumax') then taumax=initstr.taumax $
    else taumax = 5d
-
-   ext='.txt'
    
+   ; spectral resolution, in A, sigma
+   if ~ tag_exist(initstr,'specres') then specres=0b $
+   else specres=initstr.specres
+   ; factor to bin upward for cases sigma << specres
+   if ~ tag_exist(initstr,'upsample') then upsample=0b $
+   else upsample=initstr.upsample
+   ; correct weq and vwtavg/rms for partial covering?
+   if ~ tag_exist(initstr,'cfcorr') then cfcorr=0b $
+   else cfcorr=1b
+   
+   argsfit = {doubletname:doublet, specres: specres, upsample: upsample, $
+      cfcorr: cfcorr}   
+
    if tag_exist(initstr,'doubletem_siglim') then $
-      doubletem_siglim = initstr.doubletem_siglim $
-   else doubletem_siglim = 0d
+      em_siglim = initstr.doubletem_siglim $
+   else em_siglim = 0d
 
    ncols = 1
    nrows = 1
    oned=1
    nz = 1
-   doubletcube = {err: initstr.error, $
+   cube = {err: initstr.error, $
                   dat : initstr.relativeflux, $
                   wave : initstr.wavelength, $ 
                   cont: initstr.continuum, $
@@ -196,99 +202,101 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
          endif
 
 ;        Get UVAbs absorption parameters
-         ndoubletabs = initstr.ndoubletabs[i,j]
-         if ndoubletabs gt 0 then begin
+         nabs = initstr.ndoubletabs[i,j]
+         if nabs gt 0 then begin
             if tag_exist(initstr,'doubletabs_cfinit') then BEGIN
                cfinit=initstr.doubletabs_cfinit
-             ENDIF else cfinit = dblarr(ndoubletabs)+0.5d
+             ENDIF else cfinit = dblarr(nabs)+0.5d
              if tag_exist(initstr,'doubletabs_tauinit') then BEGIN
                tauinit=initstr.doubletabs_tauinit
-             ENDIF else tauinit = dblarr(ndoubletabs)+0.5d
-             winit = reform(((initstr.doubletabs_zinit)[i,j,0:ndoubletabs-1]$
-               +1d)*linelist[linename],ndoubletabs)
+             ENDIF else tauinit = dblarr(nabs)+0.5d
+             winit = reform(((initstr.doubletabs_zinit)[i,j,0:nabs-1]$
+               +1d)*linelist[linename],nabs)
              siginit = reform((initstr.doubletabs_siginit)$
-               [i,j,0:ndoubletabs-1],ndoubletabs)
+               [i,j,0:nabs-1],nabs)
              initabs = [[cfinit],[tauinit],[winit],[siginit]]
          endif else initabs=0
          
 ;        Get UVAbs emission parameters
-         ndoubletem = initstr.ndoubletem[i,j]
+         nem = initstr.ndoubletem[i,j]
 ;        placeholders for case of separately fitting emission and absorption
          dofirstemfit=0b
-         first_doubletemfix=0d
+         first_emfix=0d
          first_parinit=0d
          first_modflux=0d
-         if ndoubletem gt 0 then begin
+         if nem gt 0 then begin
                
-            if doubletem_siglim[0] eq 0 then print,'IFSF_FITUVABS: ERROR: Emission '+$
+            if em_siglim[0] eq 0 then print,'IFSF_FITUVABS: ERROR: Emission '+$
                'line sigma limits not set (UVABSEM_SIGLIM) in INITUVABS '+$
                'structure, but emission lines need to be fit.'
                
-            winit = reform(((initstr.doubletem_zinit)[i,j,0:ndoubletem-1]+1d)$
-                           *linelist[linename],ndoubletem)
-            siginit = reform((initstr.doubletem_siginit)[i,j,0:ndoubletem-1],ndoubletem)
+            winit = reform(((initstr.doubletem_zinit)[i,j,0:nem-1]+1d)$
+                           *linelist[linename],nem)
+            siginit = reform((initstr.doubletem_siginit)[i,j,0:nem-1],nem)
             if tag_exist(initstr,'doubletem_finit') then $
-               finit = reform((initstr.doubletem_finit)[i,j,0:ndoubletem-1],ndoubletem) $
-            else finit = dblarr(ndoubletem)+0.1d
+               finit = reform((initstr.doubletem_finit)[i,j,0:nem-1],nem) $
+            else finit = dblarr(nem)+0.1d
             if tag_exist(initstr,'doubletem_rinit') then $
-               rinit = reform((initstr.doubletem_rinit)[i,j,0:ndoubletem-1],ndoubletem) $
-            else rinit = dblarr(ndoubletem)+doublet_emrat_init
+               rinit = reform((initstr.doubletem_rinit)[i,j,0:nem-1],nem) $
+            else rinit = dblarr(nem)+doublet_emrat_init
             initem = [[winit],[siginit],[finit],[rinit]]
             if tag_exist(initstr,'doubletem_fix') then $
-               doubletemfix=reform((initstr.doubletem_fix)[i,j,0:ndoubletem-1,*],ndoubletem,4) $
-            else doubletemfix=0b
+               emfix=reform((initstr.doubletem_fix)[i,j,0:nem-1,*],nem,4) $
+            else emfix=0b
          endif else begin
             initem=0
-            doubletemfix=0b
+            emfix=0b
          endelse
 
 ;        Fill out parameter structure with initial guesses and constraints
 
-         if ndoubletabs gt 0 AND tag_exist(initstr,'doubletabs_fix') then $
-            doubletabsfix=reform((initstr.doubletabs_fix)[i,j,0:ndoubletabs-1,*],ndoubletabs,4) $
-         else doubletabsfix=0b
+         if nabs gt 0 AND tag_exist(initstr,'doubletabs_fix') then $
+            absfix=reform((initstr.doubletabs_fix)[i,j,0:nabs-1,*],nabs,4) $
+         else absfix=0b
 
+         if ~ tag_exist(initstr,'argsinitpar') then argsinitpar={} $
+         else argsinitpar = initstr.argsinitpar
          parinit = $
             call_function(initstr.fcninitpar,doublet,initabs,initem,$
-                          initstr.doubletabs_siglim,doubletem_siglim,$
-                          doubletabsfix=doubletabsfix,doubletemfix=doubletemfix,$
-                          taumax=taumax)
+                          initstr.doubletabs_siglim,em_siglim,$
+                          doubletabsfix=absfix,doubletemfix=emfix,$
+                          taumax=taumax,_extra=argsinitpar)
 
 ;        Plot initial guess if requested
          if keyword_set(init) then begin
             zuse = initstr.zsys_gas
             ilo = initstr.plotindex[0]
             ihi = initstr.plotindex[1]
-            ifsf_pltdoublet,galshort,(doubletcube.wave)[ilo:ihi],$
-                             (doubletcube.dat)[ilo:ihi],$
-                             (doubletcube.cont)[ilo:ihi],$
-                             (doubletcube.flux)[ilo:ihi],$
+            ifsf_pltdoublet,galshort,(cube.wave)[ilo:ihi],$
+                             (cube.dat)[ilo:ihi],$
+                             (cube.cont)[ilo:ihi],$
+                             (cube.flux)[ilo:ihi],$
                              parinit.value,doublet,dir,$
                              outfile+doublet+'_init',zuse,linelist,$
-                             /init
+                             /init,specres=specres,upsample=upsample
             goto,fullstop
          endif
 
          if (~ keyword_set(weights)) then begin
            param = Mpfitfun(initstr.fcnfitdoublet,$
-                            (doubletcube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
-                            (doubletcube.dat)[initstr.fitindex[0]:initstr.fitindex[1]],$
-                            (doubletcube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
+                            (cube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
+                            (cube.dat)[initstr.fitindex[0]:initstr.fitindex[1]],$
+                            (cube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
                             parinfo=parinit,perror=perror,maxiter=500,$
                             bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                             nfev=nfev,niter=niter,status=status,quiet=quiet,$
                             npegged=npegged,ftol=1D-6,errmsg=errmsg,$
-                            functargs={doubletname:doublet})
+                            functargs=argsfit)
          endif else begin
            param = Mpfitfun(initstr.fcnfitdoublet,$
-                            (doubletcube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
-                            (doubletcube.dat)[initstr.fitindex[0]:initstr.fitindex[1]],$
-                            (doubletcube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
+                            (cube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
+                            (cube.dat)[initstr.fitindex[0]:initstr.fitindex[1]],$
+                            (cube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
                             parinfo=parinit,perror=perror,maxiter=500,$
                             bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                             nfev=nfev,niter=niter,status=status,quiet=quiet,$
                             npegged=npegged,ftol=1D-6,errmsg=errmsg,$
-                            functargs={doubletname:doublet},/WEIGHTS)          
+                            functargs=argsfit,/WEIGHTS)          
          endelse
          if status eq 5 then print,'IFSF_FITUVABS: Max. iterations reached.'
          if status eq 0 OR status eq -16 then begin
@@ -307,52 +315,54 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
          if ~ noplot then begin
           print, 'Plotting...'
             if tag_exist(initstr,'argspltfitdoublet') then $
-               ifsf_pltdoublet,galshort,(doubletcube.wave)[initstr.plotindex[0]:initstr.plotindex[1]],$
-                                (doubletcube.dat)[initstr.plotindex[0]:initstr.plotindex[1]],$
-                                (doubletcube.cont)[initstr.plotindex[0]:initstr.plotindex[1]],$
-                                (doubletcube.flux)[initstr.plotindex[0]:initstr.plotindex[1]],$
+               ifsf_pltdoublet,galshort,(cube.wave)[initstr.plotindex[0]:initstr.plotindex[1]],$
+                                (cube.dat)[initstr.plotindex[0]:initstr.plotindex[1]],$
+                                (cube.cont)[initstr.plotindex[0]:initstr.plotindex[1]],$
+                                (cube.flux)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 param,doublet,dir,outfile+doublet+'_fit',zuse,$
-                                linelist,_extra=initstr.argspltfitdoublet $
+                                linelist,specres=specres,upsample=upsample,$
+                                _extra=initstr.argspltfitdoublet $
             else $
-               ifsf_pltdoublet,galshort,(doubletcube.wave)[initstr.plotindex[0]:initstr.plotindex[1]],$
-                                (doubletcube.dat)[initstr.plotindex[0]:initstr.plotindex[1]],$
-                                (doubletcube.cont)[initstr.plotindex[0]:initstr.plotindex[1]],$
-                                (doubletcube.flux)[initstr.plotindex[0]:initstr.plotindex[1]],$
+               ifsf_pltdoublet,galshort,(cube.wave)[initstr.plotindex[0]:initstr.plotindex[1]],$
+                                (cube.dat)[initstr.plotindex[0]:initstr.plotindex[1]],$
+                                (cube.cont)[initstr.plotindex[0]:initstr.plotindex[1]],$
+                                (cube.flux)[initstr.plotindex[0]:initstr.plotindex[1]],$
                                 param,doublet,dir,outfile+doublet+'_fit',zuse,$
-                                linelist
+                                specres=specres,upsample=upsample,linelist
          endif
 
 ;        Compute model equivalent widths
          weq=1
-         doubletemflux=1
+         emflux=1
          vwtabs=1
 ;        Velocity array
-         delz = doubletcube.wave/(linelist[linename]*(1d + redshift)) - 1d
+         delz = cube.wave/(linelist[linename]*(1d + redshift)) - 1d
          veltmp = c*((delz+1d)^2d -1d)/((delz+1d)^2d +1d)
-         modspec = ifsf_doubletfcn(doubletcube.wave,param,doubletname=doublet,$
-                                   weq=weq,doubletemflux=doubletemflux,$
-                                   vels=veltmp,vwtabs=vwtabs)
+         modspec = ifsf_doubletfcn(cube.wave,param,doubletname=doublet,$
+                                   weq=weq,emflux=emflux,$
+                                   vels=veltmp,vwtabs=vwtabs,specres=specres,$
+                                   upsample=upsample,cfcorr=cfcorr)
 
 ;        Compute errors in fit
          if ~ keyword_set(noerr) then begin
-            if dofirstemfit then doubletemfix_use = first_doubletemfix $
-            else doubletemfix_use = doubletemfix
+            if dofirstemfit then emfix_use = first_emfix $
+            else emfix_use = emfix
             if keyword_set(nomc) then plotonly=1b else plotonly=0b
             if tag_exist(initstr,'mcniter') then mcniter=initstr.mcniter $
             else mcniter = 0b
-            errors = ifsf_fitdoubleterr(doublet,[ndoubletabs,ndoubletem],$
-               (doubletcube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
+            errors = ifsf_fitdoubleterr(argsfit,[nabs,nem],$
+               (cube.wave)[initstr.fitindex[0]:initstr.fitindex[1]],$
                veltmp[initstr.fitindex[0]:initstr.fitindex[1]],$
                modspec[initstr.fitindex[0]:initstr.fitindex[1]],$
-               (doubletcube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
+               (cube.err)[initstr.fitindex[0]:initstr.fitindex[1]],$
                initstr.continuum[initstr.fitindex[0]:initstr.fitindex[1]],$
                parinit,outfile+doublet+'_fit_errs.ps',$
                outfile+doublet+'_fit_mc.xdr',$
                dofirstemfit=dofirstemfit,first_parinit=first_parinit,$
-               first_modflux=first_modflux,doubletabsfix=doubletabsfix,$
-               doubletemfix=doubletemfix_use,niter=mcniter,$
+               first_modflux=first_modflux,absfix=absfix,$
+               emfix=emfix_use,niter=mcniter,$
                nsplit=nsplit,quiet=quiet,weqerr=weqerr,$
-               doubletemfluxerr=doubletemfluxerr,noplot=noplot,$
+               emfluxerr=emfluxerr,noplot=noplot,$
                plotonly=plotonly,vwtrmserr=vwtrmserr,vwtavgerr=vwtavgerr)
          endif
          
@@ -402,42 +412,42 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
          if dofirstemfit then doubletfit.chisq_emonly[i,j]=chisq_emonly
          doubletfit.dof[i,j]=dof
          doubletfit.niter[i,j]=niter
-         doubletfit.weqabs[i,j,0:ndoubletabs]=weq.abs
+         doubletfit.weqabs[i,j,0:nabs]=weq.abs
          doubletfit.vwtavg[i,j]=vwtabs[0]
          doubletfit.vwtrms[i,j]=vwtabs[1]
-         doubletfit.weqem[i,j,0:ndoubletem]=weq.em
-         doubletfit.totfluxem[i,j,0:ndoubletem]=doubletemflux
+         doubletfit.weqem[i,j,0:nem]=weq.em
+         doubletfit.totfluxem[i,j,0:nem]=emflux
          if ~ keyword_set(noerr) then begin
             doubletfit.weqabserr[i,j,*]=weqerr[0,*]
             doubletfit.vwtavgerr[i,j,*]=vwtavgerr
             doubletfit.vwtrmserr[i,j,*]=vwtrmserr
             doubletfit.weqemerr[i,j,*]=weqerr[1,*]
-            doubletfit.totfluxemerr[i,j,*]=doubletemfluxerr
+            doubletfit.totfluxemerr[i,j,*]=emfluxerr
          endif
-         if ndoubletabs gt 0 then begin
-            iarr = 2+dindgen(ndoubletabs)*4
-            doubletfit.cf[i,j,0:ndoubletabs-1]=param[iarr]
-            doubletfit.tau[i,j,0:ndoubletabs-1]=param[iarr+1]
-            doubletfit.waveabs[i,j,0:ndoubletabs-1]=param[iarr+2]
-            doubletfit.sigmaabs[i,j,0:ndoubletabs-1]=param[iarr+3]
+         if nabs gt 0 then begin
+            iarr = 2+dindgen(nabs)*4
+            doubletfit.cf[i,j,0:nabs-1]=param[iarr]
+            doubletfit.tau[i,j,0:nabs-1]=param[iarr+1]
+            doubletfit.waveabs[i,j,0:nabs-1]=param[iarr+2]
+            doubletfit.sigmaabs[i,j,0:nabs-1]=param[iarr+3]
             if ~ keyword_set(noerr) then begin
-               doubletfit.cftauerr[i,j,0:ndoubletabs-1,*]=errors[iarr-2,*]
-               doubletfit.tauerr[i,j,0:ndoubletabs-1,*]=errors[iarr-2+1,*]
-               doubletfit.waveabserr[i,j,0:ndoubletabs-1,*]=errors[iarr-2+2,*]
-               doubletfit.sigmaabserr[i,j,0:ndoubletabs-1,*]=errors[iarr-2+3,*]
+               doubletfit.cftauerr[i,j,0:nabs-1,*]=errors[iarr-2,*]
+               doubletfit.tauerr[i,j,0:nabs-1,*]=errors[iarr-2+1,*]
+               doubletfit.waveabserr[i,j,0:nabs-1,*]=errors[iarr-2+2,*]
+               doubletfit.sigmaabserr[i,j,0:nabs-1,*]=errors[iarr-2+3,*]
             endif
          endif
-         if ndoubletem gt 0 then begin
-            iarr = 2+ndoubletabs*4 + dindgen(ndoubletem)*4
-            doubletfit.waveem[i,j,0:ndoubletem-1]=param[iarr]
-            doubletfit.sigmaem[i,j,0:ndoubletem-1]=param[iarr+1]
-            doubletfit.flux[i,j,0:ndoubletem-1]=param[iarr+2]
-            doubletfit.frat[i,j,0:ndoubletem-1]=param[iarr+3]
+         if nem gt 0 then begin
+            iarr = 2+nabs*4 + dindgen(nem)*4
+            doubletfit.waveem[i,j,0:nem-1]=param[iarr]
+            doubletfit.sigmaem[i,j,0:nem-1]=param[iarr+1]
+            doubletfit.flux[i,j,0:nem-1]=param[iarr+2]
+            doubletfit.frat[i,j,0:nem-1]=param[iarr+3]
             if ~ keyword_set(noerr) then begin
-               doubletfit.waveemerr[i,j,0:ndoubletem-1,*]=errors[iarr-2,*]
-               doubletfit.sigmaemerr[i,j,0:ndoubletem-1,*]=errors[iarr-2+1,*]
-               doubletfit.fluxerr[i,j,0:ndoubletem-1,*]=errors[iarr-2+2,*]
-               doubletfit.fraterr[i,j,0:ndoubletem-1,*]=errors[iarr-2+3,*]               
+               doubletfit.waveemerr[i,j,0:nem-1,*]=errors[iarr-2,*]
+               doubletfit.sigmaemerr[i,j,0:nem-1,*]=errors[iarr-2+1,*]
+               doubletfit.fluxerr[i,j,0:nem-1,*]=errors[iarr-2+2,*]
+               doubletfit.fraterr[i,j,0:nem-1,*]=errors[iarr-2+3,*]               
             endif
          endif
 
@@ -480,9 +490,15 @@ finish:
       printf, lun, 'Absorption',FORMAT='(A0)'
       printf, lun, lineofdashes
       printf, lun, param[0], '[Number of Components]',FORMAT='(I-3,A0)'
-      printf, lun, weq.abs[0], weqerr[0,0], weqerr[0,1],' [Total equivalent width in A, +/-1sig errors]',FORMAT='(3D8.4,A0)'
-      printf, lun, vwtabs[0], vwtavgerr[0], vwtavgerr[1], ' [Weighted avg. vel. in km/s, +/-1sig errors]',FORMAT='(3D8.2,A0)'
-      printf, lun, vwtabs[1], vwtrmserr[0], vwtrmserr[1], ' [Weighted RMS vel. in km/s, +/-1sig errors]',FORMAT='(3D8.2,A0)'
+      if ~ keyword_set(noerr) then begin
+         printf, lun, weq.abs[0], weqerr[0,0], weqerr[0,1],' [Total equivalent width in A, +/-1sig errors]',FORMAT='(3D8.4,A0)'
+         printf, lun, vwtabs[0], vwtavgerr[0], vwtavgerr[1], ' [Weighted avg. vel. in km/s, +/-1sig errors]',FORMAT='(3D8.2,A0)'
+         printf, lun, vwtabs[1], vwtrmserr[0], vwtrmserr[1], ' [Weighted RMS vel. in km/s, +/-1sig errors]',FORMAT='(3D8.2,A0)'
+      endif else begin
+         printf, lun, weq.abs[0],' [Total equivalent width in A]',FORMAT='(D8.4,A0)'
+         printf, lun, vwtabs[0],' [Weighted avg. vel. in km/s]',FORMAT='(D8.2,A0)'
+         printf, lun, vwtabs[1],' [Weighted RMS vel. in km/s]',FORMAT='(D8.2,A0)'
+      endelse
       printf, lun, lineofdashes
       printf, lun,'Cov. Factor','Tau',$
               'Wave(A)','Sigma(km/s)','Vel(km/s)',$

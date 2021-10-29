@@ -29,6 +29,9 @@
 ;      Upper limit to optical depth.
 ;    absfix: in, required, type=bytarr(nabs,4)
 ;      Input this array with parameters to be fixed set to 1.
+;    zvar: in, optional, type=double, default=0.001
+;      How much wavelength can vary from initial guess, in z space;
+;      bounds on wavelength are wave_init*[1-zvar,1+zvar]
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -43,9 +46,12 @@
 ;      2014may09, DSNR, created
 ;      2014may28, DSNR, added NADEMFIX parameter
 ;      2019nov20, DSNR, copied from IFSF_INITDOUBLET
+;      2021oct20, DSNR, changed default wavelength variation width for abs
+;        lines from +/-2 A to wave_init*[1-zvar,1+zvar], with default
+;        zvar=0.001
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2019 David S. N. Rupke
+;    Copyright (C) 2014--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -63,11 +69,12 @@
 ;
 ;-
 function ifsf_initmultiplet,initabs,siglimabs,reflinename,$
-                            taumax=taumax,absfix=absfix
+                            taumax=taumax,absfix=absfix,zvar=zvar
                           
    c = 299792.458d
    
    if not keyword_set(taumax) then taumax=5d
+   if not keyword_set(zvar) then zvar=0.001d
 
 ;  Get numbers of components
    size_abs = size(initabs)
@@ -113,8 +120,8 @@ function ifsf_initmultiplet,initabs,siglimabs,reflinename,$
       parinfo[ind_w].limited[0] = 1B
       parinfo[ind_w].limited[1] = 1B
       for i=0,nabs-1 do begin
-         parinfo[ilo+2+i*4].limits[0] = initabs[i,2]-2d
-         parinfo[ilo+2+i*4].limits[1] = initabs[i,2]+2d
+         parinfo[ilo+2+i*4].limits[0] = initabs[i,2]*(1d - zvar)
+         parinfo[ilo+2+i*4].limits[1] = initabs[i,2]*(1d + zvar)
       endfor
       if keyword_set(absfix) then $
          parinfo[ilo:ilo+nabs*4-1].fixed = $

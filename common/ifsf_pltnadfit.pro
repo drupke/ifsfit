@@ -30,6 +30,9 @@
 ;    ps: in, optional, type=byte
 ;      Select .eps output.
 ;    specres: in, required, type=double
+;    upsample: in, optional, type=integer, def=0
+;      Factor by which to "upsample" the spectra (opposite of bin!) for the
+;      model computation.
 ;    xran: in, optional, type=dblarr(2), default=all
 ;      Wavlength range of output plot.
 ;    yran: in, optional, type=dblarr(2), default=[0\,1.5]
@@ -53,9 +56,10 @@
 ;      2014may15, DSNR, re-written for new fitting routines
 ;      2020jun25, DSNR, now also plot v(NaD em) and only plot zsys if different 
 ;                       from zstar; option to output .eps file; color options
+;      2021oct21, DSNR, made upsample parameter
 ;
 ; :Copyright:
-;    Copyright (C) 2013--2020 David S. N. Rupke
+;    Copyright (C) 2013--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -74,9 +78,10 @@
 ;-
 pro ifsf_pltnadfit,wave,flux,err,param,outfile,zsys,xran=xran,yran=yran,$
                    ps=ps,specres=specres,zstar=zstar,$
-                   cvlab=cvlab,cmodcomp=cmodcomp
+                   cvlab=cvlab,cmodcomp=cmodcomp,upsample=upsample
                    
-  if ~keyword_set(specres) then message,'Spectral resolution not specified.'
+  if ~keyword_set(specres) then specres=0b
+  if ~keyword_set(upsample) then upsample=0b
   if ~keyword_set(cvlab) then cvlab='Cyan'
   if ~keyword_set(cmodcomp) then cmodcomp='Cyan'
   if keyword_set(ps) then dops=1 else dops=0
@@ -99,7 +104,8 @@ pro ifsf_pltnadfit,wave,flux,err,param,outfile,zsys,xran=xran,yran=yran,$
   modnadem=1
   modflux = ifsf_nadfcn(wave,param,modhei=modhei,modnadabs=modnadabs,$
                         modnadem=modnadem,specres=specres,$
-                        wavnadabs=wavnadabs,wavhei=wavhei,wavnadem=wavnadem)
+                        wavnadabs=wavnadabs,wavhei=wavhei,wavnadem=wavnadem,$
+                        upsample=upsample)
   size_hei = size(modhei)
   if size_hei[0] eq 1 then nhei = 1 $
   else if size_hei[0] eq 2 then nhei = fix(size_hei[2]) $
