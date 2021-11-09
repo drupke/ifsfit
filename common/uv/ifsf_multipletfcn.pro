@@ -194,7 +194,7 @@ function ifsf_multipletfcn, wave,param,refloglf=refloglf,$
       endelse
       vwtabs = [vwtavgabs,vwtrmsabs]
    endif
-   
+      
    return,modflux_con_ds
    
 end

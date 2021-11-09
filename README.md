@@ -11,7 +11,8 @@ and including additive polynomials), or optionally a user-defined
 method to find the best fit continuum. It uses MPFIT to simultaneously
 fit Gaussians to any number of emission lines and emission line
 velocity components. It will also fit the NaI D feature using analytic
-absorption and/or emission-line profiles.
+absorption and/or emission-line profiles, or a generic absorption-line
+doublet or multiplet function (such as MgII 2796/3802).
 
 -------------------------------------------------------------------------
 REQUIREMENTS
@@ -22,17 +23,14 @@ IDL v8.0 or higher (last tested with v8.6)
 IDL libraries:
 - IDL Astronomy User's Library, for various routines
   http://idlastro.gsfc.nasa.gov
-  [or from the GitHub repository]
 - MPFIT, for non-linear least-squares fitting
   http://www.physics.wisc.edu/~craigm/idl/idl.html
 - Coyote, for graphics AND undefine.pro
-   http://www.idlcoyote.com/documents/programs.php#COYOTE_LIBRARY_DOWNLOAD
-  [or from the GitHub repository:
-   https://github.com/davidwfanning/idl-coyote/tree/master/coyote]
+  https://github.com/idl-coyote/coyote
 - PPXF, for stellar continuum fitting
-  http://www-astro.physics.ox.ac.uk/~mxc/software/#ppxf
+  http://www-astro.physics.ox.ac.uk/~mxc/idl/#ppxf
 - IDLUTILS, for SSHIFTROTATE and b-spline routines
-  http://www.sdss.org/dr13/software/idlutils/
+  https://www.sdss.org/dr15/software/idlutils/
 - DRTOOLS, for multicore processing
   https://github.com/drupke/drtools
 
@@ -42,9 +40,8 @@ location that is in the IDL path.
 Note that the IDL Astronomy User's Library ships with some Coyote
 routines, and IDLUTILS ships with the IDL Astronomy User's Library and
 MPFIT. However, it's not clear how well these libraries keep track of
-each other, so it may be preferable to download each package
-separately and delete the redundant routines that ship within other
-packages.
+each other, so it is preferable to download each package separately
+and delete the redundant routines that ship within other packages.
 
 To fit stellar continua, templates are required. E.g., the population
 synthesis models from Gonzalez-Delgado et al. (2005, MNRAS, 357, 945)

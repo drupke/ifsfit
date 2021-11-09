@@ -144,7 +144,7 @@ pro ifsf_fitmultiplet,dir,galshort,multiplet,fcngalinfo,$
       multwave:initstr.multwave,$
       specres: specres, $
       upsample: upsample}
-
+      
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

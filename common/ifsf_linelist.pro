@@ -382,6 +382,11 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ;      lines['FeII*2631'] = 2631.32292d ; goes with 2585
 ;      lines['FeII*2626'] = 2625.66685d ; goes with 2599
 
+; From Morton 2003
+      lines['MnII2605'] = 2606.462d
+      lines['MnII2593'] = 2594.499d
+      lines['MnII2576'] = 2576.877d
+      
    endif else begin
    
 ;  Optical lines

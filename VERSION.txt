@@ -1,0 +1,42 @@
+v0.5
+Release: 29 Oct 2021
+
+Additions of ultraviolet doublet/multiplet absorption-line
+fitting. See github repo COSQUEST for an implementation for Veilleux
+et al. 2021, ApJ, submitted.
+
+v0.4
+Release: 04 Apr 2017
+
+Significant revisions, incorporating the following changes:
+- Multi-core fitting.
+- PPXF speed-ups.
+- Renaming/restructuring of various initialization tags.
+- Optimization of routines for fitting an unresolved PSF component.
+- Many small changes!
+
+v0.3
+Release: 17 Feb 2014
+
+Major code revision, incorporating the following changes:
+- Renamed package.
+- Created unique procedure and function names.
+- Added standardized documentation and copyright and license statements.
+- Stellar continuum fitting now uses PPXF.
+- Added capability for different sets of lines, with each set fixed to
+  a common sigma that may be different from the other sets.
+- Initialization procedure made more user-friendly and consistent in
+  its logic.
+- Outputs: plots are more customizable, and output save file now
+  produced.
+
+v0.2
+No release date.
+
+v0.1
+No release date.
+
+Original version. The software was named UHSPECFIT at this time and
+was used for multi-object spectroscopy as well as IFS data.
+
+Various undocumented upgrades, still under the name UHSPECFIT.
