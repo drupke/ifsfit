@@ -96,8 +96,10 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
 
   if ~ keyword_set(datext) then begin
      datext=1
-     print,'IFSF_READCUBE: Setting data extension to 1.'
-     print,'IFSF_READCUBE: Set DATEXT to a negative # if it needs to be 0.'
+     if ~ keyword_set(quiet) then begin
+        print,'IFSF_READCUBE: Setting data extension to 1.'
+        print,'IFSF_READCUBE: Set DATEXT to a negative # if it needs to be 0.'
+     endif
   endif
   if datext lt 0 then datext_use=0 else datext_use=datext
   if keyword_set(varext) then begin
@@ -160,7 +162,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      cunitstr = 'CUNIT3'
   endif else if datasize[0] eq 2 then begin
      print,'IFSF_READCUBE: Reading 2D image. Assuming dispersion direction is'+$
-           'along rows.'
+           ' along first dimension.'
 ; Old logic: # wavelength pts > # cols.           
 ;     ncols = (datasize[1] gt datasize[2]) ? datasize[2] : datasize[1]
 ;     nz = (datasize[1] gt datasize[2]) ? datasize[1] : datasize[2]
