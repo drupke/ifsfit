@@ -58,7 +58,8 @@
 ;
 ;-
 pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
-                 ps=ps,title=title,fitran=fitran,yranminmax=yranminmax
+                 ps=ps,title=title,fitran=fitran,yranminmax=yranminmax,$
+                 yrans=yrans
                  
 
   if keyword_set(compspec) then begin
@@ -150,6 +151,8 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
      ymod = modstars
      if keyword_set(yranminmax) then $
         yran = [min([ydat[i1],ymod[i1]]),max([ydat[i1],ymod[i1]])] $
+     else if keyword_set(yrans) then $
+        yran = yrans[*,0] $
      else $
         yran = [0,max([ydat[i1],ymod[i1]])]
      ydi = ydat[i1]
@@ -181,6 +184,8 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
      ymod = modstars
      if keyword_set(yranminmax) then $
         yran = [min([ydat[i2],ymod[i2]]),max([ydat[i2],ymod[i2]])] $
+     else if keyword_set(yrans) then $
+        yran = yrans[*,0] $
      else $
         yran = [0,max([ydat[i2],ymod[i2]])]
      ydi = ydat[i2]
@@ -212,6 +217,8 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
      ymod = modstars
      if keyword_set(yranminmax) then $
         yran = [min([ydat[i3],ymod[i3]]),max([ydat[i3],ymod[i3]])] $
+     else if keyword_set(yrans) then $
+        yran = yrans[*,0] $
      else $
         yran = [0,max([ydat[i3],ymod[i3]])]
      ydi = ydat[i3]

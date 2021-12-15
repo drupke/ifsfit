@@ -62,9 +62,11 @@
 ;                       of error when line ratio pegged
 ;      2020may11, DSNR, bug fix? set outstr = {nolines:1}
 ;      2020jun05, DSNR, added MgII case to doublets
+;      2021dec15, DSNR, automatically determine whether spec. res. is R (FWHM)
+;                       or dlambda (sigma)
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2020 David S. N. Rupke
+;    Copyright (C) 2013--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -290,7 +292,12 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran,$
       inz = where(fluxpk[line] gt 0,ctnz)
       if ctnz gt 0 then begin
 ;        Make sure we're not adding something to 0 -- i.e. the component wasn't fit.
-         sigmatmp[inz] = sqrt(sigmatmp[inz]^2d + param[2]^2d)
+         ; if spectral resolution is > 100 assume it's R (FWHM)
+         if param[2] ge 100d then $
+            sigmatmp[inz] = sqrt(sigmatmp[inz]^2d + (wave[line,inz]/param[2]/2.35d)^2d) $
+         ; otherwise it's dlambda (sigma)
+         else $
+            sigmatmp[inz] = sqrt(sigmatmp[inz]^2d + param[2]^2d)
          sigma_obs[line,inz] = sigmatmp[inz]/wave[line,inz]*c ; in km/s
 ;        error propagation for adding in quadrature
          sigmaerr_obs[line,inz] *= $

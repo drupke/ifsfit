@@ -39,9 +39,11 @@
 ;      2016sep26, DSNR, switched to deconvolving resolution in situ by adding
 ;                       resolution in quadrature in wavelength space to each
 ;                       velocity component
+;      2021dec15, DSNR, automatically determine whether spec. res. is R (FWHM)
+;                       or dlambda (sigma)
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -73,9 +75,17 @@ function ifsf_manygauss, wave, param, specresarr=specresarr
   dispersion = wave[1] - wave[0]
   if keyword_set(specresarr) then begin
      wsr = value_locate(specresarr[*,0],param[wind])
-     srsigslam = param[wind]/specresarr[wsr,1]/2.35d
+     ; if spectral resolution is > 100 assume it's R (FWHM)
+     if specresarr[wsr[0],1] ge 100d then $
+        srsigslam = param[wind]/specresarr[wsr,1]/2.35d $
+     ; otherwise it's dlambda (sigma)
+     else $
+        srsigslam = specresarr[wsr,1]
   endif else begin
-     srsigslam = dblarr(nline)+param[2]
+     if param[2] ge 100d then $
+        srsigslam = dblarr(nline)+param[wind]/param[2]/2.35d $
+     else $
+        srsigslam = dblarr(nline)+param[2]
   endelse
 ; resolution in wavelength space [sigma] assumed to be in third element of PARAM
   sigs = sqrt((param[sind]/c * param[wind])^2d + srsigslam^2d)

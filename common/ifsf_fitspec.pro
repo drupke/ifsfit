@@ -119,9 +119,11 @@
 ;      2020dec07, DSNR, some new options to convolve templates and data
 ;                       to match in resolution before sending into PPXF;
 ;                       tested with S7 data/Valdes templates
+;      2021dec15, DSNR, automatically determine whether spec. res. is R (FWHM)
+;                       or dlambda (sigma)
 ;         
 ; :Copyright:
-;    Copyright (C) 2013--2020 David S. N. Rupke
+;    Copyright (C) 2013--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -627,8 +629,12 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
      isigma = cgsetintersection(iline,where(parinit.parname eq 'sigma'))
      iwave = cgsetintersection(iline,where(parinit.parname eq 'wavelength'))
      for i=0,ctfluxpk-1 do begin
+        ; if spectral resolution is > 100 assume it's R (FWHM)
+        if param[2] ge 100d then specres=param[iwave[i]]/param[2]/2.35d $
+        ; otherwise it's dlambda (sigma)
+        else specres = param[2]
         waverange = sigrange*$
-                    sqrt((param[isigma[i]]/c*param[iwave[i]])^2d + param[2]^2d)
+                    sqrt((param[isigma[i]]/c*param[iwave[i]])^2d + specres^2d)
         wlo = value_locate(gdlambda,param[iwave[i]]-waverange/2d)
         whi = value_locate(gdlambda,param[iwave[i]]+waverange/2d)
         if gdlambda[wlo] lt gdlambda[0] OR wlo eq -1 then wlo=0

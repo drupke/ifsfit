@@ -99,7 +99,7 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
    inlines = flux.keys()
    arrsize = size(flux[inlines[0]])
    nx = arrsize[1]
-   ny = arrsize[2]
+   if arrsize[0] eq 2 then ny = arrsize[2] else ny = 1
 
    if keyword_set(noerr) then doerr = 0b else doerr = 1b
 
@@ -163,13 +163,13 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
 
       ebv = dblarr(nx,ny)+bad
       ebv_err = dblarr(nx,ny)+bad
-      if doerr then fluxerr = [[fluxerr[line1,igdebv]],[fluxerr[line2,igdebv]]] $
-      else fluxerr=0b
+      if doerr then fluxerr_use = [[fluxerr[line1,igdebv]],[fluxerr[line2,igdebv]]] $
+      else fluxerr_use=0b
                                        
       ebv_tmp = call_function(fcnebv,[linelist[line1],linelist[line2]],$
                               [[flux[line1,igdebv]],$
                               [flux[line2,igdebv]]],$
-                              caseb[line1+line2],fluxerr=fluxerr,$
+                              caseb[line1+line2],fluxerr=fluxerr_use,$
                               rv=rv)
       if doerr then begin
          ibdebv = where(ebv_tmp[*,0] lt 0,ctbdebv)

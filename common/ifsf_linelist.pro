@@ -77,6 +77,7 @@
 ;                       now check lines/labels only on output lines
 ;      2020jun08, DSNR, now returns only line labels corresponding to output lines
 ;      2021jun29, DSNR, changed OVI labels from 1031/1037 to 1032/1038
+;      2021dec15, DSNR, changed logic to add vacuum optical lines; uses AIRTOVAC
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2021 David S. N. Rupke, Anthony To
@@ -109,8 +110,81 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
             '      initialization procedure. Default is now air waves.',$
             format='(A0/A0/A0/A0)'
 
+   ;  Optical lines in air
+   lines['Halpha'] = 6562.80d
+   lines['Hbeta'] = 4861.35d
+   lines['Hgamma'] = 4340.47d
+   lines['Hdelta'] = 4101.73d
+   lines['Hepsilon'] = 3970.075d
+   lines['H8'] = 3889.064d
+   lines['H9'] = 3835.397d
+   lines['HeI5876'] = 5875.661d
+   lines['HeI6678'] = 6678.15d
+   lines['HeI7065'] = 7065.19d
+   lines['HeII2733'] = 2733.3d ; a little uncertain; ~10 lines that could contribute
+   lines['HeII3203'] = 3203.1d ; a little uncertain; ~10 lines that could contribute
+   lines['HeII4686'] = 4686.7d
+   lines['[NeIII]3869'] = 3868.76d
+   lines['[NeIII]3967'] = 3967.47d
+   lines['[NeIII]3869+[NeIII]3967'] = (3868.76d + 3967.47d)/2d
+   lines['[NeV]3345'] = 3345.83d ; non-resonant
+   lines['[NeV]3426'] = 3425.87d ; non-resonant
+   lines['[NeV]3345+[NeV]3426'] = (3345.83d + 3425.87d)/2d ; non-resonant
+   lines['[NI]5198'] = 5197.90d
+   lines['[NI]5200'] = 5200.26d
+   lines['[NI]5198+[NI]5200'] = (5197.90d + 5200.26d)/2d
+   lines['[NII]5755'] = 5754.59
+   lines['[NII]6548'] = 6548.05d
+   lines['[NII]6583'] = 6583.45d
+   lines['[OI]5577'] = 5577.34d
+   lines['[OI]6300'] = 6300.30d
+   lines['[OI]6364'] = 6363.78d
+   lines['[OII]3726'] = 3726.032d
+   lines['[OII]3729'] = 3728.815d
+   lines['[OII]3726+[OII]3729'] = (3726.032d + 3728.815d)/2d
+   lines['[OIII]4363'] = 4363.209d
+   lines['[OIII]4959'] = 4958.91d
+   lines['[OIII]5007'] = 5006.84d
+   lines['[SII]4068'] = 4068.60d
+   lines['[SII]4076'] = 4076.35d
+   lines['[SII]6716'] = 6716.44d
+   lines['[SII]6731'] = 6730.82d
+   lines['[SII]6716+[SII]6731'] = (6716.44d + 6730.82d)/2d
+   lines['[SIII]6312'] = 6312.06d
+   lines['CaIIK'] = 3933.663d
+   lines['CaIIH'] = 3968.469d
+   lines['MgIb5167'] = 5167.3213d
+   lines['MgIb5173'] = 5172.6844d
+   lines['MgIb5184'] = 5183.6043d
+   lines['NaD2'] = 5889.95d
+   lines['NaD1'] = 5895.92d
+   lines['OH6287a'] = 6287.407 ; 9-3 P1e(2.5), Osterbrock 1996
+   lines['OH6287b'] = 6287.462 ; 9-3 P1f(2.5), Osterbrock 1996
+   lines['OH6306a'] = 6306.869 ; 9-3 P1e(3.5)
+   lines['OH6306b'] = 6306.981 ; 9-3 P1f(3.5)
+   lines['OH6329a'] = 6329.747 ; 9-3 P1e(4.5)
+   lines['OH6329b'] = 6329.933 ; 9-3 P1f(4.5)
+   lines['OH6356a'] = 6356.167 ; 9-3 P1e(5.5)
+   lines['OH6356b'] = 6356.441 ; 9-3 P1f(5.5)
+   lines['OH8344'] = 8344.602d
+   lines['OH8399'] = 8399.160d
+   lines['OH8430'] = 8430.170d
+   lines['[ArIV]4740'] = 4740.12d
+   lines['[CaV]5309'] = 5309.11d
+   lines['[FeVII]5159'] = 5158.89d
+   lines['[FeVII]5276'] = 5276.38d
+   lines['[FeVII]5721'] = 5720.7d
+   lines['[FeVII]6087'] = 6087.0d
+   lines['[FeX]6375'] = 6374.51d
+
+
    if keyword_set(vacuum) then begin
 
+      foreach key, lines.keys() do begin
+         airtovac,lines[key],vacwave
+         lines[key] = vacwave
+      endforeach
+         
 ;  IR lines (vacuum)
       lines['Paa'] = 18756d
       lines['Pab'] = 12821.578d
@@ -388,70 +462,6 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['MnII2576'] = 2576.877d
       
    endif else begin
-   
-;  Optical lines
-      lines['Halpha'] = 6562.80d
-      lines['Hbeta'] = 4861.35d
-      lines['Hgamma'] = 4340.47d
-      lines['Hdelta'] = 4101.73d
-      lines['Hepsilon'] = 3970.075d
-      lines['H8'] = 3889.064d
-      lines['H9'] = 3835.397d
-      lines['HeI5876'] = 5875.661d
-      lines['HeI6678'] = 6678.15d
-      lines['HeI7065'] = 7065.19d
-      lines['HeII2733'] = 2733.3d ; a little uncertain; ~10 lines that could contribute
-      lines['HeII3203'] = 3203.1d ; a little uncertain; ~10 lines that could contribute
-      lines['HeII4686'] = 4686.7d
-      lines['[NeIII]3869'] = 3868.76d
-      lines['[NeIII]3967'] = 3967.47d
-      lines['[NeIII]3869+[NeIII]3967'] = (3868.76d + 3967.47d)/2d
-      lines['[NI]5198'] = 5197.90d
-      lines['[NI]5200'] = 5200.26d
-      lines['[NI]5198+[NI]5200'] = (5197.90d + 5200.26d)/2d
-      lines['[NII]5755'] = 5754.59
-      lines['[NII]6548'] = 6548.05d
-      lines['[NII]6583'] = 6583.45d
-      lines['[OI]5577'] = 5577.34d
-      lines['[OI]6300'] = 6300.30d
-      lines['[OI]6364'] = 6363.78d
-      lines['[OII]3726'] = 3726.032d
-      lines['[OII]3729'] = 3728.815d
-      lines['[OII]3726+[OII]3729'] = (3726.032d + 3728.815d)/2d
-      lines['[OIII]4363'] = 4363.209d
-      lines['[OIII]4959'] = 4958.91d
-      lines['[OIII]5007'] = 5006.84d
-      lines['[SII]4068'] = 4068.60d
-      lines['[SII]4076'] = 4076.35d
-      lines['[SII]6716'] = 6716.44d
-      lines['[SII]6731'] = 6730.82d
-      lines['[SII]6716+[SII]6731'] = (6716.44d + 6730.82d)/2d
-      lines['[SIII]6312'] = 6312.06d
-      lines['CaIIK'] = 3933.663d
-      lines['CaIIH'] = 3968.469d
-      lines['MgIb5167'] = 5167.3213d
-      lines['MgIb5173'] = 5172.6844d
-      lines['MgIb5184'] = 5183.6043d 
-      lines['NaD2'] = 5889.95d
-      lines['NaD1'] = 5895.92d
-      lines['OH6287a'] = 6287.407 ; 9-3 P1e(2.5), Osterbrock 1996
-      lines['OH6287b'] = 6287.462 ; 9-3 P1f(2.5), Osterbrock 1996
-      lines['OH6306a'] = 6306.869 ; 9-3 P1e(3.5)
-      lines['OH6306b'] = 6306.981 ; 9-3 P1f(3.5)
-      lines['OH6329a'] = 6329.747 ; 9-3 P1e(4.5)
-      lines['OH6329b'] = 6329.933 ; 9-3 P1f(4.5)
-      lines['OH6356a'] = 6356.167 ; 9-3 P1e(5.5)
-      lines['OH6356b'] = 6356.441 ; 9-3 P1f(5.5)
-      lines['OH8344'] = 8344.602d
-      lines['OH8399'] = 8399.160d
-      lines['OH8430'] = 8430.170d
-      lines['[ArIV]4740'] = 4740.12d
-      lines['[CaV]5309'] = 5309.11d
-      lines['[FeVII]5159'] = 5158.89d
-      lines['[FeVII]5276'] = 5276.38d
-      lines['[FeVII]5721'] = 5720.7d
-      lines['[FeVII]6087'] = 6087.0d
-      lines['[FeX]6375'] = 6374.51d
 
 ;  resonant lines
 ;  air wavelengths
@@ -510,9 +520,6 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
 ; Wavelengths from NIST ASD
       lines['[NeIV]2422'] = 2421.825d ; [M1] or [E2] resonant
       lines['[NeIV]2425'] = 2424.403d ; [M1+E2] resonant
-      lines['[NeV]3345'] = 3345.83d ; non-resonant
-      lines['[NeV]3426'] = 3425.87d ; non-resonant
-      lines['[NeV]3345+[NeV]3426'] = (3345.83d + 3425.87d)/2d ; non-resonant
 
    endelse
 

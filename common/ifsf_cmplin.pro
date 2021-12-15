@@ -49,9 +49,11 @@
 ;      2014nov05, DSNR, updated to play nice with older data
 ;      2015may11, DSNR, fixed bug when line is not fit but wants to be plotted
 ;      2016sep26, DSNR, account for new treatment of spectral resolution
+;      2021dec15, DSNR, automatically determine whether spec. res. is R (FWHM)
+;                       or dlambda (sigma)
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2019 David S. N. Rupke
+;    Copyright (C) 2013--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -89,6 +91,9 @@ function ifsf_cmplin,instr,line,comp,velsig=velsig
    endelse
    if indices[0] ne -1 then begin
       gausspar = instr.param[indices]
+      ; if spectral resolution is > 100 assume it's R (FWHM)
+      if specres ge 100d then $
+         specres = gausspar[1]/specres/2.35d
       if keyword_set(velsig) then $
          gausspar[2] = sqrt((gausspar[2]*gausspar[1]/c)^2d + specres^2d) $
       else gausspar[2] = sqrt(gausspar[2]^2d + specres^2d)
