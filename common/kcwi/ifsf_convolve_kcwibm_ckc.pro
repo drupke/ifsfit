@@ -51,7 +51,7 @@ function ifsf_convolve_kcwibm_ckc,templam,temp,datlam,dat,newdat,z
 
    ; assuming here that Christy convolved things for constant R in log-lambda space
    ; multiply here b/c R is bigger for smaller dlambda or dvel
-   sig_mod_R = 299792d/30d * sigtofwhm
+   sig_mod_R = 299792d/30d ; 30 km/s is sigma already! http://www.lco.cl/wp-content/uploads/2021/02/MAGEhandout2021.pdf
    sig_dat_A = 2.5d / sigtofwhm
    ; model sigma will be higher by (1 + z) because templam is redshifted
    sig_mod_A = templam/sig_mod_R
