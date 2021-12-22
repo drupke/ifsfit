@@ -408,6 +408,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                   doublets=emldoublets)
         endif
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Plot emission-line data and print data to a file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -427,6 +428,48 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                  ; emlz[line,i,j,k] = emlz_spax[line,k]
               endfor
            endforeach
+
+           ; compute normalized correlation matrix from emission line fit
+           PCOR = struct.COVAR * 0d
+           FOR k = 0, n_elements(struct.param)-1 DO $
+              FOR l = 0, n_elements(struct.param)-1 DO $
+              if struct.COVAR(k,k) ne 0d AND struct.COVAR(l,l) ne 0d then $
+                 PCOR(k,l) = struct.COVAR(k,l)/$
+                    sqrt(struct.COVAR(k,k)*struct.COVAR(l,l))
+
+           ; identify elements that are cross-correlated
+           ; use 0.1 as a threshold?
+           emlpcor = hash()
+           icorall = where(abs(pcor) gt 0.5,ctcor)
+           if ctcor gt 0 then begin
+              icorall_xy = array_indices(pcor,icorall)
+              icoroffdiag = where(icorall_xy[0,*] ne icorall_xy[1,*],ctoff)
+              if ctoff gt 0 then begin
+                 pairs = intarr(ctoff/2,2)
+                 pairct = 0
+                 for k=0,ctoff -1 do begin
+                    i1 = icorall_xy[0,icoroffdiag[k]]
+                    i2 = icorall_xy[1,icoroffdiag[k]]
+                    done=0b
+                    for l=0,ctoff/2-1 do $
+                       if pairs[l,0] eq i2 AND pairs[l,1] eq i1 then done=1b
+                    if not done then begin
+                       pairs[pairct,*] = [i1,i2]
+                       pairct++
+                       key = string(struct.parinfo[i1].line+' c',$
+                          struct.parinfo[i1].comp,$
+                          ' '+struct.parinfo[i1].parname,$
+                          ' with ',$
+                          struct.parinfo[i2].line+' c',$
+                          struct.parinfo[i2].comp,$
+                          ' '+struct.parinfo[i2].parname,$
+                          format='(A0,I0,A0,A0,A0,I0,A0)')
+                       emlpcor[key] = pcor[i1,i2]
+                    endif
+                 endfor
+              endif
+           endif
+                        
         endif
 
         if not keyword_set(noplots) then begin
@@ -1168,10 +1211,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                initdat.maxncomp,linelist_with_doublets,$
                                initdat.zsys_gas,vlimits=vlimits,vstep=vstep)
         save,emlwav,emlwaverr,emlsig,emlsigerr,emlweq,emlflx,emlflxerr,emlcvdf,$
-             file=initdat.outdir+initdat.label+'.lin.xdr'
+             emlpcor,file=initdat.outdir+initdat.label+'.lin.xdr'
      endif else begin
         save,emlwav,emlwaverr,emlsig,emlsigerr,emlweq,emlflx,emlflxerr,$
-             file=initdat.outdir+initdat.label+'.lin.xdr'
+             emlpcor,file=initdat.outdir+initdat.label+'.lin.xdr'
      endelse
 ;    Save emission-line z's and ncomp's to a file
      save,emlz,emlncomp,emlsiginit,file=initdat.outdir+initdat.label+'.lininit.xdr'

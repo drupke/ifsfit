@@ -29,6 +29,10 @@
 ;      flux ratios for those line names.
 ;    ebvonly: in, optional, type=byte
 ;      Compute extinction values only.
+;    errlin: out, optional, type=hash
+;    errlo: out, optional, type=hash
+;    errhi: out, optional, type=hash
+;      Output linear and log errors in quantities. (E(B-V) errors are all the same.)
 ;    fcnebv: in, optional, type=string, default='ifsf_ebv_ccm'
 ;      Function for computing selective extinction / colour excess
 ;    lrlist: in, optional, hash
@@ -58,6 +62,8 @@
 ;                       set E(B-V) to 0 if Halpha/Hbeta too low; added
 ;                       [SII]/Ha
 ;      2021aug27, DSNR, added ability to import non-VO line ratio list
+;      2021dec17, DSNR, added [OIII]/[OII] and [OII]3729/3726;
+;                       optionally output linear errors
 ;
 ; :Copyright:
 ;    Copyright (C) 2014--2021 David S. N. Rupke
@@ -79,7 +85,7 @@
 ;-
 function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
                          lronly=lronly,errlo=errlo,errhi=errhi,rv=rv,$
-                         fcnebv=fcnebv,caseb=caseb,lrlist=lrlist
+                         fcnebv=fcnebv,caseb=caseb,lrlist=lrlist,errlin=errlin
 
 
    if ~ keyword_set(rv) then rv=3.1d
@@ -136,6 +142,7 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
    if doerr then begin
       errlo=hash()
       errhi=hash()
+      errlin=hash()
    endif
 
    doebv=0b
@@ -189,19 +196,25 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
       endelse
 
       out['ebv'] = ebv
-      if doerr then errlo['ebv'] = ebv_err
-
+      if doerr then begin
+         errlo['ebv'] = ebv_err
+         errhi['ebv'] = ebv_err
+         errlin['ebv'] = ebv_err
+      endif
+         
    endif
    
 ;  Compute line ratios
 
    if not keyword_set(lrlist) then begin
-      lrlabs = ['n2ha','o1ha','s2ha','o3hb','s2']
+      lrlabs = ['n2ha','o1ha','s2ha','o3hb','o3o2','s2','o2']
       lrlines = [['[NII]6583','Halpha'],$
          ['[OI]6300','Halpha'],$
          ['[SII]6716+[SII]6731','Halpha'],$
          ['[OIII]5007','Hbeta'],$
-         ['[SII]6716','[SII]6731']]
+         ['[OIII]5007','[OII]3726+[OII]3729'],$
+         ['[SII]6716','[SII]6731'],$
+         ['[OII]3729','[OII]3726']]
       lrlist = hash()
       for i=0,n_elements(lrlabs)-1 do lrlist[lrlabs[i]]=lrlines[*,i]
    endif
@@ -225,16 +238,18 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
 ;                         flux[lrlines[1,i],igdlr])
                lr_errlo = dblarr(nx,ny) + bad
                lr_errhi = dblarr(nx,ny) + bad
-               lr_err_lin = $
+               lr_errlin = dblarr(nx,ny) + bad
+               lr_errlin = $
                    lr_lin*$
                    sqrt((fluxerr[lrline[0],igdlr]/$
                          flux[lrline[0],igdlr])^2d + $
                         (fluxerr[lrline[1],igdlr]/$
                          flux[lrline[1],igdlr])^2d)
-               lr_errlo[igdlr] = lr[igdlr] - alog10(lr_lin - lr_err_lin)
-               lr_errhi[igdlr] = alog10(lr_lin + lr_err_lin) - lr[igdlr]
+               lr_errlo[igdlr] = lr[igdlr] - alog10(lr_lin - lr_errlin)
+               lr_errhi[igdlr] = alog10(lr_lin + lr_errlin) - lr[igdlr]
                errlo[lrlab] = lr_errlo
                errhi[lrlab] = lr_errhi
+               errlin[lrlab] = lr_errlin
             endif
          endif
       endforeach   

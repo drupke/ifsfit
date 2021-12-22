@@ -450,8 +450,13 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
 
 ;       Resample into linear space
         continuum = interpol(continuum_log,gdlambda_log,ALOG(gdlambda))
-        poly_mod_log = ppxfdesignmatrix[*,0:add_poly_degree] # add_poly_weights
-        poly_mod = interpol(poly_mod_log,gdlambda_log,ALOG(gdlambda))
+        if add_poly_degree ge 0 then begin
+           poly_mod_log = ppxfdesignmatrix[*,0:add_poly_degree] # add_poly_weights
+           poly_mod = interpol(poly_mod_log,gdlambda_log,ALOG(gdlambda))
+        endif else begin
+           poly_mod = dblarr(n_elements(continuum))
+           add_poly_weights = 0d
+        endelse
         stel_mod = continuum - poly_mod
 
 ;       Adjust stellar redshift based on fit
