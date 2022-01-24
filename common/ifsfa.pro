@@ -580,6 +580,12 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
 ;       Create / populate output data cubes                            
         if firstcontproc then begin
+           emlcube = $
+              {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
+               model: dblarr(cube.ncols,cube.nrows,cube.nz),$
+               err: dblarr(cube.ncols,cube.nrows,cube.nz),$
+               dq:  dblarr(cube.ncols,cube.nrows,cube.nz) $
+              }
            hostcube = $
               {dat: dblarr(cube.ncols,cube.nrows,cube.nz),$
                err: dblarr(cube.ncols,cube.nrows,cube.nz),$
@@ -632,6 +638,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endelse
            firstcontproc=0
         endif
+        emlcube.dat[i,j,struct.fitran_indx] = struct.emlin_dat
+        emlcube.model[i,j,struct.fitran_indx] = struct.emlin_fit
+        emlcube.err[i,j,struct.fitran_indx] = err[struct.fitran_indx]
+        emlcube.dq[i,j,struct.fitran_indx] = dq[struct.fitran_indx]
         hostcube.dat[i,j,struct.fitran_indx] = struct.cont_dat
         hostcube.err[i,j,struct.fitran_indx] = err[struct.fitran_indx]
         hostcube.dq[i,j,struct.fitran_indx] = dq[struct.fitran_indx]
@@ -1318,6 +1328,40 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
             endelse
             if writewaveext then $
                writefits,initdat.host.norm_sub,cube.wave,header.wave,/append
+         endif
+         if tag_exist(initdat.host,'eml_dat') then begin
+            if datext lt 0 then begin
+               writefits,initdat.host.eml_dat,emlcube.dat,newheader_dat
+            endif else begin
+               writefits,initdat.host.eml_dat,cube.phu,header.phu
+               writefits,initdat.host.eml_dat,emlcube.dat,newheader_dat,/append
+            endelse
+            if dqext eq 2 AND varext eq 3 then begin
+               writefits,initdat.host.eml_dat,emlcube.dq,newheader_dq,/append
+               writefits,initdat.host.eml_dat,emlcube.err^2d,newheader_var,/append
+            endif else begin
+               writefits,initdat.host.eml_dat,emlcube.err^2d,newheader_var,/append
+               writefits,initdat.host.eml_dat,emlcube.dq,newheader_dq,/append
+            endelse
+            if writewaveext then $
+               writefits,initdat.host.eml_dat,cube.wave,header.wave,/append
+         endif
+         if tag_exist(initdat.host,'eml_mod') then begin
+            if datext lt 0 then begin
+               writefits,initdat.host.eml_mod,emlcube.model,newheader_dat
+            endif else begin
+               writefits,initdat.host.eml_mod,cube.phu,header.phu
+               writefits,initdat.host.eml_mod,emlcube.model,newheader_dat,/append
+            endelse
+            if dqext eq 2 AND varext eq 3 then begin
+               writefits,initdat.host.eml_mod,emlcube.dq,newheader_dq,/append
+               writefits,initdat.host.eml_mod,emlcube.err^2d,newheader_var,/append
+            endif else begin
+               writefits,initdat.host.eml_mod,emlcube.err^2d,newheader_var,/append
+               writefits,initdat.host.eml_mod,emlcube.dq,newheader_dq,/append
+            endelse
+            if writewaveext then $
+               writefits,initdat.host.eml_mod,cube.wave,header.wave,/append
          endif
       endelse
    endif

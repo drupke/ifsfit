@@ -166,13 +166,13 @@ pro ifsf_makemaps,initproc
       center_nuclei = initmaps.center_nuclei
 
 ;  Get linelist
+   if tag_exist(initdat,'argslinelist') then $
+      argslinelist=initdat.argslinelist $
+   else argslinelist={}
    if ~ tag_exist(initdat,'noemlinfit') then begin
       linelabels=1b
-      if tag_exist(initdat,'argslinelist') then $
-         linelist = ifsf_linelist(initdat.lines,linelab=linelabels,$
-                                  _extra=initdat.argslinelist) $
-      else $
-         linelist = ifsf_linelist(initdat.lines,linelab=linelabels)
+      linelist = ifsf_linelist(initdat.lines,linelab=linelabels,$
+         _extra=argslinelist) $
 ;     Linelist with doublets to combine
      emldoublets = [['[SII]6716','[SII]6731'],$
                     ['[OII]3726','[OII]3729'],$
@@ -190,21 +190,12 @@ pro ifsf_makemaps,initproc
             lines_with_doublets = [lines_with_doublets,dkey]
          endif
       endfor
-      if tag_exist(initdat,'argslinelist') then $
-         linelist_with_doublets = $
-            ifsf_linelist(lines_with_doublets,linelab=linelabels,$
-                          _extra=initdat.argslinelist) $
-      else $
-         linelist_with_doublets = $
-            ifsf_linelist(lines_with_doublets,linelab=linelabels)
-
+      linelist_with_doublets = $
+         ifsf_linelist(lines_with_doublets,linelab=linelabels,$
+            _extra=argslinelist) $
    endif
    if tag_exist(initdat,'donad') then $
-      if tag_exist(initdat,'argslinelist') then $
-         nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],$
-                                     _extra=initdat.argslinelist) $
-      else $
-         nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'])
+      nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],_extra=argslinelist)
 
 ;  Get range file
 ;
@@ -2407,9 +2398,13 @@ pro ifsf_makemaps,initproc
          cgoplot,psf1d_x,psf1d_y,color='Red'
       endif else if tag_exist(initmaps,'fit_empsf') then begin
          cgoplot,empsf1d_x,empsf1d_y,color='Red'
-      endif else if tag_exist(initmaps,'ctradprof_psffwhm') then begin
+      endif else if tag_exist(initmaps,'psffwhm') OR $
+         tag_exist(initmaps,'ctradprof_psffwhm') then begin
+         if tag_exist(initmaps,'ctradprof_psffwhm') then $
+            psffwhm = mean(initmaps.ctradprof_psffwhm) $
+         else psffwhm = mean(initmaps.psffwhm)
          x = dindgen(101)/100d*max(map_rkpc_ifs)
-         fwhm=initmaps.ctradprof_psffwhm * kpc_per_as
+         fwhm = psffwhm * kpc_per_as
 ;        Gaussian
          y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
          cgoplot,x,y,color='Black'
@@ -3137,6 +3132,23 @@ pro ifsf_makemaps,initproc
                           missing_color='white'
                   cgplot,[0],xsty=5,ysty=5,position=truepos,$
                          /nodata,/noerase,xran=[0,dxwin],yran=[0,dywin]
+                  ; seeing disk
+                  if j eq 0 AND tag_exist(initmaps,'psffwhm') then begin
+                     if n_elements(initmaps.psffwhm) eq 1 then begin
+                        smajax = initmaps.psffwhm
+                        sminax = initmaps.psffwhm
+                        pos_ang = 0d
+                     endif else begin
+                        smajax = initmaps.psffwhm[0] > initmaps.psffwhm[1] ? $
+                           initmaps.psffwhm[0] : initmaps.psffwhm[1]
+                        sminax = initmaps.psffwhm[0] < initmaps.psffwhm[1] ? $
+                           initmaps.psffwhm[0] : initmaps.psffwhm[1]
+                        pos_ang = initmaps.psffwhm[0] > initmaps.psffwhm[1] ? $
+                           0d : 90d
+                     endelse
+                     tvellipse,smajax,sminax,dxwin/10d,dywin/10d,pos_ang,$
+                        /major,/minor,/data
+                  endif
 ;                 Disk axes
                   linsty_da=[2,1]
                   if diskaxes_endpoints[0] ne 0b then $

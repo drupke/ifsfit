@@ -2,7 +2,7 @@
 ;
 ;+
 ;
-; Convolve CKC14 templates from Christy (which she convolved to 30 km/s)
+; Convolve CKC14 templates from Christy (which she convolved to sigma = 30 km/s)
 ; to resolution of KCWI data with BM grating for input to PPXF.
 ; Output sigma from PPXF should then be approximately correct.
 ;

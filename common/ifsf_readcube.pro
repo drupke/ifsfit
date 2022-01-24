@@ -67,9 +67,11 @@
 ;      2018aug12, DSNR, ensure values of DATEXT, VAREXT, DQEXT don't get changed
 ;      2020may05, DSNR, new treatment of default axes in 2D images; added CUNIT
 ;                       and BUNIT to output
+;      2021jan04, DSNR, added NDIM to output; fixed bug in linearization for 
+;        ndim=2 case (reversed indices)
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2020 David S. N. Rupke
+;    Copyright (C) 2013--2021 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -155,6 +157,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      nrows = datasize[2]
      nz = datasize[3]
      wavedim = 3
+     ndim = 3
      crvalstr = 'CRVAL3'
      crpixstr = 'CRPIX3'
      cdeltstr = 'CD3_3'
@@ -173,6 +176,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      nz = datasize[1]
      ncols = datasize[2]
      nrows = 1
+     ndim = 2
      crvalstr = 'CRVAL1'
      crpixstr = 'CRPIX1'
      cdeltstr = 'CDELT1'
@@ -183,6 +187,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      nrows = 1
      nz = datasize[1]
      wavedim = 1
+     ndim = 1
      crvalstr = 'CRVAL1'
      crpixstr = 'CRPIX1'
      cdeltstr = 'CDELT1'
@@ -192,7 +197,6 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
 
   bunit = sxpar(header_dat,'BUNIT',silent=quiet,count=countbunit)
   if countbunit eq 0 then bunit = ''
-
 
 ; Create wavelength array.
   if ~ keyword_set(waveext) then begin
@@ -259,9 +263,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      ENDIF
      IF datasize[0] eq 2 then begin
         for i=0,ncols-1 do begin
-              dat[i,*] = interpol(datold[i,*],waveold,wave,/spline)
-              var[i,*] = interpol(varold[i,*],waveold,wave,/spline)
-              dq[i,*] = interpol(dqold[i,*],waveold,wave)
+              dat[*,i] = interpol(datold[*,i],waveold,wave,/spline)
+              var[*,i] = interpol(varold[*,i],waveold,wave,/spline)
+              dq[*,i] = interpol(dqold[*,i],waveold,wave)
         endfor
      ENDIF
      IF datasize[0] eq 1 then begin
@@ -283,6 +287,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
          nrows: nrows,$
          ncols: ncols,$
          nz: nz,$
+         ndim: ndim,$
          wavedim: wavedim,$
          crval: crval,$
          cdelt: cdelt,$
