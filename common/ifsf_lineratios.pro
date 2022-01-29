@@ -225,9 +225,10 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
     
             igdlr = cgsetintersection(igd[lrline[0]],igd[lrline[1]])
             lr = dblarr(nx,ny) + bad
-            lr_lin = flux[lrline[0],igdlr]/$
-                     flux[lrline[1],igdlr]
-            lr[igdlr] = alog10(lr_lin)
+            lr_lin = dblarr(nx,ny) + bad
+            lr_lin[igdlr] = flux[lrline[0],igdlr]/$
+               flux[lrline[1],igdlr]
+            lr[igdlr] = alog10(lr_lin[igdlr])
             out[lrlab] = lr
             if doerr then begin
 ;               lr_err = dblarr(nx,ny) + bad
@@ -239,14 +240,14 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
                lr_errlo = dblarr(nx,ny) + bad
                lr_errhi = dblarr(nx,ny) + bad
                lr_errlin = dblarr(nx,ny) + bad
-               lr_errlin = $
-                   lr_lin*$
+               lr_errlin[igdlr] = $
+                   lr_lin[igdlr]*$
                    sqrt((fluxerr[lrline[0],igdlr]/$
                          flux[lrline[0],igdlr])^2d + $
                         (fluxerr[lrline[1],igdlr]/$
                          flux[lrline[1],igdlr])^2d)
-               lr_errlo[igdlr] = lr[igdlr] - alog10(lr_lin - lr_errlin)
-               lr_errhi[igdlr] = alog10(lr_lin + lr_errlin) - lr[igdlr]
+               lr_errlo[igdlr] = lr[igdlr] - alog10(lr_lin[igdlr] - lr_errlin[igdlr])
+               lr_errhi[igdlr] = alog10(lr_lin[igdlr] + lr_errlin[igdlr]) - lr[igdlr]
                errlo[lrlab] = lr_errlo
                errhi[lrlab] = lr_errhi
                errlin[lrlab] = lr_errlin

@@ -69,9 +69,10 @@
 ;                       and BUNIT to output
 ;      2021jan04, DSNR, added NDIM to output; fixed bug in linearization for 
 ;        ndim=2 case (reversed indices)
+;      2022jan27, DSNR, added BUNIT_VAR to output
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2021 David S. N. Rupke
+;    Copyright (C) 2013--2022 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -196,7 +197,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
   endif
 
   bunit = sxpar(header_dat,'BUNIT',silent=quiet,count=countbunit)
+  bunit_var = sxpar(header_var,'BUNIT',silent=quiet,count=countbunit_var)
   if countbunit eq 0 then bunit = ''
+  if countbunit_var eq 0 then bunit_var = ''
 
 ; Create wavelength array.
   if ~ keyword_set(waveext) then begin
@@ -293,7 +296,8 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
          cdelt: cdelt,$
          crpix: crpix,$
          cunit: cunit,$
-         bunit: bunit $
+         bunit: bunit,$
+         bunit_var: bunit_var $
          }
   if keyword_set(vormap) then $
      cube = create_struct(cube,'vorcoords',vorcoords,'nvor',nvor)
