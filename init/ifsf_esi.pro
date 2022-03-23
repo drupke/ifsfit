@@ -129,6 +129,8 @@ function ifsf_esi,linelist,linelistz,linetie,$
   if ~ keyword_set(lratfix) then lratfix = hash()
 
 ; [SII] ratio
+; Limits correspond to values used in Sanders, Shapley et al. 2016, and 
+; implemented in DRT_NEBDEN
   ilratlim = 0
   lratlab = '[SII]6716/6731'
   if ncomp->haskey('[SII]6716') then tmp_ncomp = ncomp['[SII]6716'] $
@@ -143,7 +145,7 @@ function ifsf_esi,linelist,linelistz,linetie,$
      if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
      parinfo[ip1:ip2].value = frat      
      parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
-     parinfo[ip1:ip2].limits  = rebin([0.44d,1.43d],2,tmp_ncomp)
+     parinfo[ip1:ip2].limits  = rebin([0.4375d,1.4484d],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[SII]6716/6731 line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
 ;    Check to see if line ratio is fixed
@@ -162,14 +164,14 @@ function ifsf_esi,linelist,linelistz,linetie,$
         if ~ lratfixed then begin
 ;          case of pegging at or exceeding upper limit
            if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
-              parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
-                                     (parinfo[ip1+i].limits[1] - $
-                                      parinfo[ip1+i].limits[0])*0.1
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[1] ;- $
+;                                     (parinfo[ip1+i].limits[1] - $
+;                                      parinfo[ip1+i].limits[0])*0.1
 ;          case of pegging at or dipping below lower limit
            if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
-              parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
-                                     (parinfo[ip1+i].limits[1] - $
-                                      parinfo[ip1+i].limits[0])*0.1
+              parinfo[ip1+i].value = parinfo[ip1+i].limits[0] ; + $
+;                                     (parinfo[ip1+i].limits[1] - $
+;                                      parinfo[ip1+i].limits[0])*0.1
         endif
      endfor
   endif
@@ -329,6 +331,8 @@ function ifsf_esi,linelist,linelistz,linetie,$
 ; Limits from Pradhan et al. 2006, MNRAS, 366, L6
 ; 28aug2016, DSNR, changed limits to be more physically reasonable for AGN physics
 ; 28mar2019, DSNR, changed back to defaults
+; 2022feb22, DSNR, change limits to values used in Sanders, Shapley et al. 2016, and
+; implemented in DRT_NEBDEN
   ilratlim = 3
   lratlab = '[OII]3729/3726'
   if ncomp->haskey('[OII]3726') then tmp_ncomp = ncomp['[OII]3726'] $
@@ -343,8 +347,8 @@ function ifsf_esi,linelist,linelistz,linetie,$
     if ctnz gt 0 then frat[inz] = fb[inz]/fa[inz]
     parinfo[ip1:ip2].value = frat
     parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
-    parinfo[ip1:ip2].limits  = rebin([0.35d,1.5d],2,tmp_ncomp)
-;    parinfo[ip1:ip2].limits  = rebin([0.75d,1.4d],2,tmp_ncomp)
+    parinfo[ip1:ip2].limits  = rebin([0.3839d,1.4558d],2,tmp_ncomp)
+;    parinfo[ip1:ip2].limits  = rebin([0.35d,1.5d],2,tmp_ncomp)
     parinfo[ip1:ip2].parname = '[OII]3729/3726 line ratio'
     parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
 ;    Check to see if line ratio is fixed

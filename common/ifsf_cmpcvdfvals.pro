@@ -26,9 +26,10 @@
 ; :History:
 ;    ChangeHistory::
 ;      2016sep28, DSNR, created; copied from IFSF_CMPLINSPECPARS
+;      2022feb07, DSNR, recognize when input arrays are 1D
 ;    
 ; :Copyright:
-;    Copyright (C) 2016 David S. N. Rupke
+;    Copyright (C) 2016-2022 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -53,6 +54,7 @@ function ifsf_cmpcvdfvals,emlcvdf,emlflx,emlflxerr,fluxvels=fluxvels,$
 
    outlines = emlflx['ftot']->keys()
    mapsize = size(emlflx['ftot',outlines[0]])
+   if mapsize[0] eq 1 then mapsize[2] = 1
    nvel = n_elements(emlcvdf['vel'])
 
    emlvel = hash()

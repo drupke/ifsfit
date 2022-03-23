@@ -2,7 +2,15 @@
 ;
 ;+
 ;
-; Spatially smooth initial guesses
+; Spatially smooth initial guesses in # components, linewidths, and redshifts.
+; Start by median-smoothing maps with FILTER_IMAGE (default box size of 3), and 
+; then dilating the result by the following kernel:
+; 
+;   0 0 1 0 0
+;   0 1 1 1 0
+;   1 1 1 1 1
+;   0 1 1 1 0
+;   0 0 1 0 0
 ;
 ; :Categories:
 ;    IFSFIT
@@ -10,9 +18,21 @@
 ; :Returns:
 ;
 ; :Params:
-;   infile: in
+;   infile: in, required, type=string
+;     Name of IDL save file produced by IFSFA (*.lininit.xdr), containing 
+;     number of emission-line components in each spaxel and linewidth sigma
+;     and redshift in each velocity component of each spaxel.
+;   outfile: in, required, type=string
+;     Name of output IDL save file to store spatially-smoothed arrays of 
+;     # of components, linewidths, and redshifts.
 ;     
 ; :Keywords:
+;   plot: in, optional, type=boolean
+;     Produce plots to screen of original and spatially-smoothed maps
+;   ywinsize: in, optional, type=integer, default=600
+;     Y size of output window in dpi (?).
+;   smbox: in, optional, type=integer, default=3
+;     Size of box for moving median filter of maps.
 ; 
 ; :Author:
 ;    David Rupke
@@ -20,9 +40,10 @@
 ; :History:
 ;    Change History::
 ;      2021jun10, DSNR, created
+;      2022mar23, DSNR, commented
 ;
 ; :Copyright:
-;    Copyright (C) 2021 David S. N. Rupke
+;    Copyright (C) 2021-2022 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
