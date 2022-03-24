@@ -172,7 +172,7 @@ pro ifsf_makemaps,initproc
    if ~ tag_exist(initdat,'noemlinfit') then begin
       linelabels=1b
       linelist = ifsf_linelist(initdat.lines,linelab=linelabels,$
-         _extra=argslinelist) $
+         _extra=argslinelist)
 ;     Linelist with doublets to combine
      emldoublets = [['[SII]6716','[SII]6731'],$
                     ['[OII]3726','[OII]3729'],$
@@ -192,7 +192,7 @@ pro ifsf_makemaps,initproc
       endfor
       linelist_with_doublets = $
          ifsf_linelist(lines_with_doublets,linelab=linelabels,$
-            _extra=argslinelist) $
+            _extra=argslinelist)
    endif
    if tag_exist(initdat,'donad') then $
       nadlinelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],_extra=argslinelist)

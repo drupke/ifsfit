@@ -470,7 +470,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               endif
            endif
                         
-        endif
+        endif else begin
+           emlpcor=0b
+        endelse
 
         if not keyword_set(noplots) then begin
 
