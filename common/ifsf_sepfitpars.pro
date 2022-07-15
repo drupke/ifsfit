@@ -238,26 +238,26 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran,$
 ;            fluxpk[line,ipeggedupper] = 0d
 ;            fluxpk_obs[line,ipeggedupper] = 0d
 ;         endif
-      if line eq 'Hbeta' AND linelist.haskey('Halpha') then begin
-;        If Halpha/Hbeta goes belowlower limit, then we re-calculate the errors
-;        add discrepancy in quadrature to currently calculated error. Assume
-;        error in fitting is in Hbeta and adjust accordingly.
-         fha = fluxpk['Halpha']
-         ihahb = where(fluxpk['Halpha'] gt 0d AND fluxpk['Hbeta'] gt 0d,cthahb)
-         if cthahb gt 0 then begin
-            itoolow = $
-               where(fluxpk['Halpha',ihahb]/fluxpk['Hbeta'] lt 2.86d,cttoolow)
-            if cttoolow gt 0 then begin
-               fluxpkdiff = fluxpk[line,itoolow] - fluxpk['Halpha',itoolow]/2.86d
-               fluxpk[line,itoolow] -= fluxpkdiff
-               fluxpk_obs[line,itoolow] -= fluxpkdiff
-               fluxpkerr[line,itoolow] = $
-                  sqrt(fluxpkerr[line,itoolow]^2d + fluxpkdiff^2d)
-               fluxpkerr_obs[line,itoolow] = $
-                  sqrt(fluxpkerr_obs[line,itoolow]^2d + fluxpkdiff^2d)
-            endif
-         endif
-      endif
+;      if line eq 'Hbeta' AND linelist.haskey('Halpha') then begin
+;;        If Halpha/Hbeta goes belowlower limit, then we re-calculate the errors
+;;        add discrepancy in quadrature to currently calculated error. Assume
+;;        error in fitting is in Hbeta and adjust accordingly.
+;         fha = fluxpk['Halpha']
+;         ihahb = where(fluxpk['Halpha'] gt 0d AND fluxpk['Hbeta'] gt 0d,cthahb)
+;         if cthahb gt 0 then begin
+;            itoolow = $
+;               where(fluxpk['Halpha',ihahb]/fluxpk['Hbeta'] lt 2.86d,cttoolow)
+;            if cttoolow gt 0 then begin
+;               fluxpkdiff = fluxpk[line,itoolow] - fluxpk['Halpha',itoolow]/2.86d
+;               fluxpk[line,itoolow] -= fluxpkdiff
+;               fluxpk_obs[line,itoolow] -= fluxpkdiff
+;               fluxpkerr[line,itoolow] = $
+;                  sqrt(fluxpkerr[line,itoolow]^2d + fluxpkdiff^2d)
+;               fluxpkerr_obs[line,itoolow] = $
+;                  sqrt(fluxpkerr_obs[line,itoolow]^2d + fluxpkdiff^2d)
+;            endif
+;         endif
+;      endif
       if line eq '[OII]3729' AND cto2rat gt 0 then begin
          fluxpkerr_obs[line,0:cto2rat-1] = $
             fluxpk_obs[line,0:cto2rat-1]*sqrt($
@@ -288,13 +288,14 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran,$
 
 ;     Add back in spectral resolution
 ;     Can't use sigma = 0 as criterion since the line could be fitted but unresolved.
+;     fitted sigma in wavelength space
       sigmatmp = sigma[line]/c*wave[line]
       inz = where(fluxpk[line] gt 0,ctnz)
       if ctnz gt 0 then begin
 ;        Make sure we're not adding something to 0 -- i.e. the component wasn't fit.
          ; if spectral resolution is > 100 assume it's R (FWHM)
          if param[2] ge 100d then $
-            sigmatmp[inz] = sqrt(sigmatmp[inz]^2d + (wave[line,inz]/param[2]/2.35d)^2d) $
+            sigmatmp[inz] = sqrt(sigmatmp[inz]^2d + (wave[line,inz]/(param[2]*2.35d))^2d) $
          ; otherwise it's dlambda (sigma)
          else $
             sigmatmp[inz] = sqrt(sigmatmp[inz]^2d + param[2]^2d)
@@ -343,6 +344,8 @@ function ifsf_sepfitpars,linelist,param,perror,parinfo,waveran=waveran,$
          endelse
       endif
    endforeach
+   
+   ;print,flux['[OII]3729']/flux['[OII]3726']
    
 ;  Special doublet cases: combine fluxes from each line
    if keyword_set(doublets) then begin

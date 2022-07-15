@@ -212,17 +212,17 @@ pro ifsf_makemaps,initproc
 
 ;  Restore line maps
    if ~ tag_exist(initdat,'noemlinfit') then $
-      restore,file=initdat.outdir+initdat.label+'.lin.xdr'
+      restore,file=initdat.outdir+initdat.label+'.lin.xdr',/relaxed
    
 ;  Restore continuum parameters
 ;   if tag_exist(initdat,'decompose_ppxf_fit') OR $
 ;      tag_exist(initdat,'decompose_qso_fit') then $
-   restore,file=initdat.outdir+initdat.label+'.cont.xdr'
+   restore,file=initdat.outdir+initdat.label+'.cont.xdr',/relaxed
 
 ;  Get NaD parameters
    if tag_exist(initdat,'donad') then begin
-      restore,file=initdat.outdir+initdat.label+'.nadspec.xdr'
-      restore,file=initdat.outdir+initdat.label+'.nadfit.xdr'
+      restore,file=initdat.outdir+initdat.label+'.nadspec.xdr',/relaxed
+      restore,file=initdat.outdir+initdat.label+'.nadfit.xdr',/relaxed
       if tag_exist(initmaps,'badnademp') then begin
          tagstobad=['WEQ','IWEQ','EMFLUX','EMUL','VEL']
          tagnames=tag_names(nadcube)
@@ -1917,10 +1917,10 @@ pro ifsf_makemaps,initproc
          endif else begin
             ctmap = rhst_fov_sm_ns_rb
             if tag_exist(initmaps.hstrdsm,'beta') then $
-               beta=initmaps.hstrdsm.sclargs.beta $
+               beta=initmaps.hstrdsm.beta $
             else beta=1d
             if tag_exist(initmaps.hstrdsm,'stretch') then $
-               stretch=initmaps.hstrdsm.sclargs.stretch $
+               stretch=initmaps.hstrdsm.stretch $
             else stretch=1
             if tag_exist(initmaps.hstrdsm,'scllim') then $
                scllim=initmaps.hstrdsm.scllim $

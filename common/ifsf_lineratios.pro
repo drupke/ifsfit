@@ -8,12 +8,9 @@
 ;    IFSFIT
 ;
 ; :Returns:
-;    Hash of extinction values and/or line ratios, with errors:
+;    Hash of extinction values and/or line ratios:
 ;      OUT[keys,dx,dy]
-;      keys = 'ebv', 'ebv_err'
-;           = 'n2ha', 'n2ha_err'
-;           = 'o1ha', 'o1ha_err'
-;           = 'o3hb', 'o3hb_err'
+;      keys = 'ebv', 'o3hb', etc.
 ;    Now will also return generic (non-VO87) line ratio.
 ;
 ; :Params:

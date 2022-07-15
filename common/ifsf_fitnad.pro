@@ -103,7 +103,9 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
    maxncomp = initnad.maxncomp
 
    ; Get linelist
-   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
+   if tag_exist(initdat,'argslinelist') then argslinelist=initdat.argslinelist $
+      else argslinelist = {}
+   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet,_extra=argslinelist)
 
    if tag_exist(initnad,'taumax') then taumax=initnad.taumax $
    else taumax = 5d
@@ -131,9 +133,11 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
    if ~ tag_exist(initnad,'specres') then specres=0b $
    else specres = initnad.specres
    ; factor to bin upward for cases sigma << specres
-   if ~ tag_exist(initstr,'upsample') then upsample=0b $
-   else upsample=initstr.upsample
-   argsfitnad = {specres: specres, upsample: upsample}
+   if ~ tag_exist(initnad,'upsample') then upsample=0b $
+   else upsample=initnad.upsample
+   if ~ tag_exist(initnad,'maxiter') then maxiter=100 $
+   else maxiter=initnad.maxiter
+   argsfitnad = {specres: specres, upsample: upsample, maxiter: maxiter}
 
    ifsf_printnadpar,nadparlun,outfile=initdat.outdir+initdat.label+'.nad.dat'
 
@@ -260,7 +264,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             if refline ne 'HeI5876' AND $
                ~ tag_exist(initnad,'noemlinfit') then begin
 ;              Get reference line parameters
-               reflinelist = ifsf_linelist([refline],/quiet)
+               reflinelist = ifsf_linelist([refline],/quiet,_extra=argslinelist)
 ;              Case of constraining with another line from another spaxel
                if tag_exist(initnad,'heitiecol') AND $
                   tag_exist(initnad,'heitierow') then begin
@@ -412,7 +416,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                      passwav,$
                      passdat,$
                      passerr,$
-                     parinfo=parinit,perror=perror,maxiter=100,$
+                     parinfo=parinit,perror=perror,$
                      bestnorm=chisq_emonly,covar=covar,$
                      yfit=specfit,dof=dof_emonly,$
                      nfev=nfev,niter=niter_emonly,status=status,$
@@ -549,7 +553,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
                           passwav,$
                           passdat,$
                           passerr,$
-                          parinfo=parinit,perror=perror,maxiter=100,$
+                          parinfo=parinit,perror=perror,$
                           bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                           nfev=nfev,niter=niter,status=status,quiet=quiet,$
                           npegged=npegged,ftol=1D-6,errmsg=errmsg,$
@@ -647,19 +651,16 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
          if ~ tag_exist(initnad,'noemlinfit') then zstar=struct.zstar else $
          zstar = 0d
          if ~ noplot then begin
+            ; add in vacuum=1b if present
+            argspltfitnad=argslinelist 
             if tag_exist(initnad,'argspltfitnad') then $
-               ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
-                              (nadcube.dat)[i,j,*],$
-                              (nadcube.err)[i,j,*],$
-                              param,outfile+'_nad_fit',zref,$
-                              specres=specres,zstar=zstar,$
-                              _extra=initnad.argspltfitnad $
-            else $
-               ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
-                              (nadcube.dat)[i,j,*],$
-                              (nadcube.err)[i,j,*],$
-                              param,outfile+'_nad_fit',zref,$
-                              specres=specres,zstar=zstar
+               argspltfitnad = create_struct(argspltfitnad,initnad.argspltfitnad)  
+            ifsf_pltnadfit,(nadcube.wave)[i,j,*],$
+               (nadcube.dat)[i,j,*],$
+               (nadcube.err)[i,j,*],$
+               param,outfile+'_nad_fit',zref,$
+               specres=specres,zstar=zstar,$
+               _extra=argspltfitnad
          endif
 
 ;        Compute model equivalent widths

@@ -82,12 +82,12 @@ function ifsf_manygauss, wave, param, specresarr=specresarr
      else $
         srsigslam = specresarr[wsr,1]
   endif else begin
+     ; resolution in wavelength space [sigma] assumed to be in third element of PARAM
      if param[2] ge 100d then $
         srsigslam = dblarr(nline)+param[wind]/param[2]/2.35d $
      else $
         srsigslam = dblarr(nline)+param[2]
   endelse
-; resolution in wavelength space [sigma] assumed to be in third element of PARAM
   sigs = sqrt((param[sind]/c * param[wind])^2d + srsigslam^2d)
   maxsig = max(sigs)
 

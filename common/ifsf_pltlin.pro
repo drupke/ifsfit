@@ -68,16 +68,37 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_pltlin,instr,pltpar,outfile,emlz
+pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
 
    bad = 1d99
 
-   set_plot,'Z'
-   device,decomposed=0,set_resolution=[1500,900],set_pixel_depth=24
-   !P.charsize=1.5
-   !P.charthick=1
-   !P.thick=4
-   erase
+   if keyword_set(ps) then dops=1 else dops=0
+
+   if dops then begin
+      cgps_open,filename=outfile+'.eps',/encapsulated,xsize=10,ysize=7.5,$
+         /inches,/nomatch,charsize=1,default_thick=2
+      backgcol='White'
+      linecol='Black'
+      colors = ['Magenta','Teal','Orange']
+      pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
+         oxmar=[7,1],oymar=[7,1],xgap=3,ygap=3)
+      linelabsize = 1.
+      linelabcol = 'Blue'
+   endif else begin
+      set_plot,'Z'
+      device,decomposed=0,set_resolution=[1500,900],set_pixel_depth=24
+      !P.charsize=1.5
+      !P.charthick=1
+      !P.thick=4
+      erase
+      backgcol='Black'
+      linecol='White'
+      colors = ['Magenta','Green','Orange','Teal']
+      linelabcol = 'White'
+      pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
+         oxmar=[22,0],oymar=[10,0],xgap=20,ygap=6)
+      linelabsize=1.5
+   endelse
 
    defaultXtickint=!X.tickinterval
    defaultXminor=!X.minor
@@ -91,11 +112,8 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz
       !X.tickinterval /= 0.5d10
       !X.minor /= 0.5d10
    endif
-   pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
-                  oxmar=[22,0],oymar=[10,0],xgap=20,ygap=6)
 
   maxncomp = instr.param[1]
-  colors = ['Magenta','Green','Orange','Teal']
 
   wave = instr.wave
   spectot = instr.spec
@@ -118,31 +136,34 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz
    if tag_exist(pltpar,'micron') then wave /= 1d4
 ;   if tag_exist(pltpar,'meter') then wave /= 1d10
 
+   ; check that continuum was fit
+   if n_elements(instr.ct_indx) gt 1 then begin
 ;  Find masked regions during continuum fit
-   nmasked = 0 ; # of masked regions
+      nmasked = 0 ; # of masked regions
 ;  Find consecutive unmasked regions
-   consec,instr.ct_indx,lct,hct,nct
+      consec,instr.ct_indx,lct,hct,nct
 ;  Set interior masked regions
-   if nct gt 1 then begin
-      nmasked = nct-1
-      masklam = dblarr(2,nmasked)
-      for i=0,nmasked-1 do $
-         masklam[*,i] = [wave[instr.ct_indx[hct[i]]],$
-                         wave[instr.ct_indx[lct[i+1]]]]
-   endif
+      if nct gt 1 then begin
+         nmasked = nct-1
+         masklam = dblarr(2,nmasked)
+         for i=0,nmasked-1 do $
+            masklam[*,i] = [wave[instr.ct_indx[hct[i]]],$
+               wave[instr.ct_indx[lct[i+1]]]]
+      endif
 ;  Set masked region if it occurs at beginning of lambda array
-   if instr.ct_indx[0] ne 0 then begin
-      nmasked++
-      masklam = [[wave[0],wave[instr.ct_indx[lct[0]-1]]],[masklam]]
-   endif
+      if instr.ct_indx[0] ne 0 then begin
+         nmasked++
+         masklam = [[wave[0],wave[instr.ct_indx[lct[0]-1]]],[masklam]]
+      endif
 ;  Set masked region if it occurs at end of lambda array
-   if instr.ct_indx[n_elements(instr.ct_indx)-1] ne $
-      n_elements(instr.wave)-1 then begin
-      nmasked++
-      masklam = [[masklam],$
-                 [wave[instr.ct_indx[hct[nct-1]]],$
-                  wave[n_elements(instr.wave)-1]]]
-   endif
+      if instr.ct_indx[n_elements(instr.ct_indx)-1] ne $
+         n_elements(instr.wave)-1 then begin
+         nmasked++
+         masklam = [[masklam],$
+            [wave[instr.ct_indx[hct[nct-1]]],$
+            wave[n_elements(instr.wave)-1]]]
+      endif
+   endif else nmasked=0
 
   nlin = n_elements(pltpar.label)
   linlab = pltpar.label
@@ -156,7 +177,7 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz
      xran = (linwavtmp[0] + off[*,i]) * (1d + zbase)
      ind = where(wave gt xran[0] AND wave lt xran[1],ct)
 
-     cgplot,[0],/nodata,xsty=4,ysty=4,pos=pos[*,i],noerase=i ne 0,backg='Black'
+     cgplot,[0],/nodata,xsty=4,ysty=4,pos=pos[*,i],noerase=i ne 0,backg=backgcol
      xwin = [pos[0,i],pos[2,i]]
      ywin = [pos[1,i],pos[3,i]]
      dxwin = xwin[1]-xwin[0]
@@ -172,7 +193,7 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz
         if icol eq fix(icol) then ytit = 'Fit' else ytit = ''
         cgplot,wave,ydat,xran=xran,yran=yran,pos=pos_fit,$
                xtickn=replicate(' ',60),ytit=ytit,/noerase,$
-               axiscol='White',col='White',/norm,/xsty,/ysty,thick=1
+               axiscol=linecol,col=linecol,/norm,/xsty,/ysty,thick=1
         cgoplot,wave,ymod,color='Red',thick=4
         for j=1,maxncomp do begin
            flux = ifsf_cmplin(instr,linlab[i],j,/velsig)
@@ -188,19 +209,34 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz
            endif
         endfor
         cgtext,xran[0]+(xran[1]-xran[0])*0.05d,$
-               yran[0]+(yran[1]-yran[0])*0.85d,$
-               linlab[i],charsize=1.5,charthick=2,/dat
+               yran[0]+(yran[1]-yran[0])*0.90d,$
+               linlab[i],charsize=linelabsize,charthick=2,/dat,$
+               col=linelabcol
+        if linoth[0,i] ne '' then $
+           for k=0,n_elements(linoth[*,i])-1 do $
+              if linoth[k,i] ne '' then $
+                 cgtext,xran[0]+(xran[1]-xran[0])*0.05d,$
+                    yran[0]+(yran[1]-yran[0])*(0.90d - double(k+1)*0.1d),$
+                    linoth[k,i],charsize=linelabsize,charthick=2,/dat,$
+                    col=linelabcol
 ; z labels
-        if emlz.haskey(linlab[i])then begin
-           for j=0,maxncomp-1 do begin
-              if emlz[linlab[i],j] ne bad then begin
-                 cgtext,xran[0]+(xran[1]-xran[0])*0.78d,$
-                    yran[0]+(yran[1]-yran[0])*(0.92d - double(j)*0.1d),$
+        if emlz.haskey(linlab[i]) then $
+           for j=0,maxncomp-1 do $
+              if emlz[linlab[i],j] ne bad then $
+                 cgtext,xran[0]+(xran[1]-xran[0])*0.7d,$
+                    yran[0]+(yran[1]-yran[0])*(0.90d - double(j)*0.1d),$
+                    'z$\down'+string(j+1,format='(I0)')+'$='+$
                     string(emlz[linlab[i],j],format='(D0.4)'),$
-                    charsize=1.5,charthick=2,/dat,color=colors[j]
-              endif
-           endfor
-        endif
+                    charsize=linelabsize,charthick=2,/dat,color=colors[j]
+        if keyword_set(emlsig) then $
+           if emlsig.haskey(linlab[i]) then $
+              for j=0,maxncomp-1 do $
+                 if emlsig[linlab[i],j] ne bad then $
+                    cgtext,xran[0]+(xran[1]-xran[0])*0.7d,$
+                       yran[0]+(yran[1]-yran[0])*(0.90d - double(j)*0.1d),$
+                       '$\sigma\down'+string(j+1,format='(I0)')+'$='+$
+                       string(emlsig[linlab[i],j],format='(D0.4)'),$
+                       charsize=linelabsize,charthick=2,/dat,color=colors[j]
         if nmasked gt 0 then $
            for j=0,nmasked-1 do $
               cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
@@ -212,7 +248,7 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz
         yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
         if icol eq fix(icol) then ytit = 'Residual' else ytit = ''
         cgplot,wave,ydat,xran=xran,yran=yran,/noerase,ytit=ytit,$
-               axiscol='White',col='White',/norm,pos=pos_res,/xsty,/ysty,thick=1
+               axiscol=linecol,col=linecol,/norm,pos=pos_res,/xsty,/ysty,thick=1
         cgoplot,wave,ymod,color='Red',thick=4
      endif
 
@@ -227,7 +263,8 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz
   cgtext,0.5,0.02,xtit,/norm,align=0.5,charsize=2,charthick=2
   
   tmpfile = outfile
-  img = cgsnapshot(filename=tmpfile,/jpeg,/nodialog,quality=100)
+  if dops then cgps_close $
+  else img = cgsnapshot(filename=tmpfile,/jpeg,/nodialog,quality=100)
 
   !X.tickinterval=defaultXtickint
   !X.minor=defaultXminor

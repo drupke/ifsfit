@@ -314,12 +314,13 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
 ; Fit continuum
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  if tag_exist(initdat,'fcncontfit') then begin
-   
 ;    Some defaults. These only apply in case of fitting with stellar model
 ;    + additive polynomial.
-     stel_mod = 0d
-     poly_mod = 0d
+   stel_mod = 0d
+   poly_mod = 0d
+
+  if tag_exist(initdat,'fcncontfit') then begin
+   
 
 ;    Mask emission lines
      if ~ noemlinmask then begin
@@ -528,8 +529,14 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
      gdflux_nocnt = gdflux
      gderr_nocnt = gderr
      method   = 'NO CONTINUUM FIT'
+     continuum = 0d
+     continuum_pretweak = 0d
      ct_coeff = 0d
      ct_indx = 0d
+     ct_rchisq=0d
+     add_poly_weights = 0d
+     ppxf_sigma = 0d
+     ppxf_sigma_err=0d
 
   endelse
   

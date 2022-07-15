@@ -78,17 +78,19 @@
 ;-
 pro ifsf_pltnadfit,wave,flux,err,param,outfile,zsys,xran=xran,yran=yran,$
                    ps=ps,specres=specres,zstar=zstar,$
-                   cvlab=cvlab,cmodcomp=cmodcomp,upsample=upsample
+                   cvlab=cvlab,cmodcomp=cmodcomp,upsample=upsample,$
+                   vacuum=vacuum
                    
   if ~keyword_set(specres) then specres=0b
   if ~keyword_set(upsample) then upsample=0b
   if ~keyword_set(cvlab) then cvlab='Cyan'
   if ~keyword_set(cmodcomp) then cmodcomp='Cyan'
+  if ~keyword_set(vacuum) then vacuum=0b
   if keyword_set(ps) then dops=1 else dops=0
 
 ; Default wavelengths
   c = 299792.458d
-  linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
+  linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet,vacuum=vacuum)
 
 ; Observed-frame wavelengths
   w_nad1 = linelist['NaD1']*(1d +zsys)

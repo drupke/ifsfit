@@ -404,8 +404,9 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            linepars = ifsf_sepfitpars(linelist,struct.param,struct.perror,$
                                       struct.parinfo,tflux=tflux,$
                                       doublets=emldoublets)
-           lineweqs = ifsf_cmpweq(struct,linelist,$
-                                  doublets=emldoublets)
+           if n_elements(struct.ct_indx) gt 1 then $
+              lineweqs = ifsf_cmpweq(struct,linelist,$
+                 doublets=emldoublets)
         endif
 
 
@@ -510,7 +511,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
              endif
 ;            Assign total fluxes
              if ctgd gt 0 then begin
-                emlweq['ftot',line,i,j]=lineweqs.tot[line]
+               if n_elements(struct.ct_indx) gt 1 then $
+                  emlweq['ftot',line,i,j]=lineweqs.tot[line]
                 emlflx['ftot',line,i,j]=tflux.tflux[line]
                 emlflxerr['ftot',line,i,j]=tflux.tfluxerr[line]
              endif
@@ -551,7 +553,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
                     emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
                     emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
-                    emlweq['f'+cstr,line,i,j]=lineweqs.comp[line,sindex]
+                    if n_elements(struct.ct_indx) gt 1 then $
+                       emlweq['f'+cstr,line,i,j]=lineweqs.comp[line,sindex]
                     emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
                     emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
                     emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
@@ -1368,7 +1371,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
       endelse
    endif
 
-  if tag_exist(initdat,'donad') then $
+  if tag_exist(initdat,'donad') AND not firstnadnorm then $
      save,nadcube,file=initdat.outdir+initdat.label+'.nadspec.xdr'
 
 end

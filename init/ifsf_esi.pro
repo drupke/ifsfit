@@ -79,7 +79,8 @@
 function ifsf_esi,linelist,linelistz,linetie,$
                   initflux,initsig,maxncomp,ncomp,$
                   lratfix=lratfix,siglim=siglim,sigfix=sigfix,$
-                  blrcomp=blrcomp,blrlines=blrlines,specres=specres
+                  blrcomp=blrcomp,blrlines=blrlines,specres=specres,$
+                  zfix=zfix
 
   bad = 1d99
   c = 299792.458d
@@ -145,7 +146,8 @@ function ifsf_esi,linelist,linelistz,linetie,$
      if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
      parinfo[ip1:ip2].value = frat      
      parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
-     parinfo[ip1:ip2].limits  = rebin([0.4375d,1.4484d],2,tmp_ncomp)
+     parinfo[ip1:ip2].limits  = rebin([0.4375d,1.4484d]*$
+        linelist['[SII]6731']/linelist['[SII]6716'],2,tmp_ncomp)
      parinfo[ip1:ip2].parname = '[SII]6716/6731 line ratio'
      parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
 ;    Check to see if line ratio is fixed
@@ -347,7 +349,9 @@ function ifsf_esi,linelist,linelistz,linetie,$
     if ctnz gt 0 then frat[inz] = fb[inz]/fa[inz]
     parinfo[ip1:ip2].value = frat
     parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
-    parinfo[ip1:ip2].limits  = rebin([0.3839d,1.4558d],2,tmp_ncomp)
+    parinfo[ip1:ip2].limits = $
+      rebin([0.3839d,1.4558d]*$
+      linelist['[OII]3726']/linelist['[OII]3729'],2,tmp_ncomp)
 ;    parinfo[ip1:ip2].limits  = rebin([0.35d,1.5d],2,tmp_ncomp)
     parinfo[ip1:ip2].parname = '[OII]3729/3726 line ratio'
     parinfo[ip1:ip2].comp = indgen(tmp_ncomp)+1
@@ -367,14 +371,14 @@ function ifsf_esi,linelist,linelistz,linetie,$
       if ~ lratfixed then begin
 ;          case of pegging at or exceeding upper limit
         if parinfo[ip1+i].value ge parinfo[ip1+i].limits[1] then $
-          parinfo[ip1+i].value = parinfo[ip1+i].limits[1] - $
-          (parinfo[ip1+i].limits[1] - $
-          parinfo[ip1+i].limits[0])*0.1
+          parinfo[ip1+i].value = parinfo[ip1+i].limits[1] ;- $
+          ;(parinfo[ip1+i].limits[1] - $
+          ;parinfo[ip1+i].limits[0])*0.1
 ;          case of pegging at or dipping below lower limit
         if parinfo[ip1+i].value le parinfo[ip1+i].limits[0] then $
-          parinfo[ip1+i].value = parinfo[ip1+i].limits[0] + $
-          (parinfo[ip1+i].limits[1] - $
-          parinfo[ip1+i].limits[0])*0.1
+          parinfo[ip1+i].value = parinfo[ip1+i].limits[0] ;+ $
+          ;(parinfo[ip1+i].limits[1] - $
+          ;parinfo[ip1+i].limits[0])*0.1
       endif
     endfor
   endif
@@ -394,7 +398,8 @@ function ifsf_esi,linelist,linelistz,linetie,$
     inz = where(fb gt 0,ctnz)
     if ctnz gt 0 then frat[inz] = fa[inz]/fb[inz]
     parinfo[ip1:ip2].value = frat
-    parinfo[ip1:ip2].limited = rebin([1b,1b],2,tmp_ncomp)
+    parinfo[ip1:ip2].limited = rebin([1b,1b]*$
+       linelist['MgII2803']/linelist['MgII2796'],2,tmp_ncomp)
     parinfo[ip1:ip2].limits  = rebin([1d,2d],2,tmp_ncomp)
 ;    parinfo[ip1:ip2].limits  = rebin([0.75d,1.4d],2,tmp_ncomp)
     parinfo[ip1:ip2].parname = 'MgII2796/2803 line ratio'
@@ -484,6 +489,12 @@ function ifsf_esi,linelist,linelistz,linetie,$
               if (line eq linetie[line]) then begin
                  parinfo[iwoff].tied = ''
                  parinfo[isoff].tied = ''
+                 if keyword_set(zfix) then $
+                    if zfix.haskey(line) then $
+                       if zfix[line,i] ne bad then begin
+                          parinfo[iwoff].fixed=1B
+                          parinfo[iwoff].value=(1d + zfix[line,i])*linelist[line]
+                       endif
               endif else begin
                  indtie = where(lines_arr eq linetie[line])
                  parinfo[iwoff].tied = $

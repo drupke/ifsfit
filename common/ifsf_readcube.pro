@@ -21,25 +21,27 @@
 ;    dqext: in, optional, type=integer, default=3
 ;      Extension # of DQ plane. Set to a negative number if there is no DQ; DQ
 ;      plane is then set to 0.
-;    error: in, optional, type=byte, default=0
+;    error: in, optional, type=bool, default=0
 ;      If the data cube contains errors rather than variance, the routine will
 ;      convert to variance.
+;    fluxnorm: in, optional, type=double
+;      Divide data and variance by this value.
 ;    header: out, optional, type=structure
 ;      Headers for each extension.
-;    invvar: in, optional, type=byte
+;    invvar: in, optional, type=bool
 ;      Set if the data cube holds inverse variance instead of variance. The
 ;      output structure will still contain the variance.
-;    linearize: in, optional, type=byte
+;    linearize: in, optional, type=bool
 ;      If set, resample the input wavelength scale so it is linearized.
-;    oned: in, optional, type=byte
+;    oned: in, optional, type=bool
 ;      [Deprecated.] Input cube has only one non-wavelength dimension.
-;    quiet: in, optional, type=byte
+;    quiet: in, optional, type=bool
 ;      Suppress progress messages.
 ;    varext: in, optional, type=integer, default=2
 ;      Extension # of variance plane.
 ;    waveext: in, optional, type=integer
 ;      The extention number of a wavelength array.
-;    zerodq: in, optional, type=byte
+;    zerodq: in, optional, type=bool
 ;      Zero out the DQ array.
 ;
 ; :Author:
@@ -70,6 +72,7 @@
 ;      2021jan04, DSNR, added NDIM to output; fixed bug in linearization for 
 ;        ndim=2 case (reversed indices)
 ;      2022jan27, DSNR, added BUNIT_VAR to output
+;      2022jul13, DSNR, added FLUXNORM keyword; if CUNIT is 'nm', convert to A
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2022 David S. N. Rupke
@@ -93,7 +96,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
                        datext=datext,varext=varext,dqext=dqext,$
                        vormap=vormap,error=error,waveext=waveext,$
                        invvar=invvar,zerodq=zerodq,linearize=linearize,$
-                       gooddq=gooddq
+                       gooddq=gooddq,fluxnorm=fluxnorm
 
   if ~ keyword_set(quiet) then print,'IFSF_READCUBE: Loading data.'
 
@@ -218,6 +221,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
         print,'               solution will be incorrect.'
      endif
      wave = crval + cdelt*(pix-crpix)
+     ; convert to A
+     if strtrim(cunit) eq 'nm' then wave *= 10.
+
   endif
 
   if keyword_set(vormap) then begin
@@ -279,6 +285,11 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      print,'IFSF_READCUBE: Interpolating DQ; values > 0.01 set to 1.'
      ibd = where(dq gt 0.01,ctbd)
      if ctbd gt 0 then dq[ibd] = 1
+  endif
+  
+  if keyword_set(fluxnorm) then begin
+     dat /= fluxnorm
+     var /= fluxnorm*fluxnorm
   endif
   
   cube = { $

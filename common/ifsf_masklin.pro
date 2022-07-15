@@ -38,9 +38,10 @@
 ;      2013nov21, DSNR, renamed, added license and copyright
 ;      2013dec11, DSNR, renamed a couple of variables for clarity
 ;      2013jan14, DSNR, moved to hash input for line wavelengths and widths
+;      2022jul13, DSNR, fixed bug when only one component and one spaxel
 ;    
 ; :Copyright:
-;    Copyright (C) 2013 David S. N. Rupke
+;    Copyright (C) 2013-2022 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -57,8 +58,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_masklin, lambda, linelambda, halfwidth, specres,$
-                       nomaskran=nomaskran
+function ifsf_masklin, lambda, linelambda, halfwidth, nomaskran=nomaskran
 
   c = 299792.458d
 
@@ -67,9 +67,9 @@ function ifsf_masklin, lambda, linelambda, halfwidth, specres,$
   foreach line,linelambda->keys() do begin
     for i=0,n_elements(linelambda[line])-1 do begin
       ind_indgd = $
-        where(lambda[indgd] lt linelambda[line,i]*$
+        where(lambda[indgd] lt (linelambda[line,i])[0]*$
                                (1d - halfwidth[line,i]/c) OR $
-              lambda[indgd] gt linelambda[line,i]*$
+              lambda[indgd] gt (linelambda[line,i])[0]*$
                                (1d + halfwidth[line,i]/c),ct)
       if ct gt 0 then indgd = indgd[ind_indgd]
     endfor
