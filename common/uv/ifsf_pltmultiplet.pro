@@ -166,6 +166,7 @@ pro ifsf_pltmultiplet,gal,wave,relativeflux,continuum,flux,param,linelist,$
   if ~keyword_set(init) then begin
 
      output=directoryname+'/'+gal+'/'+gal+multiplet+'_fit_data'
+     output=directoryname+'/'+gal+multiplet+'_fit_data'
      openw, lun, output+'.txt',/GET_LUN
      FOR M =0, N_ELEMENTS(wave)-1 DO $
         printf, lun, wave[M], modflux[M], continuum[M], flux[M], $

@@ -76,12 +76,14 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
      !P.charsize=1
      !P.charthick=2
      !P.thick=2
+     linelabsize = 1.
   endif else begin
      set_plot,'Z'
      device,decomposed=0,set_resolution=[1280,960],set_pixel_depth=24
      !P.charsize=1.5
      !P.charthick=1
      !P.thick=4
+     linelabsize = 1.5
      cgerase,'Black'
   endelse
 
@@ -177,6 +179,11 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
         for j=0,nmasked-1 do $
            cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
                    color='Cyan'
+     ; print zstar
+     cgtext,xran1[0]+(xran1[1]-xran1[0])*0.85d,$
+         yran[0]+(yran[1]-yran[0])*0.90d,$
+         'z = '+string(instr.zstar,format='(D0.4)'),$
+         charsize=linelabsize,charthick=2,/dat,color='Cyan'
   endif
   multiplot,/doyaxis,/doxaxis
   if ct2 gt 0 then begin
@@ -210,6 +217,13 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
         for j=0,nmasked-1 do $
            cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
                    color='Cyan'
+     if ct1 le 0 then $
+        ; print zstar if not in top panel
+        cgtext,xran1[0]+(xran1[1]-xran1[0])*0.85d,$
+           yran[0]+(yran[1]-yran[0])*0.90d,$
+           'z = '+string(instr.zstar,format='(D0.4)'),$
+           charsize=linelabsize,charthick=2,/dat,color='Cyan'
+
   endif
   multiplot,/doyaxis,/doxaxis
   if ct3 gt 0 then begin
@@ -243,6 +257,13 @@ pro ifsf_pltcont,instr,outfile,compspec=compspec,comptitles=comptitles,$
         for j=0,nmasked-1 do $
            cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
                    color='Cyan'
+     if ct1 le 0 AND ct2 le 0 then $
+        ; print zstar if not in other two panels
+        cgtext,xran1[0]+(xran1[1]-xran1[0])*0.85d,$
+           yran[0]+(yran[1]-yran[0])*0.90d,$
+           'z = '+string(instr.zstar,format='(D0.4)'),$
+           charsize=linelabsize,charthick=2,/dat,color='Cyan'
+
   endif
   multiplot,/reset
 

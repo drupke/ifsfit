@@ -61,9 +61,10 @@
 ;      2021aug27, DSNR, added ability to import non-VO line ratio list
 ;      2021dec17, DSNR, added [OIII]/[OII] and [OII]3729/3726;
 ;                       optionally output linear errors
+;      2022jul16, DSNR, tweaked treatment of log errors in low S/N limit
 ;
 ; :Copyright:
-;    Copyright (C) 2014--2021 David S. N. Rupke
+;    Copyright (C) 2014--2022 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -195,6 +196,9 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
       out['ebv'] = ebv
       if doerr then begin
          errlo['ebv'] = ebv_err
+         ; set low error to 0 if ebv = 0
+         izero = where(ebv eq 0,ctzero)
+         if ctzero gt 0 then errlo['ebv',izero] = 0d
          errhi['ebv'] = ebv_err
          errlin['ebv'] = ebv_err
       endif
@@ -204,14 +208,15 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
 ;  Compute line ratios
 
    if not keyword_set(lrlist) then begin
-      lrlabs = ['n2ha','o1ha','s2ha','o3hb','o3o2','s2','o2']
+      lrlabs = ['n2ha','o1ha','s2ha','o3hb','o3o2','s2','o2','o3']
       lrlines = [['[NII]6583','Halpha'],$
          ['[OI]6300','Halpha'],$
          ['[SII]6716+[SII]6731','Halpha'],$
          ['[OIII]5007','Hbeta'],$
          ['[OIII]5007','[OII]3726+[OII]3729'],$
          ['[SII]6716','[SII]6731'],$
-         ['[OII]3729','[OII]3726']]
+         ['[OII]3729','[OII]3726'],$
+         ['[OIII]4363','[OIII]5007']]
       lrlist = hash()
       for i=0,n_elements(lrlabs)-1 do lrlist[lrlabs[i]]=lrlines[*,i]
    endif
@@ -243,8 +248,44 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
                          flux[lrline[0],igdlr])^2d + $
                         (fluxerr[lrline[1],igdlr]/$
                          flux[lrline[1],igdlr])^2d)
-               lr_errlo[igdlr] = lr[igdlr] - alog10(lr_lin[igdlr] - lr_errlin[igdlr])
-               lr_errhi[igdlr] = alog10(lr_lin[igdlr] + lr_errlin[igdlr]) - lr[igdlr]
+               ; compute error in the logs of the fluxes
+               ; Method 1
+               igdlogflux0lo = alog10(flux[lrline[0],igdlr]) - $
+                  alog10(flux[lrline[0],igdlr] - fluxerr[lrline[0],igdlr])
+               igdlogflux0hi = $
+                  alog10(flux[lrline[0],igdlr] + fluxerr[lrline[0],igdlr]) - $
+                  alog10(flux[lrline[0],igdlr])
+               igdlogflux1lo = alog10(flux[lrline[1],igdlr]) - $
+                  alog10(flux[lrline[1],igdlr] - fluxerr[lrline[1],igdlr])
+               igdlogflux1hi = $
+                  alog10(flux[lrline[1],igdlr] + fluxerr[lrline[1],igdlr]) - $
+                  alog10(flux[lrline[1],igdlr])
+               lr_errlo1 = sqrt(igdlogflux0lo^2d + igdlogflux1hi^2d)
+               lr_errhi1 = sqrt(igdlogflux0hi^2d + igdlogflux1lo^2d)
+               ; Method 2
+               lr_errlo2 = lr[igdlr] - alog10(lr_lin[igdlr] - lr_errlin[igdlr])
+               lr_errhi2 = alog10(lr_lin[igdlr] + lr_errlin[igdlr]) - lr[igdlr]
+               ; use method 1 by default
+               lr_errlo_use = lr_errlo1
+               lr_errhi_use = lr_errhi1
+               ; check for bad limits where fluxerr > flux in one or both lines,
+               ; (method 1) or where lrerr > lr (method 2); sub method 2 in 
+               ; this case. This is mostly a problem if sigma cut set low
+               ; and/or reddening is uncertain and then applied.
+               ibderrlo1 = where(~ finite(lr_errlo1),ctbderrlo1)
+               if ctbderrlo1 gt 0 then $
+                  for i=0,n_elements(ibderrlo1)-1 do $
+                     if finite(lr_errlo2[ibderrlo1[i]]) then $
+                        lr_errlo_use[ibderrlo1[i]] = lr_errlo2[ibderrlo1[i]] $
+                     else lr_errlo_use[ibderrlo1[i]] = bad
+               ibderrhi1 = where(~ finite(lr_errhi1),ctbderrhi1)
+               if ctbderrhi1 gt 0 then $
+                  for i=0,n_elements(ibderrhi1)-1 do $
+                     if finite(lr_errhi2[ibderrhi1[i]]) then $
+                        lr_errhi_use[ibderrhi1[i]] = lr_errhi2[ibderrhi1[i]] $
+                     else lr_errhi_use[ibderrhi1[i]] = bad
+               lr_errlo[igdlr] = lr_errlo_use
+               lr_errhi[igdlr] = lr_errhi_use
                errlo[lrlab] = lr_errlo
                errhi[lrlab] = lr_errhi
                errlin[lrlab] = lr_errlin

@@ -24,9 +24,12 @@
 ;
 ; :Keywords:
 ;    cmodcomp: in, optional, type=string, default='Cyan'
-;      Color for component model.
 ;    cvlab: in, optional, type=string, default='Cyan'
-;      Color for velocity label
+;    czstarline: in, optional, type=string, default='Orange'
+;    czstarval: in, optional, type=string, default='Orange'
+;    czsysline: in, optional, type=string, default='Green'
+;    czsysrval: in, optional, type=string, default='Green'
+;      Color for various things ...
 ;    ps: in, optional, type=byte
 ;      Select .eps output.
 ;    specres: in, required, type=double
@@ -57,9 +60,10 @@
 ;      2020jun25, DSNR, now also plot v(NaD em) and only plot zsys if different 
 ;                       from zstar; option to output .eps file; color options
 ;      2021oct21, DSNR, made upsample parameter
+;      2022jul29, DSNR, changed a bunch of labelling; possibly not backwards compatible ...
 ;
 ; :Copyright:
-;    Copyright (C) 2013--2021 David S. N. Rupke
+;    Copyright (C) 2013--2022 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -78,15 +82,21 @@
 ;-
 pro ifsf_pltnadfit,wave,flux,err,param,outfile,zsys,xran=xran,yran=yran,$
                    ps=ps,specres=specres,zstar=zstar,$
-                   cvlab=cvlab,cmodcomp=cmodcomp,upsample=upsample,$
-                   vacuum=vacuum
+                   upsample=upsample,vacuum=vacuum,$
+                   ; colors
+                   cvlab=cvlab,cmodcomp=cmodcomp,czstarline=czstarline,$
+                   czstarval=czstarval,czsysval=czsysval,czsysline=czsysline
                    
   if ~keyword_set(specres) then specres=0b
   if ~keyword_set(upsample) then upsample=0b
-  if ~keyword_set(cvlab) then cvlab='Cyan'
-  if ~keyword_set(cmodcomp) then cmodcomp='Cyan'
   if ~keyword_set(vacuum) then vacuum=0b
   if keyword_set(ps) then dops=1 else dops=0
+  if ~keyword_set(cvlab) then cvlab='Cyan'
+  if ~keyword_set(cmodcomp) then cmodcomp='Cyan'
+  if ~keyword_set(czstarline) then czstarline='Orange'
+  if ~keyword_set(czstarval) then czstarval='Orange'
+  if ~keyword_set(czsysline) then czsysline='Green'
+  if ~keyword_set(czsysval) then czsysval='Green'
 
 ; Default wavelengths
   c = 299792.458d
@@ -151,14 +161,16 @@ pro ifsf_pltnadfit,wave,flux,err,param,outfile,zsys,xran=xran,yran=yran,$
          xtit='Wavelength ($\Angstrom$)',ytit='Normalized F$\down$$\lambda$'
   cgoplot,wave,err,color=cdef,linesty=2
   if keyword_set(zstar) then begin
-     cgoplot,[wst_nad1,wst_nad1],yran,color='Orange',linesty=2
-     cgoplot,[wst_nad2,wst_nad2],yran,color='Orange',linesty=2
+     cgoplot,[wst_nad1,wst_nad1],yran,color=czstarline,linesty=2
+     cgoplot,[wst_nad2,wst_nad2],yran,color=czstarline,linesty=2
   endif
   if zsys ne zstar then begin
-     cgoplot,[w_nad1,w_nad1],yran,color='Green',linesty=2
-     cgoplot,[w_nad2,w_nad2],yran,color='Green',linesty=2
-  endif
-  cgoplot,[w_hei,w_hei],yran,color='Green',linesty=2
+     cgoplot,[w_nad1,w_nad1],yran,color=czsysline,linesty=2
+     cgoplot,[w_nad2,w_nad2],yran,color=czsysline,linesty=2
+     cgoplot,[w_hei,w_hei],yran,color=czsysline,linesty=2
+  endif else begin
+     cgoplot,[w_hei,w_hei],yran,color=czstarline,linesty=2
+  endelse
   for i=0,nhei-1 do cgoplot,wave,modhei[*,i],color=cmodcomp,thick=2
   for i=0,nnadabs-1 do cgoplot,wave,modnadabs[*,i],color=cmodcomp,thick=2
   for i=0,nnadem-1 do cgoplot,wave,modnadem[*,i],color=cmodcomp,thick=2
@@ -167,38 +179,58 @@ pro ifsf_pltnadfit,wave,flux,err,param,outfile,zsys,xran=xran,yran=yran,$
   ytit = yran[1] - (yran[1]-yran[0])*0.05
   if keyword_set(zstar) then $
     cgtext,xtit,ytit,'z$\downstar$ = '+string(zstar,format='(D0.5)'),$
-           color='Orange',align=1
+           color=czstarval,align=1
   if zsys ne zstar then begin
      ytit -= (yran[1]-yran[0])*0.05
-     cgtext,xtit,ytit,'z$\downref$ = '+string(zsys,format='(D0.5)'),$
-            color='Green',align=1
+     cgtext,xtit,ytit,'z$\downem$ = '+string(zsys,format='(D0.5)'),$
+            color=czsysval,align=1
   endif
   for i=0,nnadabs-1 do begin
      ytit -= (yran[1]-yran[0])*0.05
-     zdiff = wavnadabs[i]/w_nad1 - 1d
-     vel = c * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-     cgtext,xtit,ytit,$
-            string('NaD abs., comp. ',i+1,' v = ',vel,' km/s',$
-                   format='(A0,I0,A0,I0,A0)'),$
-            color=cvlab,align=1
+     if keyword_set(zstar) then begin
+        zdiff = wavnadabs[i]/wst_nad1 - 1d
+        vel = c * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+        cgtext,xtit,ytit,$
+           '$\Delta$v'+string('(NaDabs',i+1,'-star)=',vel,' km/s',$
+           format='(A0,I0,A0,I0,A0)'),color=cvlab,align=1
+     endif else begin
+        zdiff = wavnadabs[i]/w_nad1 - 1d
+        vel = c * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+        cgtext,xtit,ytit,$
+           '$\Delta$v'+string('(NaDabs',i+1,'-em)=',vel,' km/s',$
+           format='(A0,I0,A0,I0,A0)'),color=cvlab,align=1
+     endelse
+;     cgtext,xtit,ytit,$
+;            string('NaD abs., comp. ',i+1,' v = ',vel,' km/s',$
+;                   format='(A0,I0,A0,I0,A0)'),$
+;            color=cvlab,align=1
   endfor
   for i=0,nnadem-1 do begin
     ytit -= (yran[1]-yran[0])*0.05
     zdiff = wavnadem[i]/w_nad1 - 1d
     vel = c * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-    cgtext,xtit,ytit,$
-           string('NaD em., comp. ',i+1,' v = ',vel,' km/s',$
-           format='(A0,I0,A0,I0,A0)'),$
-           color=cvlab,align=1
+;    cgtext,xtit,ytit,$
+;           string('NaD em., comp. ',i+1,' v = ',vel,' km/s',$
+;           format='(A0,I0,A0,I0,A0)'),$
+;           color=cvlab,align=1
+   cgtext,xtit,ytit,$
+      '$\Delta$v'+string('(NaDem',i+1,'-em)=',vel,' km/s',$
+      format='(A0,I0,A0,I0,A0)'),color=cvlab,align=1
+
   endfor
   for i=0,nhei-1 do begin
      ytit -= (yran[1]-yran[0])*0.05
      zdiff = wavhei[i]/w_hei - 1d
      vel = c * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
-     cgtext,xtit,ytit,$
-            string('HeI, comp. ',i+1,' = ',vel,' km/s',$
-                   format='(A0,I0,A0,I0,A0)'),$
-            color=cvlab,align=1
+     if zsys ne zstar then begin
+        cgtext,xtit,ytit,$
+           '$\Delta$v'+string('(HeI',i+1,'-em)=',vel,' km/s',$
+           format='(A0,I0,A0,I0,A0)'),color=cvlab,align=1
+     endif else begin
+        cgtext,xtit,ytit,$
+           '$\Delta$v'+string('(HeI',i+1,'-star)=',vel,' km/s',$
+           format='(A0,I0,A0,I0,A0)'),color=cvlab,align=1
+     endelse
   endfor
 
   if dops then cgps_close $

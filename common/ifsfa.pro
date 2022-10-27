@@ -501,21 +501,24 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            thisncomp = 0
            thisncompline = ''
            foreach line,lines_with_doublets do begin
-             sigtmp = linepars.sigma[line,*]
-             fluxtmp = linepars.flux[line,*]
-             igd = where(sigtmp ne 0d AND sigtmp ne bad AND $
-                         fluxtmp ne 0d AND fluxtmp ne bad,ctgd)
-             if ctgd gt thisncomp then begin
-                thisncomp = ctgd
-                thisncompline = line
-             endif
-;            Assign total fluxes
-             if ctgd gt 0 then begin
-               if n_elements(struct.ct_indx) gt 1 then $
-                  emlweq['ftot',line,i,j]=lineweqs.tot[line]
-                emlflx['ftot',line,i,j]=tflux.tflux[line]
-                emlflxerr['ftot',line,i,j]=tflux.tfluxerr[line]
-             endif
+;             make sure line in hash
+              if linepars.sigma.haskey(line) then begin
+                 sigtmp = linepars.sigma[line,*]
+                 fluxtmp = linepars.flux[line,*]
+                 igd = where(sigtmp ne 0d AND sigtmp ne bad AND $
+                    fluxtmp ne 0d AND fluxtmp ne bad,ctgd)
+                 if ctgd gt thisncomp then begin
+                    thisncomp = ctgd
+                    thisncompline = line
+                 endif
+;                Assign total fluxes
+                 if ctgd gt 0 then begin
+                    if n_elements(struct.ct_indx) gt 1 then $
+                       emlweq['ftot',line,i,j]=lineweqs.tot[line]
+                    emlflx['ftot',line,i,j]=tflux.tflux[line]
+                    emlflxerr['ftot',line,i,j]=tflux.tfluxerr[line]
+                 endif
+              endif
            endforeach
            if thisncomp eq 1 then begin
               isort = 0
@@ -546,21 +549,24 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif
            if thisncomp gt 0 then begin
               foreach line,lines_with_doublets do begin
-                 kcomp = 1
-                 foreach sindex,isort do begin
-                    cstr='c'+string(kcomp,format='(I0)')
-                    emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
-                    emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
-                    emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
-                    emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
-                    if n_elements(struct.ct_indx) gt 1 then $
-                       emlweq['f'+cstr,line,i,j]=lineweqs.comp[line,sindex]
-                    emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
-                    emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
-                    emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
-                    emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
-                    kcomp++
-                 endforeach
+;                make sure line in hash
+                 if linepars.sigma.haskey(line) then begin
+                    kcomp = 1
+                    foreach sindex,isort do begin
+                       cstr='c'+string(kcomp,format='(I0)')
+                       emlwav[cstr,line,i,j]=linepars.wave[line,sindex]
+                       emlwaverr[cstr,line,i,j]=linepars.waveerr[line,sindex]
+                       emlsig[cstr,line,i,j]=linepars.sigma[line,sindex]
+                       emlsigerr[cstr,line,i,j]=linepars.sigmaerr[line,sindex]
+                       if n_elements(struct.ct_indx) gt 1 then $
+                          emlweq['f'+cstr,line,i,j]=lineweqs.comp[line,sindex]
+                       emlflx['f'+cstr,line,i,j]=linepars.flux[line,sindex]
+                       emlflxerr['f'+cstr,line,i,j]=linepars.fluxerr[line,sindex]
+                       emlflx['f'+cstr+'pk',line,i,j]=linepars.fluxpk[line,sindex]
+                       emlflxerr['f'+cstr+'pk',line,i,j]=linepars.fluxpkerr[line,sindex]
+                       kcomp++
+                    endforeach
+                 endif
               endforeach
               foreach line, newlinetie.keys() do begin
                  kcomp = 0

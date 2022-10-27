@@ -26,9 +26,20 @@
 ;      Full path and name of output plot.
 ;
 ; :Keywords:
+;    boxsmooth: in, optional, type=double
+;      Boxcar smooth the data. Set keyword to box width.
 ;    micron: in, optional, type=byte
 ;      Label output plots in um rather than A. Input wavelengths still assumed
 ;      to be in A.
+;    velinset: in, optional, type=list
+;      Will plot an inset with velocity profiles of a line in one panel. First
+;      element is line label; second is 4-element array of [x0,y0,x1,y1] for
+;      inset boundaries in coordinates normalized to the data+residual panel.
+;      Third element is two-element array for velocity range in km/s.
+;    yranscl: in, optional, type=double
+;      Default is to scale y-axis using data and model. Use this multiplier to 
+;      scale the y-axis by this fraction of the model max-min or by this
+;      fraction of 6*mean(error).
 ; 
 ; :Author:
 ;    David S. N. Rupke::
@@ -49,9 +60,10 @@
 ;      2016aug31, DSNR, added overplotting of continuum ranges masked during
 ;                       continuum fit with thick cyan line
 ;      2016sep13, DSNR, added MICRON keyword
+;      2022oct18, DSNR, added various capabilities, incl. VELINSET and BOXSMOOTH
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2016 David S. N. Rupke
+;    Copyright (C) 2013--2022 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -68,25 +80,27 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
+pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig,$
+   velinset=velinset,yranscl=yranscl,boxsmooth=boxsmooth,title=title
 
    bad = 1d99
+   c_kms = 299792.458
 
    if keyword_set(ps) then dops=1 else dops=0
 
    if dops then begin
-      cgps_open,filename=outfile+'.eps',/encapsulated,xsize=10,ysize=7.5,$
+      cgps_open,filename=outfile+'.eps',/encapsulated,xsize=10.5,ysize=7.5,$
          /inches,/nomatch,charsize=1,default_thick=2
       backgcol='White'
       linecol='Black'
       colors = ['Magenta','Teal','Orange']
       pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
-         oxmar=[7,1],oymar=[7,1],xgap=3,ygap=3)
+         oxmar=[8,1],oymar=[6,3],xgap=5,ygap=3)
       linelabsize = 1.
       linelabcol = 'Blue'
    endif else begin
       set_plot,'Z'
-      device,decomposed=0,set_resolution=[1500,900],set_pixel_depth=24
+      device,decomposed=0,set_resolution=[1575,900],set_pixel_depth=24
       !P.charsize=1.5
       !P.charthick=1
       !P.thick=4
@@ -96,7 +110,7 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
       colors = ['Magenta','Green','Orange','Teal']
       linelabcol = 'White'
       pos = cglayout([pltpar.nx,pltpar.ny],$ ; ixmar=[5d,0d],iymar=[-5d,0d],$
-         oxmar=[22,0],oymar=[10,0],xgap=20,ygap=6)
+         oxmar=[22,0],oymar=[10,2],xgap=20,ygap=6)
       linelabsize=1.5
    endelse
 
@@ -119,6 +133,7 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
   spectot = instr.spec
   specstars = instr.cont_dat
   speclines = instr.emlin_dat
+  specerr = instr.spec_err
   modstars = instr.cont_fit
   modlines = instr.emlin_fit
   modtot = modstars + modlines
@@ -173,6 +188,9 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
   else linoth = strarr(1,nlin)
   for i=0,nlin-1 do begin
 
+     ; flag for velocity inset plot
+     dovelinset = 0b
+
      linwavtmp = linwav[i]
      xran = (linwavtmp[0] + off[*,i]) * (1d + zbase)
      ind = where(wave gt xran[0] AND wave lt xran[1],ct)
@@ -188,22 +206,41 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
                    xwin[1],ywin[1]]
         ydat = spectot
         ymod = modtot
-        yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
+        if keyword_set(yranscl) then begin
+           sigdat = mean(specerr[ind])
+           yran = [min(ymod[ind]),max(ymod[ind])]
+           dymod = max(ymod[ind])-min(ymod[ind])
+           if 2d*sigdat > dymod then begin
+              yran += yranscl*6d*[-sigdat,sigdat]
+           endif else begin
+              yran += yranscl*[-dymod,dymod]
+              if yran[0] lt 0 then yran[0] = 0d
+           endelse
+        endif else begin
+           yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
+        endelse
         icol = double(i)/double(pltpar.nx)
         if icol eq fix(icol) then ytit = 'Fit' else ytit = ''
-        cgplot,wave,ydat,xran=xran,yran=yran,pos=pos_fit,$
+        if keyword_set(boxsmooth) then ydat_use = smooth(ydat,boxsmooth) $
+        else ydat_use = ydat
+        cgplot,wave,ydat_use,xran=xran,yran=yran,pos=pos_fit,$
                xtickn=replicate(' ',60),ytit=ytit,/noerase,$
                axiscol=linecol,col=linecol,/norm,/xsty,/ysty,thick=1
         cgoplot,wave,ymod,color='Red',thick=4
         for j=1,maxncomp do begin
            flux = ifsf_cmplin(instr,linlab[i],j,/velsig)
            cgoplot,wave,yran[0]+flux,color=colors[j-1],linesty=2,thick=2
+           ; check for velocity inset plot
+           if keyword_set(velinset) then $
+              if velinset[0] eq linlab[i] then dovelinset=1b
            if linoth[0,i] ne '' then begin
               for k=0,n_elements(linoth[*,i])-1 do begin
                  if linoth[k,i] ne '' then begin
                     flux = ifsf_cmplin(instr,linoth[k,i],j,/velsig)
                     cgoplot,wave,yran[0]+flux,color=colors[j-1],linesty=2,$
                             thick=2
+                    if keyword_set(velinset) then $
+                       if velinset[0] eq linoth[k,i] then dovelinset=1b
                  endif
               endfor
            endif
@@ -241,6 +278,7 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
            for j=0,nmasked-1 do $
               cgoplot,[masklam[0,j],masklam[1,j]],[yran[0],yran[0]],thick=8,$
                       color='Cyan'
+        ; residual
         pos_res = [xwin[0],ywin[0],$
                    xwin[1],ywin[0]+0.3*dywin]
         ydat = specstars
@@ -250,6 +288,47 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
         cgplot,wave,ydat,xran=xran,yran=yran,/noerase,ytit=ytit,$
                axiscol=linecol,col=linecol,/norm,pos=pos_res,/xsty,/ysty,thick=1
         cgoplot,wave,ymod,color='Red',thick=4
+        cgoplot,wave,specerr,color='Cyan',thick=1
+        ; velocity inset
+        if dovelinset then begin
+           ; position of inset
+           pos_vi = [xwin[0] + dxwin*velinset[1,0],$
+              ywin[0] + dywin*velinset[1,1],$
+              xwin[0] + dxwin*velinset[1,2],$
+              ywin[0] + dywin*velinset[1,3]]
+           xraninset=velinset[2,*]
+           yraninset=[0d,1d]
+           ; color in background
+           fillyscale = 0.1d
+           cgpolygon,[xwin[0] + dxwin*velinset[1,0],$
+              xwin[0] + dxwin*velinset[1,2],$
+              xwin[0] + dxwin*velinset[1,2],$
+              xwin[0] + dxwin*velinset[1,0],$
+              xwin[0] + dxwin*velinset[1,0]],$
+              [ywin[0] + dywin*velinset[1,1] - dywin*fillyscale,$
+               ywin[0] + dywin*velinset[1,1] - dywin*fillyscale,$
+               ywin[0] + dywin*velinset[1,3],$
+               ywin[0] + dywin*velinset[1,3],$
+               ywin[0] + dywin*velinset[1,1] - dywin*fillyscale],$
+              /fill,/normal
+           cgplot,[0],[0],xran=xraninset,yran=yraninset,/noerase,$
+              pos=pos_vi,xsty=1,ysty=1,xtickint=1000d,xminor=2,$
+              chars=!P.charsize*0.75,ytickf='(A1)',xtit='vel (km/s)',xticklen=0.05
+           ; plot components
+           for j=1,maxncomp do begin
+              flux = ifsf_cmplin(instr,velinset[0],j,/velsig)
+              zdiff = wave/(instr.linelist[velinset[0]]*(1d + instr.zstar)) - 1d
+              vel = c_kms * ((zdiff+1d)^2d - 1d) / ((zdiff+1d)^2d + 1d)
+              if j eq 1 then fluxnorm=max(flux)
+              cgoplot,vel,flux/fluxnorm,color=colors[j-1],linesty=2,thick=2
+           endfor              
+           ; label emission line
+           ;cgtext,xraninset[0]+(xraninset[1]-xraninset[0])*0.05d,$
+           ;   yraninset[0]+(yraninset[1]-yraninset[0])*0.85d,$
+           ;   velinset[0],charsize=linelabsize*0.75,charthick=2,/dat,$
+           ;   col=linelabcol
+        endif
+
      endif
 
   endfor
@@ -260,8 +339,10 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig
     xtit = 'Observed Wavelength (m)' $
   else $
      xtit = 'Observed Wavelength (!3' + STRING(197B) + '!X)'
-  cgtext,0.5,0.02,xtit,/norm,align=0.5,charsize=2,charthick=2
-  
+  cgtext,0.5,0.01,xtit,/norm,align=0.5,charsize=1.5,charthick=2
+  if keyword_set(title) then $
+     cgtext,0.5,0.97,title,/norm,align=0.5,charsize=1.5,charthick=2
+
   tmpfile = outfile
   if dops then cgps_close $
   else img = cgsnapshot(filename=tmpfile,/jpeg,/nodialog,quality=100)

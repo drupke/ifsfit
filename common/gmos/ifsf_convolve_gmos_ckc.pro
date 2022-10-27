@@ -45,7 +45,7 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_convolve_kcwibm_ckc,templam,temp,datlam,dat,newdat,z
+function ifsf_convolve_gmos_ckc,templam,temp,datlam,dat,newdat,z
 
    sigtofwhm = 2d*sqrt(2d*alog(2d))
 

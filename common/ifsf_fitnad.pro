@@ -304,7 +304,7 @@ pro ifsf_fitnad,initproc,cols=cols,rows=rows,nsplit=nsplit,verbose=verbose,$
             endif else if tag_exist(initnad,'hei_zinit') AND $
                           tag_exist(initnad,'hei_siginit') AND $
                           initnad.nhei[i,j] gt 0 then begin
-               nhei=initnad.nhei[i,j]
+               nhei = initnad.nhei[i,j]
 ; Bugfix -- 7/13/15 -- thanks Elise Hampton
                inithei = [[(((initnad.hei_zinit)[i,j,0:nhei-1])[0:nhei-1]+1d)*$
                            linelist['HeI5876']],$

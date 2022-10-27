@@ -936,8 +936,10 @@ pro ifsf_makemaps,initproc
                         size_subim[1],size_subim[2])
 ;     Locations of [0,0] point on axes and nuclei, in HST pixels (single-offset
 ;     indices).
-      center_axes_hst = (center_axes-0.5d) * double(size_subim[1]/dx) + 0.5d
-      center_nuclei_hst = (center_nuclei-0.5d) * double(size_subim[1]/dx) + 0.5d
+      center_axes_hst = (center_axes-0.5d) * $
+         double(size_subim[1])/double(dx) + 0.5d
+      center_nuclei_hst = (center_nuclei-0.5d) * $
+         double(size_subim[1])/double(dx) + 0.5d
 ;     Radius of each HST pixel from axis [0,0] point, in HST pixels
       map_r_hst = sqrt((map_x_hst - center_axes_hst[0])^2d + $
                        (map_y_hst - center_axes_hst[1])^2d)

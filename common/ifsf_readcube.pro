@@ -73,6 +73,8 @@
 ;        ndim=2 case (reversed indices)
 ;      2022jan27, DSNR, added BUNIT_VAR to output
 ;      2022jul13, DSNR, added FLUXNORM keyword; if CUNIT is 'nm', convert to A
+;      2022jul28, DSNR, if var or dq is absent, set either to -1 (output of
+;         readfits)
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013--2022 David S. N. Rupke
@@ -122,14 +124,27 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
   endelse
   dat = readfits(infile,header_dat,ext=datext_use,silent=quiet)
   if varext_use gt 0 then begin
+     novar=0b
      var = readfits(infile,header_var,ext=varext_use,silent=quiet)
-     if keyword_set(invvar) then var = 1d/var
+     if n_elements(var) eq 1 then begin
+        if var[0] eq -1 then begin
+           novar=1b
+           header_var = ''
+        endif
+     endif
+     if keyword_set(invvar) and ~novar then var = 1d/var
   endif else begin
      var = dat*0d
      header_var = ''
   endelse
   if dqext_use ge 0 then begin
      dq = readfits(infile,header_dq,ext=dqext_use,silent=quiet)
+     if n_elements(dq) eq 1 then begin
+        if dq[0] eq -1 then begin
+           nodq=1b
+           header_dq=''
+        endif
+     endif
      if keyword_set(gooddq) then begin
         igddq = []
         for i=0,n_elements(gooddq)-1 do begin
@@ -200,9 +215,13 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
   endif
 
   bunit = sxpar(header_dat,'BUNIT',silent=quiet,count=countbunit)
-  bunit_var = sxpar(header_var,'BUNIT',silent=quiet,count=countbunit_var)
   if countbunit eq 0 then bunit = ''
-  if countbunit_var eq 0 then bunit_var = ''
+  if ~novar then begin
+     bunit_var = sxpar(header_var,'BUNIT',silent=quiet,count=countbunit_var)
+     if countbunit_var eq 0 then bunit_var = ''
+  endif else begin
+     bunit_var = ''
+  endelse
 
 ; Create wavelength array.
   if ~ keyword_set(waveext) then begin
@@ -289,7 +308,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
   
   if keyword_set(fluxnorm) then begin
      dat /= fluxnorm
-     var /= fluxnorm*fluxnorm
+     if ~novar then var /= fluxnorm*fluxnorm
   endif
   
   cube = { $

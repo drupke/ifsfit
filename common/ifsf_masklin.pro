@@ -39,6 +39,7 @@
 ;      2013dec11, DSNR, renamed a couple of variables for clarity
 ;      2013jan14, DSNR, moved to hash input for line wavelengths and widths
 ;      2022jul13, DSNR, fixed bug when only one component and one spaxel
+;      2022aug15, DSNR, fixed second bug when only one component and one spaxel
 ;    
 ; :Copyright:
 ;    Copyright (C) 2013-2022 David S. N. Rupke
@@ -68,9 +69,9 @@ function ifsf_masklin, lambda, linelambda, halfwidth, nomaskran=nomaskran
     for i=0,n_elements(linelambda[line])-1 do begin
       ind_indgd = $
         where(lambda[indgd] lt (linelambda[line,i])[0]*$
-                               (1d - halfwidth[line,i]/c) OR $
+                               (1d - (halfwidth[line,i])[0]/c) OR $
               lambda[indgd] gt (linelambda[line,i])[0]*$
-                               (1d + halfwidth[line,i]/c),ct)
+                               (1d + (halfwidth[line,i])[0]/c),ct)
       if ct gt 0 then indgd = indgd[ind_indgd]
     endfor
   endforeach
