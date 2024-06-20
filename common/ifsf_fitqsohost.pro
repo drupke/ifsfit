@@ -26,22 +26,24 @@
 ;      Stellar redshift.
 ;
 ; :Keywords:
+;    add_poly_degree: in, optional, type=int, def=30
+;      Max. order of additive Legendre polynomial in PPXF.
 ;    blrpar: in, optional, type=dblarr(3N)
 ;      Initial guesses for broad Gaussian components. N is number of 
 ;      components. Parameters are flux, wavelength, and sigma in wavelength.
+;    ebv_star: in, optional, type=integer, default=[]
+;      Initial guess for stellar reddening. If not set, reddening is not fit.
 ;    fitord: in, optional, type=integer, default=3
 ;      Specifies order of additive Legendre renormalization
 ;    index_log: in, optional, type=intarr
 ;      Same as index, but in log(lambda) space.
-;    refit: in, optional, type=byte
-;      Refit using stellar templates.
-;    add_poly_degree: in, optional, type=int, def=30
-;      Max. order of additive Legendre polynomial in PPXF.
 ;    quiet: in, optional, type=byte
 ;    qsoonly: in, optional, type=byte
 ;      Do not add stellar continuum.
 ;    qsoxdr: in, required, type=string
 ;      XDR file containing IFSF fit to QSO continuum (i.e., the QSO template).
+;    refit: in, optional, type=byte
+;      Refit using stellar templates.
 ;    siginit_stars: in, optional, type=double, def=50
 ;      Initial sigma for stellar template fitting
 ; 
@@ -88,7 +90,8 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
                          add_poly_degree=add_poly_degree,$
                          siginit_stars=siginit_stars,$
                          polyspec_refit=polyspec_refit,fitran=fitran,$
-                         fittol=fittol,qsoord=qsoord,hostord=hostord
+                         fittol=fittol,qsoord=qsoord,hostord=hostord,$
+                         ebv_star=ebv_star
 
    c = 299792.458d        ; speed of light, km/s
                          
@@ -102,6 +105,7 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
    if ~ keyword_set(siginit_stars) then siginit_stars=50d
    if ~ keyword_set(qsoord) then qsoord=0
    if ~ keyword_set(hostord) then hostord=0
+   if ~ keyword_set(ebv_star) then ebv_star=[]
 
    restore,file=qsoxdr
    qsowave = qsotemplate.wave
@@ -199,6 +203,10 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
       temp_log = ifsf_interptemp(lambda_log,alog(template_wave),$
                                  template_flux)
 
+;     This ensures PPXF doesn't look for lambda if no reddening is done
+      if n_elements(ebv_star) eq 0 then redlambda = [] $
+      else redlambda=exp(lambda_log)
+      
 ;;     Normalize data so it's near 1
 ;      fluxmed = median(resid_log)
 ;      resid_log /= fluxmed
@@ -208,26 +216,44 @@ function ifsf_fitqsohost,lambda,flux,weight,template_wave,template_flux,index,$
            [0,siginit_stars],sol,$
            goodpixels=index_log,bestfit=continuum_log,moments=2,$
            degree=add_poly_degree,polyweights=polyweights,quiet=quiet,$
-           weights=ct_coeff_refit
+           weights=ct_coeff_refit,reddening=ebv_star,lambda=redlambda,$
+           matrix=ppxfdesignmatrix,mdegree=mult_poly_degree
 
       if add_poly_degree lt 0 then polyweights = 0d
+
+;     Resample the best fit into linear space
+      cont_resid=interpol(continuum_log,lambda_log,ALOG(lambda))
+;     Compute poly and stellar components
+      if add_poly_degree ge 0 then begin
+         poly_mod_log = ppxfdesignmatrix[*,0:add_poly_degree] # polyweights
+         poly_mod = interpol(poly_mod_log,lambda_log,ALOG(lambda))
+      endif else begin
+         poly_mod = dblarr(n_elements(continuum))
+         add_poly_weights = 0d
+      endelse
+      stel_mod = cont_resid - poly_mod
 
 ;;     un-normalize
 ;      continuum_log *= fluxmed
 ;      polyweights *= fluxmed
 ;      ct_coeff_refit *= fluxmed
 
+      ; This sets the output reddening to a numerical 0 instead of NULL
+      if n_elements(ebv_star) eq 0 then ebv_star=0d
+
       ct_coeff = {qso_host: param,$
                   stel: ct_coeff_refit,$
                   poly: polyweights,$
-                  ppxf_sigma: sol[1]}
+                  stel_mod: stel_mod,$
+                  poly_mod: poly_mod,$
+                  ppxf_sigma: sol[1],$
+                  ppxf_ebv: ebv_star}
 
 ;     host can't be negative
       ineg = where(continuum_log lt 0,ctneg)
       if ctneg gt 0 then continuum_log[ineg]=0d
 
-;     Resample the best fit into linear space
-      cont_resid=interpol(continuum_log,lambda_log,ALOG(lambda))
+;     total continuum model
       continuum = qsomod+cont_resid
 
 ;     Adjust stellar redshift based on fit

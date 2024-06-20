@@ -28,14 +28,24 @@
 ; :Keywords:
 ;    boxsmooth: in, optional, type=double
 ;      Boxcar smooth the data. Set keyword to box width.
+;    emlsig: in, optional, type=hash
+;      Print emission-line sigmas on plot.
 ;    micron: in, optional, type=byte
 ;      Label output plots in um rather than A. Input wavelengths still assumed
 ;      to be in A.
+;    ps: in, optional, type=bool
+;      Output in eps rather than jpg.
+;    resid: in, optional, type=string, default='subemlmod'
+;      type of residual to show
+;      options: 'subemlmod', 'subtotmod'
+;    title: in, optional, type=string
 ;    velinset: in, optional, type=list
 ;      Will plot an inset with velocity profiles of a line in one panel. First
 ;      element is line label; second is 4-element array of [x0,y0,x1,y1] for
 ;      inset boundaries in coordinates normalized to the data+residual panel.
 ;      Third element is two-element array for velocity range in km/s.
+;    xmajtickint: in, optional, type=double
+;    xmintickint: in, optional, type=double
 ;    yranscl: in, optional, type=double
 ;      Default is to scale y-axis using data and model. Use this multiplier to 
 ;      scale the y-axis by this fraction of the model max-min or by this
@@ -61,9 +71,10 @@
 ;                       continuum fit with thick cyan line
 ;      2016sep13, DSNR, added MICRON keyword
 ;      2022oct18, DSNR, added various capabilities, incl. VELINSET and BOXSMOOTH
+;      2024mar18, DSNR, added some plot options
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2022 David S. N. Rupke
+;    Copyright (C) 2013--2024 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -81,12 +92,14 @@
 ;
 ;-
 pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig,$
-   velinset=velinset,yranscl=yranscl,boxsmooth=boxsmooth,title=title
+   velinset=velinset,yranscl=yranscl,boxsmooth=boxsmooth,title=title,$
+   xmajtickint=xmajtickint,xmintickint=xmintickint,resid=resid
 
    bad = 1d99
    c_kms = 299792.458
 
    if keyword_set(ps) then dops=1 else dops=0
+   if ~ keyword_set(resid) then resid='subemlmod'
 
    if dops then begin
       cgps_open,filename=outfile+'.eps',/encapsulated,xsize=10.5,ysize=7.5,$
@@ -116,8 +129,10 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig,$
 
    defaultXtickint=!X.tickinterval
    defaultXminor=!X.minor
-   !X.tickinterval=50
-   !X.minor=10
+   if keyword_set(xmajtickint) then !X.tickinterval = xmajtickint $
+   else !X.tickinterval=50
+   if keyword_set(xmintickint) then !X.minor = xmintickint $
+   else !X.minor=10
    if tag_exist(pltpar,'micron') then begin
       !X.tickinterval /= 0.5d4
       !X.minor /= 0.5d4
@@ -281,14 +296,20 @@ pro ifsf_pltlin,instr,pltpar,outfile,emlz,ps=ps,emlsig=emlsig,$
         ; residual
         pos_res = [xwin[0],ywin[0],$
                    xwin[1],ywin[0]+0.3*dywin]
-        ydat = specstars
-        ymod = modstars
-        yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
+        if resid eq 'subtotmod' then begin
+           ydat = spectot - modtot
+           yran = [min(ydat[ind]),max(ydat[ind])]
+           ymod = dblarr(n_elements(wave))
+        endif else begin
+           ydat = specstars
+           yran = [min([ydat[ind],ymod[ind]]),max([ydat[ind],ymod[ind]])]
+           ymod = modstars
+        endelse
         if icol eq fix(icol) then ytit = 'Residual' else ytit = ''
         cgplot,wave,ydat,xran=xran,yran=yran,/noerase,ytit=ytit,$
                axiscol=linecol,col=linecol,/norm,pos=pos_res,/xsty,/ysty,thick=1
         cgoplot,wave,ymod,color='Red',thick=4
-        cgoplot,wave,specerr,color='Cyan',thick=1
+        cgoplot,wave,specerr,color='Cyan',thick=2
         ; velocity inset
         if dovelinset then begin
            ; position of inset

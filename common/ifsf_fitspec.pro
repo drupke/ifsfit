@@ -170,7 +170,8 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
   if tag_exist(initdat,'startempfile') then istemp = 1b else istemp=0b
   if tag_exist(initdat,'loglam') then loglam=1b else loglam=0b
   if tag_exist(initdat,'vacuum') then vacuum=1b else vacuum=0b
-  if tag_exist(initdat,'ebv_star') then ebv_star=initdat.ebv_star else ebv_star=[]
+  if tag_exist(initdat,'ebv_star') then ebv_star=initdat.ebv_star $
+  else ebv_star=[]
   if tag_exist(initdat,'maskwidths_def') then $
      maskwidths_def = initdat.maskwidths_def $
   else maskwidths_def = 1000d ; default half-width in km/s for emission line masking
@@ -224,6 +225,11 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
                        lambda le max(templatelambdaz) AND $
                        lambda ge fitran_tmp[0] AND $
                        lambda le fitran_tmp[1],ctgd_full)
+
+  if ctgd_full eq 0 then begin
+     outstr = 0b
+     return,outstr
+  endif
 
   fitran = [min(lambda[gd_indx_full]),max(lambda[gd_indx_full])]
 
@@ -395,8 +401,12 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
                             quiet=quiet,_extra=argscontfit_use)
            ppxf_sigma=0d
            if initdat.fcncontfit eq 'ifsf_fitqsohost' AND $
-              tag_exist(initdat.argscontfit,'refit') then $ 
-              ppxf_sigma=ct_coeff.ppxf_sigma
+              tag_exist(initdat.argscontfit,'refit') then begin
+              ebv_star = ct_coeff.ppxf_ebv
+              ppxf_sigma =  ct_coeff.ppxf_sigma
+              stel_mod = ct_coeff.stel_mod
+              poly_mod = ct_coeff.poly_mod
+           endif
         endif else begin
            continuum = $
               call_function(initdat.fcncontfit,gdlambda,gdflux,$
@@ -425,12 +435,17 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
 
 ;       Check polynomial degree
         add_poly_degree = 4
-        if tag_exist(initdat,'argscontfit') then $
+        mult_poly_degree = !NULL
+        if tag_exist(initdat,'argscontfit') then begin
            if tag_exist(initdat.argscontfit,'add_poly_degree') then $
               add_poly_degree = initdat.argscontfit.add_poly_degree
+           if tag_exist(initdat.argscontfit,'mult_poly_degree') then $
+              mult_poly_degree = initdat.argscontfit.mult_poly_degree
+        endif
 
 ;       This ensures PPXF doesn't look for lambda if no reddening is done
-        if n_elements(ebv_star) eq 0 then redlambda = [] else redlambda=exp(gdlambda_log)
+        if n_elements(ebv_star) eq 0 then redlambda = [] $
+        else redlambda=exp(gdlambda_log)
 
 ;       Add QSO template as sky spectrum so that it doesn't get convolved with
 ;       anything.
@@ -447,7 +462,7 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
              goodpixels=ct_indx_log,bestfit=continuum_log,moments=2,$
              degree=add_poly_degree,polyweights=add_poly_weights,quiet=quiet,$
              weights=ct_coeff,reddening=ebv_star,lambda=redlambda,sky=sky,$
-             error=solerr,matrix=ppxfdesignmatrix
+             error=solerr,matrix=ppxfdesignmatrix,mdegree=mult_poly_degree
 
 ;       Resample into linear space
         continuum = interpol(continuum_log,gdlambda_log,ALOG(gdlambda))
@@ -705,7 +720,9 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
            ct_ppxf_sigma: ppxf_sigma,$
            ct_ppxf_sigma_err: ppxf_sigma_err,$
            ct_rchisq: ct_rchisq,$
-;          Spectrum in various forms
+;          Spectrum in various forms. These have been indexed from larger
+;          arrays by fitran_indx.
+           fitran_indx: fitran_indx, $; cuts on fit range
            wave: gdlambda, $
            spec: gdflux, $      ; data
            spec_err: gderr, $
@@ -716,9 +733,9 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
            cont_fit_pretweak: continuum_pretweak, $ ; cont. fit before tweaking
            emlin_dat: gdflux_nocnt, $ ; em. line data (all data - cont. fit)
            emlin_fit: specfit, $      ; em. line fit
-;          gd_indx is applied, and then ct_indx
+;          to a given array: 
+;            fitran_indx is applied, and then gd_indx, and then ct_indx
            gd_indx: gd_indx, $        ; cuts on various criteria
-           fitran_indx: fitran_indx, $; cuts on various criteria
            ct_indx: ct_indx, $        ; where emission is not masked
 ;          Line fit parameters
            noemlinfit: noemlinfit,$   ; was emission line fit done?

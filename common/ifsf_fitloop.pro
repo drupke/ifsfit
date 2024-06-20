@@ -139,7 +139,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
    endif
 
    nodata = where(flux ne 0d AND finite(flux),ct)
-   if ct ne 0 then begin
+   if ct gt 1 then begin
 
       if ~ tag_exist(initdat,'noemlinfit') then begin
 
@@ -159,32 +159,35 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
       abortfit=0b
       while(dofit) do begin
 
-         if ~ tag_exist(initdat,'noemlinfit') then $
+         if ~ tag_exist(initdat,'noemlinfit') then begin
             nocomp_emlist = $
-               ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist) $
-         else ct_comp_emlist=0
-
-         if tag_exist(initdat,'siglim_gas') then begin
-            size_siglim = size(initdat.siglim_gas)
-            if size_siglim[0] eq 1 then siglim_gas = initdat.siglim_gas $
-            else begin
-               if oned then siglim_gas = initdat.siglim_gas[i,*] $
-               else siglim_gas = initdat.siglim_gas[i,j,*]
-            endelse
-         endif else siglim_gas = 0b
-         if tag_exist(initdat,'siginit_gas') then begin
-            size_siginit = size(initdat.siginit_gas[initdat.lines[0]])
-            if size_siginit[0] eq 1 then siginit_gas = initdat.siginit_gas $
-            else begin
-               siginit_gas = hash()
-               if oned then $
-                  foreach key,initdat.lines do $
-                     siginit_gas[key] = initdat.siginit_gas[key,i,*] $
-               else $
-                  foreach key,initdat.lines do $
-                     siginit_gas[key] = initdat.siginit_gas[key,i,j,*]
-            endelse
-         endif else siginit_gas = 0b
+               ncomp.where(0,complement=comp_emlist,ncomp=ct_comp_emlist)
+            if tag_exist(initdat,'siglim_gas') then begin
+               size_siglim = size(initdat.siglim_gas)
+               if size_siglim[0] eq 1 then siglim_gas = initdat.siglim_gas $
+               else begin
+                  if oned then siglim_gas = initdat.siglim_gas[i,*] $
+                  else siglim_gas = initdat.siglim_gas[i,j,*]
+               endelse
+            endif else siglim_gas = 0b
+            if tag_exist(initdat,'siginit_gas') then begin
+               size_siginit = size(initdat.siginit_gas[initdat.lines[0]])
+               if size_siginit[0] eq 1 then siginit_gas = initdat.siginit_gas $
+               else begin
+                  siginit_gas = hash()
+                  if oned then $
+                     foreach key,initdat.lines do $
+                        siginit_gas[key] = initdat.siginit_gas[key,i,*] $
+                  else $
+                     foreach key,initdat.lines do $
+                        siginit_gas[key] = initdat.siginit_gas[key,i,j,*]
+                  endelse
+             endif else siginit_gas = 0b
+         endif else begin
+            ct_comp_emlist=0
+            siglim_gas = 0b
+            siginit_gas = 0b
+         endelse
 
 ;        Initialize stellar redshift for this spaxel
          if oned then zstar = initdat.zinit_stars[i] $
@@ -245,13 +248,13 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
          if testsize[0] eq 0 then begin
             printf,loglun,'IFSF: Aborting.'
             abortfit=1b
-         endif
-         if not quiet then print,'FIT STATUS: ',structinit.fitstatus
-         if structinit.fitstatus eq -16 then begin
+         endif else if structinit.fitstatus eq -16 then begin
             printf,loglun,'IFSF: Aborting.'
             abortfit=1b
-         endif
-
+         endif else begin
+            if not quiet then print,'FIT STATUS: ',structinit.fitstatus
+         endelse
+         
          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
          ; Second fit
          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -489,6 +492,7 @@ pro ifsf_fitloop,ispax,colarr,rowarr,cube,initdat,linelist,oned,onefit,quiet,$
       endwhile
 
    endif else $
+
       print,'IFSF_FITLOOP: No good data. Aborting.'
    
    if keyword_set(logfile) then $

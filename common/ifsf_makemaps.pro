@@ -144,6 +144,8 @@ pro ifsf_makemaps,initproc
 ;   s2_minden = (s2_c * s2_maxrat - s2_a*s2_b)/(s2_a - s2_maxrat)
    s2_maxden = 1d4
    s2_minden = 1d1
+
+   psave = !P
    
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Load initialization parameters and line data
@@ -829,6 +831,42 @@ pro ifsf_makemaps,initproc
    hstrdsm=0
    hstblsm=0
 
+;;;
+; Cont. summation ranges
+;;;
+
+; if ct.sumrange is set, use this; otherwise use fit range
+if tag_exist(initmaps.ct,'sumrange') then begin
+   ; this logic mirrors statement selecting fit range indices in ifsf_fitspec;
+   ; value_locate returns the index below if it's in between, and the index
+   ; itself otherwise; but the ifsf_fitspec logic is  little different
+   indx_tmp = where(datacube.wave ge initmaps.ct.sumrange[0] AND $
+      datacube.wave le initmaps.ct.sumrange[1],ctindx_tmp)
+   if datacube.wave[indx_tmp[0]] ne initmaps.ct.sumrange[0] then $
+      ictlo = indx_tmp[0]+1 $
+   else ictlo = indx_tmp[0]
+   icthi = indx_tmp[ctindx_tmp-1]
+   ;ictlo = value_locate(datacube.wave,initmaps.ct.sumrange[0])
+   ;icthi = value_locate(datacube.wave,initmaps.ct.sumrange[1])
+   ctsumrange_tmp = initmaps.ct.sumrange
+endif else begin
+   indx_tmp = where(datacube.wave ge initdat.fitran[0] AND $
+      datacube.wave le initdat.fitran[1],ctindx_tmp)
+   if datacube.wave[indx_tmp[0]] ne initdat.fitran[0] then $
+      ictlo = indx_tmp[0]+1 $
+   else ictlo = indx_tmp[0]
+   icthi = indx_tmp[ctindx_tmp-1]
+   ;ictlo = value_locate(datacube.wave,initdat.fitran[0])
+   ;icthi = value_locate(datacube.wave,initdat.fitran[1])
+   ctsumrange_tmp = initdat.fitran
+endelse
+
+;;; 
+; Continuum map initialization
+;;;
+
+contmap = hash()
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Fit QSO PSF
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -852,34 +890,29 @@ pro ifsf_makemaps,initproc
    if ctnuc gt 0 then map_pa[inuc] = bad
 
    if tag_exist(initdat,'decompose_qso_fit') then begin
+
       inan = where(finite(contcube.qso_mod,/nan),ctnan)
       if ctnan gt 0 then contcube.qso_mod[inan] = 0d
-      qso_map = total(contcube.qso_mod,3) / contcube.npts
-      maxqso_map = max(qso_map)
+      contmap['psf'] = mean(contcube.qso_mod[*,*,ictlo:icthi],dim=3)
+
 ;      qso_err = stddev(contcube.qso,dim=3,/double)
 ;      qso_err = sqrt(total(datacube.var,3))
-      qso_err = sqrt(median(datacube.var,dim=3,/double))
-      ibd = where(~ finite(qso_err),ctbd)
+      qsoerr = sqrt(median(datacube.var,dim=3,/double))
+      ibd = where(~ finite(qsoerr),ctbd)
       if ctbd gt 0 then begin
-         qso_err[ibd] = bad
-         qso_map[ibd] = 0d
+         qsoerr[ibd] = bad
+         contmap['psf', ibd] = 0d
       endif
-      qso_map /= maxqso_map
-      qso_err /= maxqso_map
-;      izero = where(qso_map eq 0d,ctzero)
-;      maxerr = max(qso_err)
-;      lowthresh=1d-4
-;      if ctzero gt 0 then begin
-;         qso_map[izero] = lowthresh
-;         qso_err[izero] = maxerr*100d
-;      endif
-;      ilow = where(qso_map lt lowthresh,ctlow)
-;      if ctlow gt 0 then begin
-;         qso_map[ilow] = lowthresh
-;         qso_err[ilow] = maxerr*100d
-;      endif
-      
-;      qso_err /= max(median(datacube.dat,dim=3,/double))
+
+      if tag_exist(initmaps.ct,'mask') then begin
+         if initmaps.ct.mask.haskey('psf_comp') AND $
+            initmaps.ct.mask.haskey('psf_vals') then begin
+            ibd = where(contmap[initmaps.ct.mask['psf_comp']] - $
+               initmaps.ct.mask['psf_vals'] lt 0d)
+            contmap['psf',ibd] = 0d
+            qsoerr[ibd] = 0d
+         endif
+      endif
       
 ;     2D Moffat fit to continuum flux vs. radius
       parinit = REPLICATE({value:0d, fixed:0b, limited:[0B,0B], tied:'', $
@@ -888,8 +921,8 @@ pro ifsf_makemaps,initproc
       parinit.value = est
       parinit[7].limited = [1b,1b]
       parinit[7].limits = [0d,5d]
-      qso_fit = mpfit2dpeak(qso_map,qso_fitpar,/circular,/moffat,est=est,$
-                            error=qso_err,parinfo=parinit)
+      qso_fit = mpfit2dpeak(contmap['psf'],qso_fitpar,/circular,/moffat,est=est,$
+                            error=qsoerr,parinfo=parinit)
       map_rnuc = sqrt((map_x - qso_fitpar[4]+1)^2d + $
                       (map_y - qso_fitpar[5]+1)^2d)
       map_rnuckpc_ifs = map_rnuc * kpc_per_pix
@@ -1049,23 +1082,36 @@ pro ifsf_makemaps,initproc
 ;         ofpars_tags = tag_names(ofpars[outlines[0]])
 
 ;     Compute CVDF velocities and fluxes
-      if tag_exist(initmaps,'cvdf') then begin
-         if tag_exist(initmaps.cvdf,'flux_maps') then $
-            fluxvels=initmaps.cvdf.flux_maps $
-         else fluxvels=0b
-         if tag_exist(initmaps.cvdf,'sigcut') then $
-            sigcut=initmaps.cvdf.sigcut $
-         else sigcut=0b
-      endif
-      emlcompvel = ifsf_cmpcompvals(emlwav,emlsig,emlflx,initdat.zsys_gas,$
-                                    emlwaverr=emlwaverr,emlsigerr=emlsigerr)
-      emlvel = emlcompvel
-      if not tag_exist(initdat,'nocvdf') then begin
-         emlcvdfvel = ifsf_cmpcvdfvals(emlcvdf,emlflx,emlflxerr,$
-                                       fluxvels=fluxvels,sigcut=sigcut)
-         emlvel = emlcvdfvel + emlcompvel
-      endif
-        
+      ;  Restore line maps
+      if tag_exist(initmaps, 'load_cvdfs') then begin
+         print,'Loading CVDF values from file.'
+         restore,file=initdat.mapdir+initdat.label+'.emlvel.xdr',/relaxed
+         restore,file=initdat.mapdir+initdat.label+'.emlflx.xdr',/relaxed
+         restore,file=initdat.mapdir+initdat.label+'.emlflxerr.xdr',/relaxed
+      endif else begin
+         print,'Computing CVDF values ...'
+         starttime = systime(1)
+         time = 0
+         if tag_exist(initmaps,'cvdf') then begin
+            if tag_exist(initmaps.cvdf,'flux_maps') then $
+               fluxvels=initmaps.cvdf.flux_maps $
+            else fluxvels=0b
+            if tag_exist(initmaps.cvdf,'sigcut') then $
+               sigcut=initmaps.cvdf.sigcut $
+            else sigcut=0b
+         endif
+         emlcompvel = ifsf_cmpcompvals(emlwav,emlsig,emlflx,initdat.zsys_gas,$
+            emlwaverr=emlwaverr,emlsigerr=emlsigerr,argslinelist=argslinelist)
+         emlvel = emlcompvel
+         if not tag_exist(initdat,'nocvdf') then begin
+            emlcvdfvel = ifsf_cmpcvdfvals(emlcvdf,emlflx,emlflxerr,$
+               fluxvels=fluxvels,sigcut=sigcut)
+            emlvel = emlcvdfvel + emlcompvel
+         endif
+         print,'Time to compute CVDF values: ',systime(1)-starttime,' s.',$
+            format='(/,A0,I0,A0,/)'
+      endelse
+
 ;     Extinction maps
 ;     flux summed over components
       if tag_exist(initmaps,'ebv') then begin
@@ -1988,8 +2034,6 @@ pro ifsf_makemaps,initproc
       cgtext,'IFS',xifsline_tpos,yifsline_tpos,chars=1d*charscale,$
          color='Blue',/norm,align=0.5
 
-      ictlo = value_locate(datacube.wave,ctsumrange_tmp[0])
-      icthi = value_locate(datacube.wave,ctsumrange_tmp[1])
       zran = initmaps.ct.scllim
       dzran = zran[1]-zran[0]
       if tag_exist(initmaps.ct,'domedian') then $
@@ -2243,8 +2287,6 @@ pro ifsf_makemaps,initproc
       cgtext,'IFS',xifsline_tpos,yifsline_tpos,chars=1d*charscale,$
          color='Blue',/norm,align=0.5
 
-      ictlo = value_locate(datacube.wave,ctsumrange_tmp[0])
-      icthi = value_locate(datacube.wave,ctsumrange_tmp[1])
       zran = initmaps.ct.scllim
       dzran = zran[1]-zran[0]
       if tag_exist(initmaps.ct,'domedian') then $
@@ -2321,17 +2363,52 @@ pro ifsf_makemaps,initproc
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    if tag_exist(initmaps,'ct') then begin
+;     Total (continuum-only) model flux. Plot fits if decompose tags set, otherwise
+;     plot total cube flux within specified range.
       
-      npy = 2
-      npx = 1
-      if tag_exist(initdat,'decompose_qso_fit') then npx = 3
-      if tag_exist(initdat,'remove_scattered') then npx = 4
+     npy = 2
+     contmap['tot'] = mean(datacube.dat[*,*,ictlo:icthi],dim=3)
+     if tag_exist(initdat,'decompose_qso_fit') then begin
+;        clear up any bad points
+         ibdhostmod = where(~finite(contcube.host_mod),ctbdhostmod)
+         if ctbdhostmod gt 0 then contcube.host_mod[ibdhostmod] = 0d
+         contmap['host'] = mean(contcube.host_mod[*,*,ictlo:icthi],dim=3)
+         contmap['poly'] = mean(contcube.poly_mod[*,*,ictlo:icthi],dim=3)
+         if tag_exist(initdat.argscontfit,'refit') then begin
+            contmap['stel'] = contmap['host'] - contmap['poly']
+            npx = 5
+         endif else begin
+            npx = 3
+         endelse
+         ;contmap['tot'] = contmap['psf'] + contmap['host']
+      endif else if tag_exist(initdat,'decompose_ppxf_fit') then begin
+         contmap['stel'] = mean(contcube.stel_mod[*,*,ictlo:icthi],dim=3)
+         contmap['poly'] = mean(contcube.poly_mod[*,*,ictlo:icthi],dim=3)
+         ;contmap['tot'] = contmap['stel'] + contmap['poly']
+         contmap['host'] = contmap['tot']
+         npx = 4
+      endif else begin
+         npx = 1
+      endelse
+      ; NOW mask
+      if tag_exist(initmaps.ct, 'mask') then begin
+         foreach ckey, contmap.keys() do begin
+            if initmaps.ct.mask.haskey(ckey+'_comp') AND $
+               initmaps.ct.mask.haskey(ckey+'_vals') AND $
+               ckey ne 'psf' then begin
+               ibd = where(contmap[initmaps.ct.mask[ckey+'_comp']] - $
+                  initmaps.ct.mask[ckey+'_vals'] lt 0)
+               contmap[ckey,ibd] = 0d
+            endif
+         endforeach
+      endif
+
 
 ;  Figure out correct image size in inches
       panel_in = 2d
       margin_in = 0.5d
       halfmargin_in = margin_in/2d
-      xsize_in = panel_in * npx + margin_in
+      xsize_in = panel_in * npx + margin_in*2d
       aspectrat_fov=double(dx)/double(dy)
       ysize_in = margin_in*2d + panel_in * (1d + 1d/aspectrat_fov)
 ;  Sizes and positions of image windows in real and normalized coordinates
@@ -2355,34 +2432,19 @@ pro ifsf_makemaps,initproc
                          hmar_yfrac+ifs_yfrac]
       endfor
 
+      ; Scale limits for radial profile, in log units.
       zran = initmaps.ct.scllim_rad
-;      dzran = zran[1]-zran[0]
+      ; Image scale units are linear.
+      if tag_exist(initmaps.ct,'scllim_img') then begin
+         imzran = initmaps.ct.scllim_img
+      endif else begin
+         imzran = 10d^(zran)
+      endelse
+      dzran = zran[1]-zran[0]
+      if tag_exist(initmaps.ct,'beta') then beta=initmaps.ct.beta else beta=1d
 
       cgps_open,initdat.mapdir+initdat.label+'cont_rad.eps',charsize=1,/encap,$
                 /inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
-      
-;     Total (continuum-only) model flux. Plot fits if decompose tags set, otherwise
-;     plot total cube flux within specified range.
-      if tag_exist(initdat,'decompose_qso_fit') then begin
-;        Divide model flux by total # pixels for cases where total number of 
-;        pixels varies by spaxel (due to contracted spectra at edges, e.g.)
-         ctmap = total(contcube.qso_mod+contcube.host_mod,3) / contcube.npts
-         ctsumrange_tmp = initdat.fitran
-      endif else if tag_exist(initdat,'decompose_ppxf_fit') then begin
-         tmpstel = contcube.stel_mod_tot
-         ibdtmp = where(tmpstel eq bad,ctbdtmp)
-         if ctbdtmp gt 0 then tmpstel[ibdtmp] = 0d
-         tmppoly = contcube.poly_mod_tot
-         ibdtmp = where(tmppoly eq bad,ctbdtmp)
-         if ctbdtmp gt 0 then tmppoly[ibdtmp] = 0d
-         ctmap = tmpstel+tmppoly
-         ctsumrange_tmp = initdat.fitran
-      endif else begin
-         ictlo = value_locate(datacube.wave,initmaps.ct.sumrange[0])
-         icthi = value_locate(datacube.wave,initmaps.ct.sumrange[1])
-         ctmap = total(datacube.dat[*,*,ictlo:icthi],3)
-         ctsumrange_tmp = initmaps.ct.sumrange
-      endelse
       capran = string(ctsumrange_tmp[0],'-',ctsumrange_tmp[1],$
                       format='(I0,A0,I0)')
       if tag_exist(initmaps.ct,'sumrange_lab') then begin
@@ -2390,12 +2452,18 @@ pro ifsf_makemaps,initproc
             capran = string(ctsumrange_tmp[0]/1d4,'-',ctsumrange_tmp[1]/1d4,$
                             format='(D0.2,A0,D0.2)')
       endif
-      maxctmap = max(ctmap)
-      ctmap /= maxctmap
-      cgplot,map_rkpc_ifs,alog10(ctmap),yran=[-4,0],$
+
+      iplot = 0
+
+      ; Total light
+      ipos = where(contmap['tot'] gt 0)
+      ineg = where(contmap['tot'] lt 0)
+      cgplot,map_rkpc_ifs[ipos],alog10(contmap['tot',ipos]),yran=zran,$
              xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
              pos=pos_top[*,0],aspect=1d,title=initdat.name,$
-             xtit = 'Radius (kpc)',ytit = 'log I/I$\downmax$'
+             xtit = 'Radius (kpc)',ytit = 'log I'
+      cgoplot,map_rkpc_ifs[ineg],alog10(abs(contmap['tot',ineg])),psym=3,$
+         symsize=0.5d,color='orange'
       if tag_exist(initdat,'decompose_qso_fit') then begin
          cgoplot,psf1d_x,psf1d_y,color='Red'
       endif else if tag_exist(initmaps,'fit_empsf') then begin
@@ -2408,23 +2476,22 @@ pro ifsf_makemaps,initproc
          x = dindgen(101)/100d*max(map_rkpc_ifs)
          fwhm = psffwhm * kpc_per_as
 ;        Gaussian
-         y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
+         y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))+zran[1]
          cgoplot,x,y,color='Black'
 ;        Moffat, index = 1.5
-         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
+         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))+zran[1]
          cgoplot,x,y,color='Red',/linesty
 ;        Moffat, index = 2.5
-         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
+         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))+zran[1]
          cgoplot,x,y,color='Red'
 ;        Moffat, index = 5
-         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
+         y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))+zran[1]
          cgoplot,x,y,color='Blue'
       endif     
 
-;      mapscl = cgimgscl(rebin(ctmap,dx*samplefac,dy*samplefac,/sample),$
-;                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
-      mapscl = cgimgscl(rebin(alog10(ctmap),dx*samplefac,dy*samplefac,/sample),$
-                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+      mapscl = cgimgscl(rebin(contmap['tot'],dx*samplefac,dy*samplefac,/sample),$
+                        minval=imzran[0],max=imzran[1],$
+                        stretch=initmaps.ct.stretch, beta=beta)
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_bot[*,0],opos=truepos,$
               /noerase,missing_value=bad,missing_index=255,$
@@ -2435,53 +2502,37 @@ pro ifsf_makemaps,initproc
       if tag_exist(initmaps.ct,'fitifspeak') AND $
          tag_exist(initmaps.ct,'fitifspeakwin_kpc') then $
           cgoplot,peakfit_pix_ifs[0],peakfit_pix_ifs[1],psym=1,color='Red'         
-      cgtext,dx*0.05,dy*0.95,'Host Cont.+Quasar',color='white'
+      cgtext,dx*0.05,dy*0.95,'Total',color='white'
       cgtext,dx*0.05,dy*0.05,capran,/data,color='white'
       ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
 
-      if tag_exist(initdat,'decompose_qso_fit') then begin
-         qso_map = total(contcube.qso_mod,3) / contcube.npts
-;         qso_map /= max(qso_map)
-         qso_map /= maxctmap
-         cgplot,map_rkpc_ifs,alog10(qso_map),yran=[-4,0],$
+      iplot++
+
+      ; PSF
+      if contmap.haskey('psf') then begin
+         ipos = where(contmap['psf'] gt 0)
+         ineg = where(contmap['psf'] lt 0)
+         cgplot,map_rkpc_ifs[ipos],alog10(contmap['psf',ipos]),yran=zran,$
                 xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
-                pos=pos_top[*,1],/noerase,aspect=1d,$
+                pos=pos_top[*,iplot],/noerase,aspect=1d,$
                 xtickformat='(A1)',ytickformat='(A1)'
-;         if tag_exist(initdat,'decompose_qso_fit') then begin
+         cgoplot,map_rkpc_ifs[ineg],alog10(abs(contmap['psf',ineg])),psym=3,$
+                 symsize=0.5d,color='orange'
          cgoplot,psf1d_x,psf1d_y,color='Red'
-         cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.1d,'FWHM='+$
+         cgtext,max(map_rkpc_ifs)*0.9d,zran[1]-0.1d*dzran,'FWHM='+$
                 string(qso_fitpar[2]*initdat.platescale,format='(D0.2)')+$
                 ' asec',align=1d
-         cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.2d,'FWHM='+$
+         cgtext,max(map_rkpc_ifs)*0.9d,zran[1]-0.2d*dzran,'FWHM='+$
                 string(qso_fitpar[2]*initdat.platescale*kpc_per_as,format='(D0.2)')+$
                 ' kpc',align=1d
-         cgtext,max(map_rkpc_ifs)*0.9d,-4d*0.3d,'$\gamma$='+$
+         cgtext,max(map_rkpc_ifs)*0.9d,zran[1]-0.3d*dzran,'$\gamma$='+$
                 string(qso_fitpar[7],format='(D0.1)'),align=1d
-;         endif else if tag_exist(initmaps,'fit_empsf') then begin
-;            cgoplot,empsf1d_x,empsf1d_y,color='Red'
-;         endif else if tag_exist(initmaps,'ctradprof_psffwhm') then begin
-;            x = dindgen(101)/100d*max(map_rkpc_ifs)
-;            fwhm=initmaps.ctradprof_psffwhm * kpc_per_as
-;;           Gaussian
-;            y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
-;            cgoplot,x,y,color='Black'
-;;           Moffat, index = 1.5
-;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
-;            cgoplot,x,y,color='Red',/linesty
-;;           Moffat, index = 2.5
-;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
-;            cgoplot,x,y,color='Red'
-;;           Moffat, index = 5
-;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
-;            cgoplot,x,y,color='Blue'
-;         endif
 
-;         mapscl = cgimgscl(rebin(qso_map,dx*samplefac,dy*samplefac,/sample),$
-;                           minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
-         mapscl = cgimgscl(rebin(alog10(qso_map),dx*samplefac,dy*samplefac,/sample),$
-                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+         mapscl = cgimgscl(rebin(contmap['psf'],dx*samplefac,dy*samplefac,/sample),$
+                        minval=imzran[0],max=imzran[1],$
+                        stretch=initmaps.ct.stretch,beta=beta)
          cgloadct,65,/reverse
-         cgimage,mapscl,/keep,pos=pos_bot[*,1],opos=truepos,$
+         cgimage,mapscl,/keep,pos=pos_bot[*,iplot],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,xran=[0.5,dx+0.5],$
@@ -2496,88 +2547,129 @@ pro ifsf_makemaps,initproc
                 peakfit_ifs_qso_distance_from_nucleus_pix * kpc_per_pix
             cgoplot,peakfit_pix[0],peakfit_pix[1],psym=1,color='Red'         
          endif
-         cgtext,dx*0.05,dy*0.95,'Quasar PSF',color='white'
+         cgtext,dx*0.05,dy*0.95,'PSF',color='white'
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
 
-         host_map = total(contcube.host_mod,3) / contcube.npts
-;         host_map /= max(host_map)
-         host_map /= maxctmap
-         cgplot,map_rkpc_ifs,alog10(host_map),yran=[-4,0],$
-                xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
-                pos=pos_top[*,2],/noerase,aspect=1d,$
-                xtickformat='(A1)',ytickformat='(A1)'
-;         if tag_exist(initdat,'decompose_qso_fit') then begin
-         cgoplot,psf1d_x,psf1d_y,color='Red'
-;         endif else if tag_exist(initmaps,'fit_empsf') then begin
-;            cgoplot,empsf1d_x,empsf1d_y,color='Red'
-;         endif else if tag_exist(initmaps,'ctradprof_psffwhm') then begin
-;            x = dindgen(101)/100d*max(map_rkpc_ifs)
-;            fwhm=initmaps.ctradprof_psffwhm * kpc_per_as
-;;           Gaussian
-;            y = alog10(gaussian(x,[1d,0d,fwhm/2.35]))
-;            cgoplot,x,y,color='Black'
-;;           Moffat, index = 1.5
-;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/1.5d)-1),1.5d]))
-;            cgoplot,x,y,color='Red',/linesty
-;;           Moffat, index = 2.5
-;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/2.5d)-1),2.5d]))
-;            cgoplot,x,y,color='Red'
-;;           Moffat, index = 5
-;            y = alog10(drt_moffat(x,[1d,0d,fwhm/2d/sqrt(2^(1/5d)-1),5d]))
-;            cgoplot,x,y,color='Blue'
-;         endif
-         
-;         mapscl = cgimgscl(rebin(host_map,dx*samplefac,dy*samplefac,/sample),$
-;                           minval=zran[0]),max=zran[1],stretch=initmaps.ct.stretch)
-         mapscl = cgimgscl(rebin(alog10(host_map),dx*samplefac,dy*samplefac,/sample),$
-                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
+         iplot++
+
+      endif
+
+      ; Host [stel+poly] map
+      if contmap.haskey('host') then begin
+
+         ipos = where(contmap['host'] gt 0)
+         ineg = where(contmap['host'] lt 0)
+         cgplot,map_rkpc_ifs[ipos],alog10(contmap['host',ipos]),yran=zran,$
+            xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
+            pos=pos_top[*,iplot],/noerase,aspect=1d,$
+            xtickformat='(A1)',ytickformat='(A1)'
+         cgoplot,map_rkpc_ifs[ineg],alog10(abs(contmap['host',ineg])),psym=3,$
+            symsize=0.5d,color='orange'
+         if tag_exist(initdat,'decompose_qso_fit') then $
+            cgoplot,psf1d_x,psf1d_y,color='Red'
+
+         mapscl = cgimgscl(rebin(contmap['host'],dx*samplefac,dy*samplefac,/sample),$
+            minval=imzran[0],max=imzran[1],stretch=initmaps.ct.stretch,beta=beta)
          cgloadct,65,/reverse
-         cgimage,mapscl,/keep,pos=pos_bot[*,2],opos=truepos,$
+         cgimage,mapscl,/keep,pos=pos_bot[*,iplot],opos=truepos,$
+            /noerase,missing_value=bad,missing_index=255,$
+            missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,xran=[0.5,dx+0.5],$
+            yran=[0.5,dy+0.5],position=truepos,$
+            /nodata,/noerase
+         cgtext,dx*0.05,dy*0.95,'Stellar+Poly',color='white'
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+            center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
+
+         iplot++
+
+      endif
+      
+      ; Stellar map
+      if contmap.haskey('stel') then begin
+         
+         ipos = where(contmap['stel'] gt 0)
+         ineg = where(contmap['stel'] lt 0)
+         cgplot,map_rkpc_ifs[ipos],alog10(contmap['stel',ipos]),yran=zran,$
+                xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
+                pos=pos_top[*,iplot],/noerase,aspect=1d,$
+                xtickformat='(A1)',ytickformat='(A1)'
+         cgoplot,map_rkpc_ifs[ineg],alog10(abs(contmap['stel',ineg])),psym=3,$
+            symsize=0.5d,color='orange'
+         if tag_exist(initdat,'decompose_qso_fit') then $
+            cgoplot,psf1d_x,psf1d_y,color='Red'
+         
+         mapscl = cgimgscl(rebin(contmap['stel'],dx*samplefac,dy*samplefac,/sample),$
+                        minval=imzran[0],max=imzran[1],$
+                        stretch=initmaps.ct.stretch,beta=beta)
+         cgloadct,65,/reverse
+         cgimage,mapscl,/keep,pos=pos_bot[*,iplot],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,xran=[0.5,dx+0.5],$
                 yran=[0.5,dy+0.5],position=truepos,$
                 /nodata,/noerase
-         cgtext,dx*0.05,dy*0.95,'Host Cont.',color='white'
+         cgtext,dx*0.05,dy*0.95,'Stellar',color='white'
          ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
 
-         if tag_exist(initdat,'remove_scattered') then begin
-            
-            scatt_map = total(contcube.poly_mod,3) / contcube.npts
-;;           Use maximum flux for normalization unless it's much higher than 
-;;           second highest flux
-;            ifsort = reverse(sort(scatt_map))
-;            if scatt_map[ifsort[0]]/scatt_map[ifsort[1]] gt 2 then $
-;               scatt_map /= scatt_map[ifsort[1]] $
-;            else scatt_map /= scatt_map[ifsort[0]]
-            scatt_map /= maxctmap
-            cgplot,map_rkpc_ifs,alog10(scatt_map),yran=[-4,0],$
-                   xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
-                   pos=pos_top[*,3],/noerase,aspect=1d,$
-                   xtickformat='(A1)',ytickformat='(A1)'
-            cgoplot,psf1d_x,psf1d_y,color='Red'
-
-;            mapscl = cgimgscl(rebin(scatt_map,dx*samplefac,dy*samplefac,/sample),$
-;                              minval=zran[0],max=zran[1],$
-;                              stretch=initmaps.ct.stretch)
-            mapscl = cgimgscl(rebin(alog10(scatt_map),dx*samplefac,dy*samplefac,/sample),$
-                        minval=zran[0],max=zran[1],stretch=initmaps.ct.stretch)
-            cgloadct,65,/reverse
-            cgimage,mapscl,/keep,pos=pos_bot[*,3],opos=truepos,$
-                    /noerase,missing_value=bad,missing_index=255,$
-                    missing_color='white'
-            cgplot,[0],xsty=5,ysty=5,xran=[0.5,dx+0.5],$
-                   yran=[0.5,dy+0.5],position=truepos,$
-                   /nodata,/noerase
-            cgtext,dx*0.05,dy*0.95,'Scattered Light',color='white'
-            ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
-                             center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
-
-         endif
+         iplot++
 
       endif
+      
+      ; poly map
+      if contmap.haskey('poly') then begin
+          
+         ipos = where(contmap['poly'] gt 0)
+         ineg = where(contmap['poly'] lt 0)
+         cgplot,map_rkpc_ifs[ipos],alog10(contmap['poly',ipos]),yran=zran,$
+                   xran=[0,max(map_rkpc_ifs)],/xsty,/ysty,psym=16,symsize=0.5d,$
+                   pos=pos_top[*,iplot],/noerase,aspect=1d,$
+                   xtickformat='(A1)',ytickformat='(A1)'
+         cgoplot,map_rkpc_ifs[ineg],alog10(abs(contmap['poly',ineg])),psym=3,$
+            symsize=0.5d,color='orange'
+         if tag_exist(initdat,'decompose_qso_fit') then $
+            cgoplot,psf1d_x,psf1d_y,color='Red'
+
+         mapscl = cgimgscl(rebin(contmap['poly'],dx*samplefac,dy*samplefac,/sample),$
+            minval=imzran[0],max=imzran[1],stretch=initmaps.ct.stretch,beta=beta)
+         cgloadct,65,/reverse
+         cgimage,mapscl,/keep,pos=pos_bot[*,iplot],opos=truepos,$
+            /noerase,missing_value=bad,missing_index=255,$
+            missing_color='white'
+         cgplot,[0],xsty=5,ysty=5,xran=[0.5,dx+0.5],$
+            yran=[0.5,dy+0.5],position=truepos,$
+            /nodata,/noerase
+         cgtext,dx*0.05,dy*0.95,'Poly',color='white'
+         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+            center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
+
+      endif
+
+      ; Colorbar
+      xoffset = 0d ;pan_xfrac*0.05
+      yoffset = 0d ;mar_yfrac*0.2
+      ;cbpos=[truepos[2],truepos[1],truepos[2]+pan_xfrac*0.1,truepos[3]]
+      cbpos=[truepos[0],truepos[3],truepos[2],truepos[3]+pan_yfrac*0.1]
+      ncbdiv = 4
+      cbform = '(E0.2)'
+      
+      tickcval = cgscalevector(dindgen(ncbdiv+1)/double(ncbdiv),0d,255d)
+      minValue = imzran[0]
+      maxValue = imzran[1]
+      scaled_beta = ((beta > 0) - minValue)/(maxValue - minValue)
+      nonlinearity = 1.0D/(scaled_beta > 1e-12)
+      extrema = asinh([0d,1d]*nonlinearity)
+      tmp1 = cgscalevector(tickcval,extrema[0],extrema[1],/double)
+      output = sinh(tmp1)/nonlinearity
+      tickvals = cgscalevector(output,minValue,maxValue)
+      ticknames = string(tickvals,format=cbform)
+      ;ticknames[0]=' '
+      ;ticknames[ncbdiv]=' '
+      cgcolorbar,position=cbpos,divisions=ncbdiv,$
+         ticknames=ticknames,charsize=0.6,/top
+
 
       cgps_close
 
@@ -2634,6 +2726,7 @@ pro ifsf_makemaps,initproc
    pos_title = [mar_xfrac+double(npx)*pan_xfrac/2d,$
                 1d - topmar_yfrac*0.75d]
 
+
    cgps_open,initdat.mapdir+initdat.label+'stel.eps',$
              charsize=1d*charscale,$
              /encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
@@ -2648,8 +2741,25 @@ pro ifsf_makemaps,initproc
       stel_z_errlo = stel_z * 0d
       stel_z_errhi = stel_z * 0d
    endelse
-   igd = where(stel_z ne bad,ctgd)
+   ;  Add spatial filter based on host flux
+   stelvelmask_vals = 0d
+   stelvelmask_comp = 'host'
+   if tag_exist(initmaps.ct,'mask') then begin
+      if initmaps.ct.mask.haskey('stel_vel_comp') AND $
+         initmaps.ct.mask.haskey('stel_vel_vals') then begin
+         stelvelmask_comp = initmaps.ct.mask['stel_vel_comp']
+         stelvelmask_vals = initmaps.ct.mask['stel_vel_vals']
+      endif
+   endif
 
+   igd = where(stel_z ne bad and $
+      contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
+      contmap[stelvelmask_comp] ne bad,ctgd)
+   ibd = where(stel_z eq bad or $
+      contmap[stelvelmask_comp] - stelvelmask_vals gt 0d or $
+      contmap[stelvelmask_comp] eq bad or $
+      ~finite(contmap[stelvelmask_comp]),ctbd)
+ 
    stel_vel = 0b
    if ctgd gt 0 then begin
 
@@ -2667,6 +2777,10 @@ pro ifsf_makemaps,initproc
       
       map = stel_vel
       maperr = mean(stel_errvel,dim=3,/doub)
+      if ctbd gt 0 then begin
+         map[ibd] = bad
+         maperr[ibd] = bad
+      endif
 
 ;     Set up range
       if hasrangefile then begin
@@ -2698,10 +2812,29 @@ pro ifsf_makemaps,initproc
          key = 'stel_vel'
          if initmaps.contourlevels->haskey(key) then begin
             nlevels = n_elements(initmaps.contourlevels[key])
-            cgcontour,map,dindgen(dxwin)+0.5,dindgen(dywin)+0.5,$
-                      /overplot,color=0,c_linesty=2,c_thick=4,$
-                      levels=initmaps.contourlevels[key],$
-                      max=1000d
+            ; dash negative values
+            clinesty = intarr(nlevels)
+            ineg = where(initmaps.contourlevels[key] < 0, ctneg)
+            if ctneg gt 0 then clinesty[ineg] = 1
+            if tag_exist(initmaps,'argscontour') then begin
+               if tag_exist(initmaps.argscontour,'c_linestyle') then $
+                  clinesty = initmaps.argscontour['c_linestyle']
+               cgcontour,map[plotwin[0]-1:plotwin[2]-1,$
+                  plotwin[1]-1:plotwin[3]-1],$
+                  dindgen(dxwin)+0.5,dindgen(dywin)+0.5,$
+                  /overplot,missingvalue=bad,$
+                  levels=initmaps.contourlevels[key],$
+                  c_linesty=clinesty,$
+                  _extra = initmaps.argscontour
+            endif else begin
+               cgcontour,map[plotwin[0]-1:plotwin[2]-1,$
+                  plotwin[1]-1:plotwin[3]-1],$
+                  dindgen(dxwin)+0.5,dindgen(dywin)+0.5,$
+                  /overplot,color=0,c_linesty=clinesty,$
+                  c_thick=4,$
+                  levels=initmaps.contourlevels[key],$
+                  max=2000d,missingvalue=bad
+            endelse
          endif
       endif
       ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_xwin,$
@@ -2775,7 +2908,9 @@ pro ifsf_makemaps,initproc
 
    stel_sig = 0b
    stel_errsig = 0b
-   if tag_exist(initdat,'decompose_ppxf_fit') then begin
+   if tag_exist(initdat,'decompose_ppxf_fit') OR $
+      (tag_exist(initdat,'decompose_qso_fit') AND $
+       tag_exist(initdat.argscontfit,'refit')) then begin
 
       stel_sig = dblarr(dx,dy)+bad
       stel_errlosig = dblarr(dx,dy)+bad
@@ -2789,8 +2924,18 @@ pro ifsf_makemaps,initproc
 
       map = contcube.stel_sigma
       maperr = contcube.stel_sigma_err
-      igd = where(map ne bad,ctgd)
       maperr = mean(maperr,dim=3,/doub)
+      igd = where(map ne bad and $
+         contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
+         contmap[stelvelmask_comp] ne bad,ctgd)
+      ibd = where(map eq bad or $
+         contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
+         contmap[stelvelmask_comp] eq bad or $
+         ~finite(contmap[stelvelmask_comp]),ctbd)
+      if ctbd gt 0 then begin
+         map[ibd] = bad
+         maperr[ibd] = bad
+      endif      
 
       if ctgd gt 0 then begin
 
@@ -2889,11 +3034,21 @@ pro ifsf_makemaps,initproc
    if tag_exist(initdat,'ebv_star') then begin
 
       map = contcube.stel_ebv
-      igd = where(map ne bad,ctgd)
       stel_ebv = map
       stel_errebv = contcube.stel_ebv_err
       maperr = mean(stel_errebv,dim=3,/doub)
       cbform = '(D0.1)' ; colorbar syntax
+      igd = where(map ne bad and $
+         contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
+         contmap[stelvelmask_comp] ne bad,ctgd)
+      ibd = where(map eq bad or $
+         contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
+         contmap[stelvelmask_comp] eq bad or $
+         ~finite(contmap[stelvelmask_comp]),ctbd)
+      if ctbd gt 0 then begin
+         map[ibd] = bad
+         maperr[ibd] = bad
+      endif      
 
       if ctgd gt 0 then begin
 
@@ -3241,20 +3396,29 @@ pro ifsf_makemaps,initproc
 ;                    Not sure why levels aren't being labeled
                      if initmaps.contourlevels->haskey(key) then begin
                         nlevels = n_elements(initmaps.contourlevels[key])
-                        if tag_exist(initmaps,'argscontour') then $
+                        ; dash negative values
+                        clinesty = intarr(nlevels)
+                        ineg = where(initmaps.contourlevels[key] < 0, ctneg)
+                        if ctneg gt 0 then clinesty[ineg] = 1
+                        if tag_exist(initmaps,'argscontour') then begin
+                           if tag_exist(initmaps.argscontour,'c_linestyle') then $
+                              clinesty = initmaps.argscontour['c_linestyle']
                            cgcontour,map[plotwin[0]-1:plotwin[2]-1,$
                                          plotwin[1]-1:plotwin[3]-1],$
                                      dindgen(dxwin)+0.5,dindgen(dywin)+0.5,$
-                                     /overplot,$
+                                     /overplot,missingvalue=bad,$
                                      levels=initmaps.contourlevels[key],$
-                                     _extra = initmaps.argscontour $
-                        else $
+                                     c_linesty=clinesty,$
+                                     _extra = initmaps.argscontour
+                        endif else begin
                            cgcontour,map[plotwin[0]-1:plotwin[2]-1,$
                                          plotwin[1]-1:plotwin[3]-1],$
                                      dindgen(dxwin)+0.5,dindgen(dywin)+0.5,$
-                                     /overplot,color=0,c_linesty=2,c_thick=4,$
+                                     /overplot,color=0,c_linesty=clinesty,$
+                                     c_thick=4,$
                                      levels=initmaps.contourlevels[key],$
-                                     max=1000d
+                                     max=2000d,missingvalue=bad
+                        endelse
                      endif
                   endif
 ;;                 Cross section
@@ -8200,6 +8364,8 @@ pro ifsf_makemaps,initproc
    save,windstr,file=initdat.mapdir+initdat.label+'.xdr'
 
    save,emlvel,file=initdat.mapdir+initdat.label+'.emlvel.xdr'
+   save,emlflx,file=initdat.mapdir+initdat.label+'.emlflx.xdr'
+   save,emlflxerr,file=initdat.mapdir+initdat.label+'.emlflxerr.xdr'
 
    if tag_exist(initmaps,'ebv') then begin
       if tag_exist(initmaps.ebv,'calc') AND $
@@ -8247,5 +8413,7 @@ pro ifsf_makemaps,initproc
          call_procedure,initmaps.fcn_oplots,initdat,initmaps,plotinfo
       endelse
    endif
+
+   !P = psave
 
 end

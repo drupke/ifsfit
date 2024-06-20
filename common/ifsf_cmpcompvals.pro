@@ -45,7 +45,7 @@
 ;
 ;-
 function ifsf_cmpcompvals,emlwav,emlsig,emlflx,zref,emlwaverr=emlwaverr,$
-                          emlsigerr=emlsigerr
+                          emlsigerr=emlsigerr,argslinelist=argslinelist
 
    bad = 1d99
    c_kms = 299792.458
@@ -57,7 +57,7 @@ function ifsf_cmpcompvals,emlwav,emlsig,emlflx,zref,emlwaverr=emlwaverr,$
 
    emlcompvel = hash()
 
-   linelist = ifsf_linelist(outlines)
+   linelist = ifsf_linelist(outlines,_extra=argslinelist)
    foreach c,comps do begin
       emlcompvel['vsig'+c] = hash()
       emlcompvel['v%02'+c] = hash()

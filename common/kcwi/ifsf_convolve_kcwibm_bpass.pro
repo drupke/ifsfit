@@ -2,9 +2,12 @@
 ;
 ;+
 ;
-; Convolve CKC14 templates from Christy (which she convolved to sigma = 30 km/s)
-; to resolution of KCWI data with BM grating for input to PPXF.
-; Output sigma from PPXF should then be approximately correct.
+; Convolve v2.3 BPASS templates to resolution of KCWI data with BM grating for 
+; input to PPXF.
+; 
+; Resolution appears to be 1 A. Spacing of data points certainly is (see
+; Byrne & Stanway 2023). Chisholm et al. 2019 discuss "resolution" of BPASS
+; v2.1 models.
 ;
 ; :Categories:
 ;    IFSFIT
@@ -25,10 +28,10 @@
 ;
 ; :History:
 ;    ChangeHistory::
-;      2021jun25, DSNR, created
+;      2024mar20, DSNR, created
 ;
 ; :Copyright:
-;    Copyright (C) 2021 David S. N. Rupke
+;    Copyright (C) 2024 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -45,17 +48,15 @@
 ;    http://www.gnu.org/licenses/.
 ;
 ;-
-function ifsf_convolve_kcwibm_ckc,templam,temp,datlam,dat,newdat,z
+function ifsf_convolve_kcwibm_bpass,templam,temp,datlam,dat,newdat,z
 
    sigtofwhm = 2d*sqrt(2d*alog(2d))
 
    ; assuming here that Christy convolved things for constant R in log-lambda space
    ; multiply here b/c R is bigger for smaller dlambda or dvel
    ; This is equal to 10000
-   sig_mod_R = 299792d/30d ; 30 km/s is sigma already! http://www.lco.cl/wp-content/uploads/2021/02/MAGEhandout2021.pdf
+   sig_mod_A = 1.0d*(1d + z) / sigtofwhm
    sig_dat_A = 2.5d / sigtofwhm
-   ; model sigma will be higher by (1 + z) because templam is redshifted
-   sig_mod_A = templam/sig_mod_R
 
    ;  Convolve templates with difference in sigmas, since
    ;  templates have higher resolution over all wavelengths
@@ -73,10 +74,10 @@ function ifsf_convolve_kcwibm_ckc,templam,temp,datlam,dat,newdat,z
    sig_datminmod_A = sqrt(sig_dat_A^2d - sig_mod_A^2d)
    sig_datminmod_pix = sig_datminmod_A / (templam[1]-templam[0]) ; assume template dispersion is constant
    if ntemp eq 1 then $
-      newtemp = ifsf_filter_gauss1d(temp,sig_datminmod_pix) $
+      newtemp = gauss_smooth(temp,sig_datminmod_pix,/edge_truncate) $
    else $
       for i=0,ntemp-1 do $
-         newtemp[*,i] = ifsf_filter_gauss1d(temp[*,i],sig_datminmod_pix)
+         newtemp[*,i] = gauss_smooth(temp[*,i],sig_datminmod_pix,/edge_truncate)
 
    return,newtemp
 

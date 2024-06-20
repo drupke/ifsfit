@@ -79,11 +79,10 @@ pro ifsf_emilestemp,indir,outfile,wavelo,wavehi,zran=zran,tran=tran
       thiswaveall = spec[*,0]
       ilo = value_locate(thiswaveall,wavelo)
       ihi = value_locate(thiswaveall,wavehi)
-      if keyword_set(tran) then begin
+      if keyword_set(tran) then $
          if T lt tran[0] OR T gt tran[1] then nouse=1b
-      endif else if keyword_set(zran) then begin
+      if keyword_set(zran) then $
          if Z lt zran[0] OR Z gt zran[1] then nouse=1b
-      endif
       if not nouse then begin
          if firstfile then begin
             waveall = thiswaveall[ilo:ihi]

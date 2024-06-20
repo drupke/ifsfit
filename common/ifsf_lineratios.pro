@@ -278,12 +278,25 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
                      if finite(lr_errlo2[ibderrlo1[i]]) then $
                         lr_errlo_use[ibderrlo1[i]] = lr_errlo2[ibderrlo1[i]] $
                      else lr_errlo_use[ibderrlo1[i]] = bad
-               ibderrhi1 = where(~ finite(lr_errhi1),ctbderrhi1)
+               ibderrhi1 = where(~ finite(lr_errhi1) OR $
+                  (lr_lin[igdlr]/lr_errlin[igdlr] gt 1d AND $
+                  lr_lin[igdlr]/lr_errlin[igdlr] lt 1.1d),ctbderrhi1)
                if ctbderrhi1 gt 0 then $
                   for i=0,n_elements(ibderrhi1)-1 do $
                      if finite(lr_errhi2[ibderrhi1[i]]) then $
                         lr_errhi_use[ibderrhi1[i]] = lr_errhi2[ibderrhi1[i]] $
                      else lr_errhi_use[ibderrhi1[i]] = bad
+               ; case where lr/lrerr is very low, but still > 1 ... 
+               ; this is an empirical thing, needs more testing.
+               lowsig = 1.1d
+               ilowsigerr = where((lr_lin[igdlr]/lr_errlin[igdlr] gt 1d AND $
+                  lr_lin[igdlr]/lr_errlin[igdlr] lt lowsig),ctlowsigerr)
+               if ctlowsigerr gt 0 then begin
+                  for i=0,n_elements(ilowsigerr)-1 do begin
+                     lr_errlo_use[ilowsigerr[i]] = lr_errlo1[ilowsigerr[i]]
+                     lr_errhi_use[ilowsigerr[i]] = lr_errhi2[ilowsigerr[i]]
+                  endfor
+               endif
                lr_errlo[igdlr] = lr_errlo_use
                lr_errhi[igdlr] = lr_errhi_use
                errlo[lrlab] = lr_errlo

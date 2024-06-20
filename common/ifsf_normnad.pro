@@ -58,9 +58,10 @@
 ;      2016sep02, DSNR, fixed bug where fitting order was too small by 1
 ;      2017apr24, DSNR, keyword to ignore S/N cut; useful for continuum-
 ;                       subtracted data
+;      2023oct12, DSNR, ignore NaNs and zeros in error
 ;    
 ; :Copyright:
-;    Copyright (C) 2013--2021 David S. N. Rupke
+;    Copyright (C) 2013--2023 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -85,8 +86,13 @@ function ifsf_normnad,wave,flux,err,z,pars,fitord=fitord,$
    if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
    if ~ keyword_set(fitranhi) then fitranhi = (1d +z)*[5905d,5960d]
 
+   ; The points to actually fit
    ifit = where((wave ge fitranlo[0] AND wave le fitranlo[1]) OR $
-                (wave ge fitranhi[0] AND wave le fitranhi[1]))
+                (wave ge fitranhi[0] AND wave le fitranhi[1]) AND $
+                flux ne 0 AND err gt 0 AND $
+                ~ finite(flux,/nan) AND ~ finite(flux,/infinity) AND $
+                ~ finite(err,/nan) AND ~ finite(err,/infinity))
+   ; Full range of points from low to high wavelength
    igd = where(wave ge fitranlo[0] AND wave le fitranhi[1],ctgd)
 
    if wave[n_elements(wave)-1] lt fitranhi[1] then ctgd=0

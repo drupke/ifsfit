@@ -86,9 +86,10 @@
 ;      2016may03, DSNR, added trigger to deal with very noisy data or data
 ;                       where continuum goes below 0
 ;      2021jan07, DSNR, updated documentation
+;      2023oct12, DSNR, output autoindices even if no autowavelength
 ;    
 ; :Copyright:
-;    Copyright (C) 2014--2016 David S. N. Rupke
+;    Copyright (C) 2014--2023 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -254,11 +255,11 @@ function ifsf_cmpnadweq,wave,flux,err,$
    endelse
 
    out = [weq_abs,weq_abs_e,weq_em,weq_em_e]
+   autoindices=[-1l,-1l,-1l,-1l]
 ;  indices into original arrays of auto-detect regions
-   if keyword_set(autowavelim) then begin
+   if keyword_set(autowavelim) then $
       autoindices=[iabslo,iabsup,iemlo,iemup]
-      out=[[out],[autoindices]]
-   endif
+   out=[[out],[autoindices]]
 
 baddata:
 

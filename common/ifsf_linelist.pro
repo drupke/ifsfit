@@ -373,7 +373,8 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['HeII2733'] = 2734.1d ; several lines ; in vacuum
 ;   lines['HeII2734'] = 2733.3d ; several lines ; in air
 ; (up to 13? from 2733.99 to 2734.16), according to NIST ASD
-
+      lines['HeII3203'] = 3204.0 ; several lines ; in vacuum
+   
 ;  check whether allowed or intercombination or forbidden
       lines['NIII1747'] = 1747.848d
       lines['NIII1751a'] = 1751.218d
@@ -385,9 +386,15 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['CII]2326'] = 2326.11d
       lines['CII]2329'] = 2328.84d
 
-;  add [NeIV] 1601 lines ...
+;  add Ne lines
+      lines['[NeIII]3869'] = 3869.86d
+      lines['[NeIII]3967'] = 3968.59d
+      lines['[NeIII]3869+[NeIII]3967'] = (3869.86d + 3968.59d)/2d
       lines['[NeIV]2422'] = 2422.561d ; [M1] or [E2]
       lines['[NeIV]2425'] = 2425.139d ; [M1+E2]
+      lines['[NeV]3345'] = 3346.79d ; [M1+E2]
+      lines['[NeV]3426'] = 3426.85d ; [M1+E2]
+      lines['[NeV]3345+[NeV]3426'] = (3346.79d + 3426.85d)/2d ; non-resonant
 
       lines['[SiIII]1883'] = 1882.7d ; from Laor+97
       lines['SiIII]1892'] = 1892.03d ; from http://astronomy.nmsu.edu/drewski/tableofemissionlines.html
@@ -460,6 +467,11 @@ function ifsf_linelist,inlines,linelab=linelab,all=all,waveunit=waveunit,$
       lines['MnII2605'] = 2606.462d
       lines['MnII2593'] = 2594.499d
       lines['MnII2576'] = 2576.877d
+
+; NIST
+      lines['[OII]3726'] = 3727.092d
+      lines['[OII]3729'] = 3729.875d
+      lines['[OII]3726+[OII]3729'] = (3727.092d + 3729.875d)/2d
       
    endif else begin
 

@@ -186,24 +186,25 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
      else  $
         linelist_with_doublets = $
            ifsf_linelist(lines_with_doublets,/quiet)
+     ; Make hashes connecting lines tied TO with tied lines
+     ; Code from IFSF_CHECKCOMP
+     ; Find unique anchors
+     anchors = (initdat.linetie.values()).toarray()
+     sanchors = anchors[sort(anchors)]
+     uanchors = sanchors[uniq(sanchors)]
+     ; Find lines associated with each unique anchor. NEWLINETIE is a hash of lists,
+     ; with the keys being the lines that are tied TO and the list corresponding to
+     ; each key consisting of the tied lines.
+     newlinetie = hash(uanchors)
+     foreach val,newlinetie,key do newlinetie[key] = list()
+     foreach val,initdat.linetie,key do newlinetie[val].add,key
+
   endif
 
   if tag_exist(initdat,'fcnpltcont') then $
      fcnpltcont=initdat.fcnpltcont $
   else fcnpltcont='ifsf_pltcont'
 
-; Make hashes connecting lines tied TO with tied lines
-; Code from IFSF_CHECKCOMP
-; Find unique anchors
-  anchors = (initdat.linetie.values()).toarray()
-  sanchors = anchors[sort(anchors)]
-  uanchors = sanchors[uniq(sanchors)]
-; Find lines associated with each unique anchor. NEWLINETIE is a hash of lists,
-; with the keys being the lines that are tied TO and the list corresponding to
-; each key consisting of the tied lines.
-  newlinetie = hash(uanchors)
-  foreach val,newlinetie,key do newlinetie[key] = list()
-  foreach val,initdat.linetie,key do newlinetie[val].add,key
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Read data
@@ -276,11 +277,13 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
          emlflx['f'+cstr+'pk']=hash()
          emlflxerr['f'+cstr+'pk']=hash()
       endfor
-      foreach line,newlinetie.keys() do begin
-         emlncomp[line]=intarr(cube.ncols,cube.nrows)
-         emlz[line]=dblarr(cube.ncols,cube.nrows,initdat.maxncomp)+bad
-         emlsiginit[line]=dblarr(cube.ncols,cube.nrows,initdat.maxncomp)+bad
-      endforeach
+      if initdat.maxncomp gt 0 then begin
+         foreach line,newlinetie.keys() do begin
+            emlncomp[line]=intarr(cube.ncols,cube.nrows)
+            emlz[line]=dblarr(cube.ncols,cube.nrows,initdat.maxncomp)+bad
+            emlsiginit[line]=dblarr(cube.ncols,cube.nrows,initdat.maxncomp)+bad
+         endforeach
+      endif
       foreach line,lines_with_doublets do begin
          emlweq['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
          emlflx['ftot',line]=dblarr(cube.ncols,cube.nrows)+bad
@@ -306,7 +309,6 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
      for i=0,sizefs[2]-1 do $
        flipsort[initdat.flipsort[0,i]-1,initdat.flipsort[1,i]-1] = 1b
    endif
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels
@@ -391,7 +393,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            message,badmessage,/cont
         endif else begin
          
-        restore,file=infile
+        restore,file=infile,/relax
 
 ;       Restore original error.
 ;       This is necessary to, e.g., deal with NaD region whose error is blown up
@@ -435,7 +437,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            FOR k = 0, n_elements(struct.param)-1 DO $
               FOR l = 0, n_elements(struct.param)-1 DO $
               if struct.COVAR(k,k) ne 0d AND struct.COVAR(l,l) ne 0d then $
-                 PCOR(k,l) = struct.COVAR(k,l)/$
+                 PCOR[k,l] = struct.COVAR(k,l)/$
                     sqrt(struct.COVAR(k,k)*struct.COVAR(l,l))
 
            ; identify elements that are cross-correlated
@@ -480,14 +482,18 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;          Plot emission lines
            if ~ struct.noemlinfit then begin
               if not linepars.nolines then begin
+                 if tag_exist(initdat,'argspltlinother') then $
+                    argspltlinother = initdat.argspltlinother $
+                 else $
+                    argspltlinother = {}
                  if tag_exist(initdat,'fcnpltlin') then $
                     fcnpltlin=initdat.fcnpltlin else fcnpltlin='ifsf_pltlin'
                  if tag_exist(initdat,'argspltlin1') then $
                     call_procedure,fcnpltlin,struct,initdat.argspltlin1,$
-                                   outfile+'_lin1',emlz_spax
+                       outfile+'_lin1',emlz_spax,_extra=argspltlinother
                  if tag_exist(initdat,'argspltlin2') then $
                     call_procedure,fcnpltlin,struct,initdat.argspltlin2,$
-                                   outfile+'_lin2',emlz_spax
+                       outfile+'_lin2',emlz_spax,_extra=argspltlinother
               endif
            endif
 
@@ -606,24 +612,25 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               }
            if tag_exist(initdat,'decompose_ppxf_fit') then begin
               contcube = $
-                 {wave: struct.wave,$
+                 {wave: cube.wave,$
                   all_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   stel_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   poly_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
-                  stel_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
-                  poly_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
-                  poly_mod_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
+                  ;stel_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
+                  ;poly_mod_tot: dblarr(cube.ncols,cube.nrows)+bad,$
+                  ;poly_mod_tot_pct: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_sigma: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_sigma_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_z_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_ebv: dblarr(cube.ncols,cube.nrows)+bad,$
-                  stel_ebv_err: dblarr(cube.ncols,cube.nrows,2)+bad $
+                  stel_ebv_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
+                  stel_percents: dblarr(cube.ncols,cube.nrows,6)+bad $
                  }
            endif else if tag_exist(initdat,'decompose_qso_fit') then begin
               contcube = $
-                 {wave: struct.wave,$
+                 {wave: cube.wave,$
                   qso_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   qso_poly_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   host_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
@@ -635,11 +642,13 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                   stel_z_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_ebv: dblarr(cube.ncols,cube.nrows)+bad, $
-                  stel_ebv_err: dblarr(cube.ncols,cube.nrows,2)+bad $
+                  stel_ebv_err: dblarr(cube.ncols,cube.nrows,2)+bad, $
+                  stel_percents: dblarr(cube.ncols,cube.nrows,6)+bad $
                  }
            endif else begin
               contcube = $
-                 {all_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
+                 {wave: cube.wave,$
+                  all_mod: dblarr(cube.ncols,cube.nrows,cube.nz),$
                   stel_z: dblarr(cube.ncols,cube.nrows)+bad,$
                   stel_z_err: dblarr(cube.ncols,cube.nrows,2)+bad,$
                   stel_rchisq: dblarr(cube.ncols,cube.nrows)+bad,$
@@ -686,10 +695,10 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            contcube.all_mod[i,j,struct.fitran_indx] = struct.cont_fit
            contcube.stel_mod[i,j,struct.fitran_indx] = cont_fit_stel
            contcube.poly_mod[i,j,struct.fitran_indx] = cont_fit_poly
-           contcube.stel_mod_tot[i,j] = total(cont_fit_stel)
-           contcube.poly_mod_tot[i,j] = total(cont_fit_poly)
-           contcube.poly_mod_tot_pct[i,j] = $
-              contcube.poly_mod_tot[i,j] / cont_fit_tot
+           ;contcube.stel_mod_tot[i,j] = total(cont_fit_stel)
+           ;contcube.poly_mod_tot[i,j] = total(cont_fit_poly)
+           ;contcube.poly_mod_tot_pct[i,j] = $
+           ;   contcube.poly_mod_tot[i,j] / cont_fit_tot
            contcube.stel_sigma[i,j] = struct.ct_ppxf_sigma
            contcube.stel_z[i,j] = struct.zstar
            if tag_exist(struct,'ct_errors') then $
@@ -730,7 +739,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;             These lines mirror ones in IFSF_FITQSOHOST
               struct_tmp = struct
 ;             Get and renormalize template
-              restore,file=initdat.argscontfit.qsoxdr
+              restore,file=initdat.argscontfit.qsoxdr,/relax
               qsowave = qsotemplate.wave
               qsoflux_full = qsotemplate.flux
               iqsoflux = where(qsowave ge struct_tmp.fitran[0]*0.99999d AND $
@@ -743,20 +752,30 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 ;             and stellar components
               if tag_exist(initdat.argscontfit,'refit') then begin
                  par_qsohost = struct.ct_coeff.qso_host
-                 par_stel = struct.ct_coeff.stel
-                 log_rebin,[struct.wave[0],$
-                            struct.wave[n_elements(struct.wave)-1]],$
-                            struct.spec,$
-                            dumy_log,wave_log
-                 xnorm = cap_range(-1d,1d,n_elements(wave_log))
-                 if add_poly_degree ge 0 then begin
-                   par_poly = struct.ct_coeff.poly
-                   polymod_log = 0d ; Additive polynomial
-                   for k=0,add_poly_degree do $
-                      polymod_log += legendre(xnorm,k)*par_poly[k]
-                   polymod_refit=interpol(polymod_log,wave_log,ALOG(struct.wave))
+                 ; for backward compatibility, compute polynomial if necessary
+                 computepoly = 0b
+                 ; first case is before we started populating 'poly_fit'
+                 ; second case is before a bug was fixed with fitqsohost where
+                 ;   poly_fit was set to 0
+                 if ~ tag_exist(struct,'poly_fit') then computepoly = 1b $
+                 else if n_elements(struct.poly_fit) eq 1 then computepoly = 1b
+                 if computepoly then begin
+                    log_rebin,[struct.wave[0],$
+                       struct.wave[n_elements(struct.wave)-1]],$
+                       struct.spec,$
+                       dumy_log,wave_log
+                    xnorm = cap_range(-1d,1d,n_elements(wave_log))
+                    if add_poly_degree ge 0 then begin
+                       par_poly = struct.ct_coeff.poly
+                       polymod_log = 0d ; Additive polynomial
+                       for k=0,add_poly_degree do $
+                          polymod_log += legendre(xnorm,k)*par_poly[k]
+                          cont_fit_poly=interpol(polymod_log,wave_log,ALOG(struct.wave))
+                    endif else begin
+                       cont_fit_poly = dblarr(n_elements(struct.wave))
+                    endelse
                  endif else begin
-                    polymod_refit = dblarr(n_elements(struct.wave))
+                     cont_fit_poly = struct.poly_fit
                  endelse
                  contcube.stel_sigma[i,j] = struct.ct_coeff.ppxf_sigma
                  contcube.stel_z[i,j] = struct.zstar
@@ -770,7 +789,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     [struct.zstar_err,struct.zstar_err]
               endif else begin
                  par_qsohost = struct.ct_coeff
-                 polymod_refit = 0d
+                 cont_fit_poly = 0d
               endelse
 ;             Produce fit with template only and with template + host. Also
 ;             output QSO multiplicative polynomial
@@ -779,7 +798,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                               /qsoonly,blrterms=blrterms,qsoscl=qsomod_polynorm,$
                               qsoord=qsoord,hostord=hostord
               hostmod = struct.cont_fit_pretweak - qsomod
-;             If continuum is tweaked in any region, subide the resulting
+;             If continuum is tweaked in any region, subdivide the resulting
 ;             residual proportionally (at each wavelength) between the QSO
 ;             and host components.
               qsomod_notweak = qsomod
@@ -800,10 +819,14 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                                  qsoflux=qsoflux,/blronly,blrterms=blrterms,$
                                  qsoord=qsoord,hostord=hostord
 ;              qsomod_polynorm *= median(qsomod)
+;             to match a variable for ppxf processing; for computing stel pct later
+;             note that this may not be *precisely* the same as struct.stel_fit
+;             because of the continuum tweaking residual correction above
+              cont_fit_stel = hostmod - cont_fit_poly
            endif else if initdat.fcncontfit eq 'ppxf' AND $
                          tag_exist(initdat,'qsotempfile') then begin
               struct_star = struct
-              restore,file=initdat.qsotempfile
+              restore,file=initdat.qsotempfile,/relax
               struct_qso = struct
               struct = struct_star
               qsomod = struct_qso.cont_fit * $
@@ -829,57 +852,136 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
         else contcube.stel_rchisq[i,j] = 0d
 
 
-;       Print PPXF results to STDOUT
+;       Compute % contributions of different stellar templates to total
+;       If requested, print PPXF results to STDOUT
         if tag_exist(initdat,'decompose_ppxf_fit') OR $
            tag_exist(initdat,'decompose_qso_fit') then begin            
+           if tag_exist(initdat,'decompose_ppxf_fit') then begin
+              ct_coeff_tmp = struct.ct_coeff
+              ;poly_tmp_pct = contcube.poly_mod_tot_pct[i,j]
+           endif else begin
+              ct_coeff_tmp = struct.ct_coeff.stel
+              ;poly_tmp_pct = total(cont_fit_poly) / total(hostmod)
+           endelse
+           inz = where(ct_coeff_tmp ne 0d,ctnz)
+           if ctnz gt 0 then begin
+              restore,initdat.startempfile,/relax
+              ; Rest-frame reference wavelength
+              refwavepct_rest = 5000.
+              refwavepct_obs = 0.
+              if tag_exist(initdat,'argscontfit') then begin
+                 if tag_exist(initdat.argscontfit,'pct_refwave_rest') then begin
+                    refwavepct_rest = initdat.argscontfit.pct_refwave_rest
+                    refwavepct_obs = 0.
+                 endif else if tag_exist(initdat.argscontfit,'pct_refwave_obs') then begin
+                    refwavepct_rest = 0.
+                    refwavepct_obs = initdat.argscontfit.pct_refwave_obs
+                 endif
+              endif
+              if refwavepct_rest gt 0 then begin
+                ; location in templates
+                 irefwavetemp = value_locate(template.lambda,refwavepct_rest)
+                 irefwaveobs = value_locate(struct.wave/(1d + struct.zstar),$
+                    refwavepct_rest)
+                 refwavepct = refwavepct_rest
+              endif else begin
+                 ; location in templates
+                 irefwavetemp = value_locate(template.lambda*$
+                    (1d + struct.zstar), refwavepct_obs)
+                 irefwaveobs = value_locate(struct.wave,$
+                    refwavepct_obs)
+                 refwavepct = refwavepct_obs
+              endelse
+              if irefwavetemp eq n_elements(template.lambda)-1 then $
+                 print,'WARNING: Reference wavelength for pct stellar '+$
+                    'contribution above limit of templates'
+              if irefwavetemp eq -1 then $
+                 print,'WARNING: Reference wavelength for pct stellar '+$
+                    'contribution below limit of templates'
+              if irefwaveobs eq n_elements(struct.wave)-1 then $
+                 print,'WARNING: Reference wavelength for pct stellar '+$
+                    'contribution above limit of data'
+              if irefwaveobs eq -1 then $
+                 print,'WARNING: Reference wavelength for pct stellar '+$
+                    'contribution below limit of data'
+              coeffgd = ct_coeff_tmp[inz]*template.flux[irefwavetemp,inz]
+              ; these two lines should produce the same result, but 
+              ; struct.poly_fit is a recent introduction and so it doesn't
+              ; assume it's there
+              ;coeffpoly = struct.poly_fit[irefwaveobs] / $
+              coeffpoly = cont_fit_poly[irefwaveobs] / $
+                 struct.cont_fit[irefwaveobs]
+              ; normalize coefficients to % of total stellar coeffs.
+              totcoeffgd = total(coeffgd)
+              coeffgd /= totcoeffgd
+              ; re-normalize to % of total model (including any effects of 
+              ; reddening in stellar model)
+              ;coeffgd *= struct.stel_fit[irefwaveobs] / $
+              coeffgd *= cont_fit_stel[irefwaveobs] / $
+                 struct.cont_fit[irefwaveobs]
+              agesgd = template.ages[inz]
+              if tag_exist(template,'zs') then $
+                 zsgd = template.zs[inz] $
+              else if tag_exist(template,'logzh') then $
+                 zsgd = template.logzh[inz] $
+              else $
+                 zsgd = 'N/A'
+              ; sum coefficients over age ranges
+              iyoung = where(agesgd le 1d7,ctyoung)
+              iinter1 = where(agesgd gt 1d7 AND agesgd le 1d8,ctinter1)
+              iinter2 = where(agesgd gt 1d8 AND agesgd le 1d9,ctinter2)
+              iold = where(agesgd gt 1d9,ctold)
+              if ctyoung gt 0 then $
+                 coeffyoung = total(coeffgd[iyoung])*100d $
+              else coeffyoung=0d
+              if ctinter1 gt 0 then $
+                 coeffinter1 = total(coeffgd[iinter1])*100d $
+              else coeffinter1=0d
+              if ctinter2 gt 0 then $
+                 coeffinter2 = total(coeffgd[iinter2])*100d $
+              else coeffinter2=0d
+              if ctold gt 0 then $
+                 coeffold = total(coeffgd[iold])*100d $
+              else coeffold=0d
+              contcube.stel_percents[i,j,*] = [refwavepct,coeffpoly,coeffyoung,$
+                 coeffinter1,coeffinter2,coeffold]
+           endif
            if tag_exist(initdat,'argscontfit') then begin
               if tag_exist(initdat.argscontfit,'print_output') then begin
                  print,'PPXF results:'
-                 if tag_exist(initdat,'decompose_ppxf_fit') then begin
-                    ct_coeff_tmp = struct.ct_coeff
-                    poly_tmp_pct = contcube.poly_mod_tot_pct[i,j]
+                 if refwavepct_rest gt 0 then begin
+                    print,'   % contributions at rest wavelength ',$
+                       string(refwavepct_rest,format='(I0)'),' A'
+                    print,'   % contributions at observed wavelength ',$
+                       string(refwavepct_rest*(1d + struct.zstar),$
+                       format='(I0)'),' A'
                  endif else begin
-                    ct_coeff_tmp = struct.ct_coeff.stel
-                    poly_tmp_pct = total(polymod_refit) / total(hostmod)
+                    print,'   % contributions at observed wavelength ',$
+                       string(refwavepct_obs,format='(I0)'),' A'
+                    print,'   % contributions at rest wavelength ',$
+                       string(refwavepct_obs/(1d + struct.zstar),$
+                       format='(I0)'),' A'
                  endelse
-                 inz = where(ct_coeff_tmp ne 0d,ctnz)
-                 if ctnz gt 0 then begin
-                    coeffgd = ct_coeff_tmp[inz]
-;                   normalize coefficients to % of total stellar coeffs.
-                    totcoeffgd = total(coeffgd)
-                    coeffgd /= totcoeffgd
-;                   re-normalize to % of total flux
-                    coeffgd *= (1d - poly_tmp_pct)
-                    restore,initdat.startempfile
-                    agesgd = template.ages[inz]
-;                   sum coefficients over age ranges
-                    iyoung = where(agesgd le 1d7,ctyoung)
-                    iinter1 = where(agesgd gt 1d7 AND agesgd le 1d8,ctinter1)
-                    iinter2 = where(agesgd gt 1d8 AND agesgd le 1d9,ctinter2)
-                    iold = where(agesgd gt 1d9,ctold)
-                    if ctyoung gt 0 then $
-                       coeffyoung = total(coeffgd[iyoung])*100d $
-                    else coeffyoung=0d
-                    if ctinter1 gt 0 then $
-                       coeffinter1 = total(coeffgd[iinter1])*100d $
-                    else coeffinter1=0d
-                    if ctinter2 gt 0 then $
-                       coeffinter2 = total(coeffgd[iinter2])*100d $
-                    else coeffinter2=0d
-                    if ctold gt 0 then $
-                       coeffold = total(coeffgd[iold])*100d $
-                    else coeffold=0d
-                    print,'   ',string(round(coeffyoung),format='(I0)')+$
-                       '% contribution from ages <= 10 Myr.'
-                    print,'   ',string(round(coeffinter1),format='(I0)')+$
-                       '% contribution from 10 Myr < age <= 100 Myr.'
-                    print,'   ',string(round(coeffinter2),format='(I0)')+$
-                       '% contribution from 100 Myr < age <= 1 Gyr.'
-                    print,'   ',string(round(coeffold),format='(I0)')+$
-                       '% contribution from ages > 1 Gyr.'
-                 endif
+                 print,'     ',string(coeffpoly*100d,format='(D5.1)')+$
+                    ' additive polynomial.'
+                 print,'     ',string(coeffyoung,format='(D5.1)')+$
+                    ' ages <= 10 Myr.'
+                 print,'     ',string(coeffinter1,format='(D5.1)')+$
+                    ' ages 10 Myr < age <= 100 Myr.'
+                 print,'     ',string(coeffinter2,format='(D5.1)')+$
+                    ' ages 100 Myr < age <= 1 Gyr.'
+                 print,'     ',string(coeffold,format='(D5.1)')+$
+                    ' ages > 1 Gyr.'
+                 print,'     ',string(coeffpoly*100d + coeffyoung + $
+                    coeffinter1+coeffinter2+coeffold,format='(D5.1)')+$
+                    ' total'
                  print,'   ','Stellar template convolved with sigma = '+$
-                       string(struct.ct_ppxf_sigma,format='(I0)')+' km/s'
+                    string(struct.ct_ppxf_sigma,format='(I0)')+' km/s'
+                 print,'E(B-V) = ',string(struct.ct_ebv,format='(D0.2)')
+                 print,'Nonzero template weights: ',ct_coeff_tmp[inz]
+                 print,'Nonzero template ages: ',agesgd
+                 print,'Nonzero tempalte zs: ',zsgd
+                 
               endif
            endif
         endif
@@ -897,20 +999,22 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            contcube.qso_mod[i,j,struct.fitran_indx] = qsomod
            contcube.qso_poly_mod[i,j,struct.fitran_indx] = qsomod_polynorm
            contcube.host_mod[i,j,struct.fitran_indx] = hostmod
-           contcube.poly_mod[i,j,struct.fitran_indx] = polymod_refit
+           contcube.poly_mod[i,j,struct.fitran_indx] = cont_fit_poly
            contcube.npts[i,j] = n_elements(struct.fitran_indx)
-           if tag_exist(initdat,'remove_scattered') then $
-              contcube.host_mod[i,j,struct.fitran_indx] -= polymod_refit
+           if tag_exist(initdat,'remove_scattered') then begin
+              contcube.host_mod[i,j,struct.fitran_indx] -= cont_fit_poly
+              hostcube.dat[i,j,struct.fitran_indx] -= cont_fit_poly
+           endif
 ;          Data minus (emission line model + QSO model)
 ;           contcube.host_dat[i,j,*] = struct.cont_dat - qsomod
 ;          Update hostcube.dat to remove tweakcnt mods
 ;          Data minus (emission line model + QSO model, tweakcnt mods not 
 ;          included in QSO model)
-           hostcube.dat[i,j,struct.fitran_indx] = struct.cont_dat - qsomod_notweak
+           hostcube.dat[i,j,struct.fitran_indx] -= qsomod_notweak
            if ~keyword_set(noplots) AND $
               total(struct_host.cont_fit) ne 0d then begin
               if tag_exist(initdat.argscontfit,'refit') then begin
-                 compspec = [[polymod_refit],[hostmod-polymod_refit]]
+                 compspec = [[cont_fit_poly],[hostmod-cont_fit_poly]]
                  comptit = ['ord. '+string(add_poly_degree,format='(I0)')+$
                             ' Leg. poly.','stel. temp.']
               endif else begin
@@ -995,8 +1099,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
 
            if tag_exist(initdat,'decompose_qso_fit') then begin
               if tag_exist(initdat,'remove_scattered') then begin
-                 hostmod_tmp = hostmod - polymod_refit
-                 qsomod_tmp = qsomod + polymod_refit
+                 hostmod_tmp = hostmod - cont_fit_poly
+                 qsomod_tmp = qsomod + cont_fit_poly
               endif else begin
                  hostmod_tmp = hostmod
                  qsomod_tmp = qsomod
@@ -1170,7 +1274,8 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
                     ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
                                    outfile+'_nad_norm',autoindices=weq[*,1],$
                                    emwid=emwid,iabsoff=iabsoff,$
-                                   _extra=initnad.argspltnormnad else $
+                                   _extra=initnad.argspltnormnad $
+                 else $
                     ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
                                    outfile+'_nad_norm',autoindices=weq[*,1],$
                                    emwid=emwid,iabsoff=iabsoff
