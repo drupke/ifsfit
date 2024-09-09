@@ -135,6 +135,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      if keyword_set(invvar) and ~novar then var = 1d/var
   endif else begin
      var = dat*0d
+     ; in case any of dat has a nan
+     inan = where(finite(dat,/nan),ctnan)
+     if ctnan gt 0 then var[inan] = 0d
      header_var = ''
   endelse
   if dqext_use ge 0 then begin
@@ -157,6 +160,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      if keyword_set(zerodq) then dq*=0d
   endif else begin
      dq = dat*0d
+     ; in case any of dat has a nan
+     inan = where(finite(dat,/nan),ctnan)
+     if ctnan gt 0 then dq[inan] = 0d
      header_dq = ''
   endelse
   if keyword_set(waveext) then begin

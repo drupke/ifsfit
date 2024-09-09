@@ -1327,6 +1327,34 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            endif
         endforeach
      endif
+     ; Apply a cut based on map index on a line-by-line basis
+     ; Input is hash with lines to cut
+     ; Each hash is a set of indices into the 2x2 map
+     if tag_exist(initdat,'emlmapindcut') then begin
+        foreach line,lines_with_doublets do begin
+           if initdat.emlmapindcut.haskey(line) then begin
+              ibd = initdat.emlmapindcut[line]
+              emlweq['ftot',line,ibd] = bad
+              emlflx['ftot',line,ibd] = bad
+              if ~ tag_exist(initdat,'emlkeeperr') then $
+                 emlflxerr['ftot',line,ibd] = bad
+              for k=0,initdat.maxncomp-1 do begin
+                 cstr='c'+string(k+1,format='(I0)')
+                 emlweq['f'+cstr,line,ibd] = bad
+                 emlflx['f'+cstr,line,ibd] = bad
+                 emlflx['f'+cstr+'pk',line,ibd] = bad
+                 if ~ tag_exist(initdat,'emlkeeperr') then begin
+                    emlflxerr['f'+cstr,line,ibd] = bad
+                    emlflxerr['f'+cstr+'pk',line,ibd] = bad
+                 endif
+                 emlwav[cstr,line,ibd] = bad
+                 emlwaverr[cstr,line,ibd] = bad
+                 emlsig[cstr,line,ibd] = bad
+                 emlsigerr[cstr,line,ibd] = bad
+              endfor
+           endif
+        endforeach
+     endif
 ;    Compute CVDFs and write emission-line hashes to a file
      if not tag_exist(initdat,'nocvdf') then begin
         if tag_exist(initdat,'cvdf_vlimits') then vlimits=initdat.cvdf_vlimits $

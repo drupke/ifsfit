@@ -891,12 +891,16 @@ contmap = hash()
 
    if tag_exist(initdat,'decompose_qso_fit') then begin
 
+      ; take care of NaNs in PSF component
       inan = where(finite(contcube.qso_mod,/nan),ctnan)
       if ctnan gt 0 then contcube.qso_mod[inan] = 0d
+      ; set PSF component of the continuum map to be 
+      ; mean of quasar component over wavelength
       contmap['psf'] = mean(contcube.qso_mod[*,*,ictlo:icthi],dim=3)
 
 ;      qso_err = stddev(contcube.qso,dim=3,/double)
 ;      qso_err = sqrt(total(datacube.var,3))
+      ; take care of NaNs/infinites in data variance
       qsoerr = sqrt(median(datacube.var,dim=3,/double))
       ibd = where(~ finite(qsoerr),ctbd)
       if ctbd gt 0 then begin
@@ -904,6 +908,9 @@ contmap = hash()
          contmap['psf', ibd] = 0d
       endif
 
+      ; Process continuum mask
+      ; key 'psf_comp' points to 'psf' key in contmap
+      ; key 'psf_vals' are vals below which to mask contmap['psf']
       if tag_exist(initmaps.ct,'mask') then begin
          if initmaps.ct.mask.haskey('psf_comp') AND $
             initmaps.ct.mask.haskey('psf_vals') then begin
