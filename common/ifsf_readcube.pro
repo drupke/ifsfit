@@ -117,15 +117,15 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
 
 ; Read fits file.
   if datext_use ne 0 then begin
-     phu = readfits(infile,header_phu,ext=0,silent=quiet)
+     phu = mrdfits(infile,0,header_phu,silent=quiet)
   endif else begin
      phu = 0b
      header_phu = ''
   endelse
-  dat = readfits(infile,header_dat,ext=datext_use,silent=quiet)
+  dat = mrdfits(infile,datext_use,header_dat,silent=quiet)
   if varext_use gt 0 then begin
      novar=0b
-     var = readfits(infile,header_var,ext=varext_use,silent=quiet)
+     var = mrdfits(infile,varext_use,header_var,silent=quiet)
      if n_elements(var) eq 1 then begin
         if var[0] eq -1 then begin
            novar=1b
@@ -138,10 +138,15 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      ; in case any of dat has a nan
      inan = where(finite(dat,/nan),ctnan)
      if ctnan gt 0 then var[inan] = 0d
-     header_var = ''
+     header_var = header_dat
+     sxaddpar,header_var,'EXTNAME','VAR',silent=quiet
+     if ~ keyword_set(quiet) then begin
+        print,'IFSR_READCUBE: No variance extension.'
+        print,'   Setting var=0*dat and variance header to data header.'
+     endif
   endelse
   if dqext_use ge 0 then begin
-     dq = readfits(infile,header_dq,ext=dqext_use,silent=quiet)
+     dq = mrdfits(infile,dqext_use,header_dq,silent=quiet)
      if n_elements(dq) eq 1 then begin
         if dq[0] eq -1 then begin
            nodq=1b
@@ -159,14 +164,19 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      endif
      if keyword_set(zerodq) then dq*=0d
   endif else begin
-     dq = dat*0d
+     dq = dat*0b
      ; in case any of dat has a nan
      inan = where(finite(dat,/nan),ctnan)
-     if ctnan gt 0 then dq[inan] = 0d
-     header_dq = ''
+     if ctnan gt 0 then dq[inan] = 0b
+     header_dq = header_dat
+     sxaddpar,header_dq,'EXTNAME','DQ'
+     if ~ keyword_set(quiet) then begin
+        print,'IFSR_READCUBE: No dq extension.'
+        print,'   Setting dq=0*dat and dq header to data header.'
+     endif
   endelse
   if keyword_set(waveext) then begin
-     wave = readfits(infile,header_wave,ext=waveext,silent=quiet)
+     wave = mrdfits(infile,waveext,header_wave,silent=quiet)
 ;    these were chosen to match MANGA defaults ...
      crval = 0
      crpix = 1
@@ -189,8 +199,9 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      cdeltstropt = 'CDELT3'
      cunitstr = 'CUNIT3'
   endif else if datasize[0] eq 2 then begin
-     print,'IFSF_READCUBE: Reading 2D image. Assuming dispersion direction is'+$
-           ' along first dimension.'
+     if ~ keyword_set(quiet) then $
+        print,'IFSF_READCUBE: Reading 2D image. Assuming dispersion direction is'+$
+           '   along first dimension.'
 ; Old logic: # wavelength pts > # cols.           
 ;     ncols = (datasize[1] gt datasize[2]) ? datasize[2] : datasize[1]
 ;     nz = (datasize[1] gt datasize[2]) ? datasize[1] : datasize[2]
@@ -243,7 +254,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      if countpix eq 0 then crpix = 1d
      if countval eq 0 OR countdel eq 0 then begin
         print,'IFSF_READCUBE: WARNING -- missing a header parameter. Wavelength'
-        print,'               solution will be incorrect.'
+        print,'   solution will be incorrect.'
      endif
      wave = crval + cdelt*(pix-crpix)
      ; convert to A
@@ -307,7 +318,8 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
         var = interpol(varold,waveold,wave,/spline)
         dq = interpol(dqold,waveold,wave)
      endif
-     print,'IFSF_READCUBE: Interpolating DQ; values > 0.01 set to 1.'
+     if ~ keyword_set(quiet) then $
+        print,'IFSF_READCUBE: Interpolating DQ; values > 0.01 set to 1.'
      ibd = where(dq gt 0.01,ctbd)
      if ctbd gt 0 then dq[ibd] = 1
   endif
