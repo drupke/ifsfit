@@ -1134,7 +1134,7 @@ contmap = hash()
                   argslineratios = !NULL
                ebvtmp = $
                   ifsf_lineratios(emlflx[key],emlflxerr[key],linelist,/ebvonly,$
-                                  errlo=errtmp,_extra=initmaps.argslineratios)
+                                  errlo=errtmp,_extra=argslineratios)
                ebv[key] = ebvtmp['ebv']
                errebv[key] = errtmp['ebv']
                igdebv = where(ebv[key] ne bad,ctgdebv)
@@ -1682,42 +1682,6 @@ contmap = hash()
       endfor
    endif
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Fit PSF to Emission Line Map
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;   if tag_exist(initmaps,'fit_empsf') then begin
-;      linmap_tmp = $
-;         emlflx[string(initmaps.fit_empsf.vel,format='(I0)'),$
-;                initmaps.fit_empsf.line]
-;      vel = initmaps.fit_empsf.vel
-;      ivel = value_locate(linmap_tmp.vel,vel)
-;      empsf_map = linmap_tmp.flux[*,*,ivel]
-;      maxempsf_map = max(empsf_map,imax)
-;      empsf_map /= maxempsf_map
-;
-;      ;     Use error in total flux for error in line
-;      empsf_err = tlinmaps[initmaps.fit_empsf.line,*,*,0,1]
-;      empsf_err /= empsf_err[imax]
-;
-;      ;     2D Moffat fit to continuum flux vs. radius
-;      parinfo = REPLICATE({fixed:0b},8)
-;      parinfo[0].fixed = 1b
-;      est=[0d,1d,1d,1d,center_nuclei[0]-1d,center_nuclei[1]-1d,0d,2.5d]
-;      empsf_fit = $
-;         mpfit2dpeak(empsf_map,empsf_fitpar,/moffat,/circular,est=est,$
-;         parinfo=parinfo,error=empsf_err)
-;
-;      map_rempsf = sqrt((map_x - empsf_fitpar[4]+1)^2d + $
-;         (map_y - empsf_fitpar[5]+1)^2d)
-;      map_rempsfkpc_ifs = map_rempsf * kpc_per_pix
-;      empsf1d_x = dindgen(101)/100d*max(map_rempsfkpc_ifs)
-;      empsf1d_y = alog10(drt_moffat(empsf1d_x,[empsf_fitpar[1],0d,$
-;         empsf_fitpar[2]*kpc_per_pix,$
-;         empsf_fitpar[7]]))
-;
-;   endif
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Continuum plots
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1921,10 +1885,10 @@ contmap = hash()
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
       endelse
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                        center_nuclei_kpc_y,/toplab
-      cgtext,xran_kpc[0]+(xran_kpc[1]-xran_kpc[0])*0.05,$
-             yran_kpc[1]-(yran_kpc[1]-yran_kpc[0])*0.1,$
+      cgtext,xwinran_kpc[0]+(xwinran_kpc[1]-xwinran_kpc[0])*0.05,$
+             ywinran_kpc[1]-(ywinran_kpc[1]-ywinran_kpc[0])*0.1,$
              'IFS FOV',/data,color='white'
       ifsf_plotcompass,xarr_kpc,yarr_kpc,carr=carr,/nolab,hsize=150d,hthick=2d
       posbox1x[1] = truepos[0]
@@ -1988,7 +1952,8 @@ contmap = hash()
          mapscl = cgimgscl(ctmap,minval=zran[0],max=zran[1],$
                            stretch=stretch,beta=beta)
          if size_subim[1] lt resampthresh OR size_subim[2] lt resampthresh then $
-            mapscl = rebin(mapscl,dx*samplefac,dy*samplefac,/sample)
+            mapscl = rebin(mapscl[plotwin[0]-1:plotwin[2]-1,$
+            plotwin[1]-1:plotwin[3]-1],dxwin*samplefac,dywin*samplefac,/sample)
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_ifsfov[*,1],opos=truepos,$
                  /noerase,missing_value=bad,missing_index=255,$
@@ -2021,10 +1986,10 @@ contmap = hash()
             cgplot,[0],xsty=5,ysty=5,position=truepos,$
                    /nodata,/noerase
          endelse
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
-         cgtext,xran_kpc[0]+(xran_kpc[1]-xran_kpc[0])*0.05,$
-                yran_kpc[1]-(yran_kpc[1]-yran_kpc[0])*0.1,$
+         cgtext,xwinran_kpc[0]+(xwinran_kpc[1]-xwinran_kpc[0])*0.05,$
+                ywinran_kpc[1]-(ywinran_kpc[1]-ywinran_kpc[0])*0.1,$
                 'IFS FOV, conv.',/data,color='white'
       endif
 
@@ -2048,9 +2013,11 @@ contmap = hash()
                  double(icthi-ictlo+1) $
       else $
          ctmap = total(datacube.dat[*,*,ictlo:icthi],3)
-      ctmap /= max(ctmap)
+      ctmap /= max(ctmap[plotwin[0]-1:plotwin[2]-1,$
+         plotwin[1]-1:plotwin[3]-1])
       if tag_exist(initmaps.ct,'beta') then beta=initmaps.ct.beta else beta=1d
-      mapscl = cgimgscl(rebin(ctmap,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = cgimgscl(rebin(ctmap[plotwin[0]-1:plotwin[2]-1,$
+         plotwin[1]-1:plotwin[3]-1],dxwin*samplefac,dywin*samplefac,/sample),$
                         minval=zran[0],max=zran[1],$
                         stretch=initmaps.ct.stretch,beta=beta)                        
       cgloadct,65,/reverse
@@ -2096,11 +2063,11 @@ contmap = hash()
          nolab_tmp=0b
          toplab_tmp=1b
       endelse
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                        center_nuclei_kpc_x,center_nuclei_kpc_y,$
                        nolab=nolab_tmp,toplab=toplab_tmp
-      cgtext,xran_kpc[0]+(xran_kpc[1]-xran_kpc[0])*0.05,$
-             yran_kpc[1]-(yran_kpc[1]-yran_kpc[0])*0.1,$
+      cgtext,xwinran_kpc[0]+(xwinran_kpc[1]-xwinran_kpc[0])*0.05,$
+             ywinran_kpc[1]-(ywinran_kpc[1]-ywinran_kpc[0])*0.1,$
              capifs,/data,color='white'
       if npanels_ifsfov eq 1 then $
          ifsf_plotcompass,xarr_kpc,yarr_kpc,carr=carr,/nolab,$
@@ -2247,10 +2214,10 @@ contmap = hash()
              missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
              /nodata,/noerase
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                        center_nuclei_kpc_y,/toplab
-      cgtext,xran_kpc[0]+(xran_kpc[1]-xran_kpc[0])*0.05,$
-             yran_kpc[1]-(yran_kpc[1]-yran_kpc[0])*0.1,$
+      cgtext,xwinran_kpc[0]+(xwinran_kpc[1]-xwinran_kpc[0])*0.05,$
+             ywinran_kpc[1]-(ywinran_kpc[1]-ywinran_kpc[0])*0.1,$
              'IFS FOV',/data,color='white'
       ifsf_plotcompass,xarr_kpc,yarr_kpc,carr=carr,/nolab,hsize=150d,hthick=2d
       posbox1x[1] = truepos[0]
@@ -2274,10 +2241,10 @@ contmap = hash()
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
-         cgtext,xran_kpc[0]+(xran_kpc[1]-xran_kpc[0])*0.05,$
-                yran_kpc[1]-(yran_kpc[1]-yran_kpc[0])*0.1,$
+         cgtext,xwinran_kpc[0]+(xwinran_kpc[1]-xwinran_kpc[0])*0.05,$
+                ywinran_kpc[1]-(ywinran_kpc[1]-ywinran_kpc[0])*0.1,$
                 'IFS FOV, conv.',/data,color='white'
       endif
 
@@ -2303,7 +2270,8 @@ contmap = hash()
          ctmap = total(datacube.dat[*,*,ictlo:icthi],3)
       ctmap /= max(ctmap)
       if tag_exist(initmaps.ct,'beta') then beta=initmaps.ct.beta else beta=1d
-      mapscl = cgimgscl(rebin(ctmap,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = cgimgscl(rebin(ctmap[plotwin[0]-1:plotwin[2]-1,$
+         plotwin[1]-1:plotwin[3]-1],dxwin*samplefac,dywin*samplefac,/sample),$
                         minval=zran[0],max=zran[1],$
                         stretch=initmaps.ct.stretch,beta=beta)                        
       cgloadct,65
@@ -2349,11 +2317,11 @@ contmap = hash()
          nolab_tmp=0b
          toplab_tmp=1b
       endelse
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                        center_nuclei_kpc_x,center_nuclei_kpc_y,$
                        nolab=nolab_tmp,toplab=toplab_tmp
-      cgtext,xran_kpc[0]+(xran_kpc[1]-xran_kpc[0])*0.05,$
-             yran_kpc[1]-(yran_kpc[1]-yran_kpc[0])*0.1,$
+      cgtext,xwinran_kpc[0]+(xwinran_kpc[1]-xwinran_kpc[0])*0.05,$
+             ywinran_kpc[1]-(ywinran_kpc[1]-ywinran_kpc[0])*0.1,$
              capifs,/data,color='white'
       if npanels_ifsfov eq 1 then $
          ifsf_plotcompass,xarr_kpc,yarr_kpc,carr=carr,/nolab,$
@@ -2496,7 +2464,8 @@ contmap = hash()
          cgoplot,x,y,color='Blue'
       endif     
 
-      mapscl = cgimgscl(rebin(contmap['tot'],dx*samplefac,dy*samplefac,/sample),$
+      mapscl = cgimgscl(rebin(contmap['tot',plotwin[0]-1:plotwin[2]-1,$
+         plotwin[1]-1:plotwin[3]-1],dxwin*samplefac,dywin*samplefac,/sample),$
                         minval=imzran[0],max=imzran[1],$
                         stretch=initmaps.ct.stretch, beta=beta)
       cgloadct,65,/reverse
@@ -2511,7 +2480,7 @@ contmap = hash()
           cgoplot,peakfit_pix_ifs[0],peakfit_pix_ifs[1],psym=1,color='Red'         
       cgtext,dx*0.05,dy*0.95,'Total',color='white'
       cgtext,dx*0.05,dy*0.05,capran,/data,color='white'
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
 
       iplot++
 
@@ -2535,7 +2504,8 @@ contmap = hash()
          cgtext,max(map_rkpc_ifs)*0.9d,zran[1]-0.3d*dzran,'$\gamma$='+$
                 string(qso_fitpar[7],format='(D0.1)'),align=1d
 
-         mapscl = cgimgscl(rebin(contmap['psf'],dx*samplefac,dy*samplefac,/sample),$
+         mapscl = cgimgscl(rebin(contmap['psf',plotwin[0]-1:plotwin[2]-1,$
+                plotwin[1]-1:plotwin[3]-1],dxwin*samplefac,dywin*samplefac,/sample),$
                         minval=imzran[0],max=imzran[1],$
                         stretch=initmaps.ct.stretch,beta=beta)
          cgloadct,65,/reverse
@@ -2555,7 +2525,7 @@ contmap = hash()
             cgoplot,peakfit_pix[0],peakfit_pix[1],psym=1,color='Red'         
          endif
          cgtext,dx*0.05,dy*0.95,'PSF',color='white'
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
 
          iplot++
@@ -2576,7 +2546,8 @@ contmap = hash()
          if tag_exist(initdat,'decompose_qso_fit') then $
             cgoplot,psf1d_x,psf1d_y,color='Red'
 
-         mapscl = cgimgscl(rebin(contmap['host'],dx*samplefac,dy*samplefac,/sample),$
+         mapscl = cgimgscl(rebin(contmap['host',plotwin[0]-1:plotwin[2]-1,$
+            plotwin[1]-1:plotwin[3]-1],dxwin*samplefac,dywin*samplefac,/sample),$
             minval=imzran[0],max=imzran[1],stretch=initmaps.ct.stretch,beta=beta)
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,iplot],opos=truepos,$
@@ -2586,7 +2557,7 @@ contmap = hash()
             yran=[0.5,dy+0.5],position=truepos,$
             /nodata,/noerase
          cgtext,dx*0.05,dy*0.95,'Stellar+Poly',color='white'
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
             center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
 
          iplot++
@@ -2607,7 +2578,8 @@ contmap = hash()
          if tag_exist(initdat,'decompose_qso_fit') then $
             cgoplot,psf1d_x,psf1d_y,color='Red'
          
-         mapscl = cgimgscl(rebin(contmap['stel'],dx*samplefac,dy*samplefac,/sample),$
+         mapscl = cgimgscl(rebin(contmap['stel',plotwin[0]-1:plotwin[2]-1,$
+            plotwin[1]-1:plotwin[3]-1],dxwin*samplefac,dywin*samplefac,/sample),$
                         minval=imzran[0],max=imzran[1],$
                         stretch=initmaps.ct.stretch,beta=beta)
          cgloadct,65,/reverse
@@ -2618,7 +2590,7 @@ contmap = hash()
                 yran=[0.5,dy+0.5],position=truepos,$
                 /nodata,/noerase
          cgtext,dx*0.05,dy*0.95,'Stellar',color='white'
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
 
          iplot++
@@ -2639,7 +2611,8 @@ contmap = hash()
          if tag_exist(initdat,'decompose_qso_fit') then $
             cgoplot,psf1d_x,psf1d_y,color='Red'
 
-         mapscl = cgimgscl(rebin(contmap['poly'],dx*samplefac,dy*samplefac,/sample),$
+         mapscl = cgimgscl(rebin(contmap['poly',plotwin[0]-1:plotwin[2]-1,$
+            plotwin[1]-1:plotwin[3]-1],dxwin*samplefac,dywin*samplefac,/sample),$
             minval=imzran[0],max=imzran[1],stretch=initmaps.ct.stretch,beta=beta)
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,iplot],opos=truepos,$
@@ -2649,7 +2622,7 @@ contmap = hash()
             yran=[0.5,dy+0.5],position=truepos,$
             /nodata,/noerase
          cgtext,dx*0.05,dy*0.95,'Poly',color='white'
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
             center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
 
       endif
@@ -3551,7 +3524,9 @@ contmap = hash()
                          charsize=1,/encap,/inches,xs=xsize_in,ys=ysize_in,/qui,/nomatch
                cbform = '(D0.2)'
 
-               mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+               mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                                min=plotdat[0],max=plotdat[1])
                cgloadct,74,/reverse
                cgimage,mapscl,/keep,pos=pos,opos=truepos,$
@@ -3559,7 +3534,7 @@ contmap = hash()
                        missing_color='white'
                cgplot,[0],xsty=5,ysty=5,position=truepos,$
                       /nodata,/noerase
-               ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+               ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                                 center_nuclei_kpc_x,center_nuclei_kpc_y
                xoffset = pan_xfrac*0.05
                yoffset = mar_yfrac*0.2
@@ -3742,7 +3717,11 @@ contmap = hash()
             lrsort=!NULL
             npx=lr[fluxtype].count()
             is2 = where(lr[fluxtype].keys() eq 's2',cts2)
+            io2 = where(lr[fluxtype].keys() eq 'o2',cto2)
+            io3o2 = where(lr[fluxtype].keys() eq 'o3o2',cto3o2)
             if cts2 gt 0 then npx--
+            if cto2 gt 0 then npx--
+            if cto3o2 gt 0 then npx--
             npy=1
             for j=0,n_elements(plotorder)-1 do begin
                ilr = where(lrtype eq plotorder[j],ctlr)
@@ -3822,7 +3801,9 @@ contmap = hash()
                                     rncbdiv=rangencbdiv,$
                                     rlo=rangelo,rhi=rangehi)
    
-                  mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+                  mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                                   min=plotdat[0],max=plotdat[1])
                   cgloadct,74,/reverse
                   cgimage,mapscl,/keep,pos=pos_top[*,j],opos=truepos,$
@@ -3831,7 +3812,7 @@ contmap = hash()
                   cgplot,[0],xsty=5,ysty=5,position=truepos,$
                          /nodata,/noerase
                   if j eq 0 then nolab=0b else nolab=1b
-                  ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+                  ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                                       center_nuclei_kpc_y,nolab=nolab
                   xoffset = pan_xfrac*0.05
                   yoffset = mar_yfrac*0.2
@@ -3961,7 +3942,9 @@ contmap = hash()
                      rncbdiv=rangencbdiv,$
                      rlo=rangelo,rhi=rangehi)
 
-               mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+               mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                   min=plotdat[0],max=plotdat[1])
                cgps_open,initdat.mapdir+initdat.label+'lr_'+lrlab+'_'+fluxtype+$
                   '.eps',charsize=1,/encap,/inches,$
@@ -3973,7 +3956,7 @@ contmap = hash()
                   missing_index=255,missing_color='white',pos=pos[*,0]
                cgplot,[0],xsty=5,ysty=5,position=truepos,$
                   /nodata,/noerase
-               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+               ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                   center_nuclei_kpc_y
                cbpos=[pos[2,0]-0.02,pos[1,0],pos[2,0],pos[3,0]]
                ticknames = string(dindgen(plotdat[3]+1)*$
@@ -4233,7 +4216,9 @@ contmap = hash()
       map_nadabs_empweq = map
       map_nadabs_empweq_err = maperr
 
-      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                       min=plotdat[0],max=plotdat[1])
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_top[*,0],opos=truepos,$
@@ -4241,7 +4226,7 @@ contmap = hash()
               missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
              /nodata,/noerase
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                        center_nuclei_kpc_x,center_nuclei_kpc_y,/noxlab
       xoffset = pan_xfrac*0.05
       yoffset = mar_yfrac*0.2
@@ -4295,7 +4280,9 @@ contmap = hash()
 ;        Save some things for later
          plotdat_nadabs_fitweq = plotdat
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_top[*,1],opos=truepos,$
@@ -4303,7 +4290,7 @@ contmap = hash()
                  missing_color='white',/noerase
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -4362,7 +4349,9 @@ contmap = hash()
                         rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
 
-      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                       min=plotdat[0],max=plotdat[1])
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_top[*,2],opos=truepos,$
@@ -4370,7 +4359,7 @@ contmap = hash()
               missing_color='white',/noerase
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
              /nodata,/noerase
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                        center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
       xoffset = pan_xfrac*0.05
       yoffset = mar_yfrac*0.2
@@ -4463,7 +4452,9 @@ contmap = hash()
                            rquant=rangequant,matquant=ranlab,$
                            rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,0],opos=truepos,$
@@ -4471,7 +4462,7 @@ contmap = hash()
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                           center_nuclei_kpc_y,/noxlab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -4520,7 +4511,9 @@ contmap = hash()
                            rquant=rangequant,matquant=ranlab,$
                            rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,74,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,1],opos=truepos,$
@@ -4534,7 +4527,7 @@ contmap = hash()
          cgcontour,maptmp,dindgen(dx)+0.5,dindgen(dy)+0.5,$
                    /overplot,color=0,c_thick=4,$
                    levels=[1d]
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                           center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -4584,7 +4577,9 @@ contmap = hash()
                            rquant=rangequant,matquant=ranlab,$
                            rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,74,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,2],opos=truepos,$
@@ -4598,7 +4593,7 @@ contmap = hash()
          cgcontour,maptmp,dindgen(dx)+0.5,dindgen(dy)+0.5,$
                    /overplot,color=0,c_thick=4,$
                    levels=[1d]
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                           center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -4647,7 +4642,9 @@ contmap = hash()
                            rquant=rangequant,matquant=ranlab,$
                            rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,74,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,3],opos=truepos,$
@@ -4655,7 +4652,7 @@ contmap = hash()
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                           center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -4782,7 +4779,9 @@ contmap = hash()
 ;     Save some things for later
       plotdat_nadem_empweq = plotdat
 
-      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                       min=plotdat[0],max=plotdat[1])
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_top[*,0],opos=truepos,$
@@ -4790,7 +4789,7 @@ contmap = hash()
               missing_color='white'
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
              /nodata,/noerase
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                        center_nuclei_kpc_x,center_nuclei_kpc_y,/noxlab
       xoffset = pan_xfrac*0.05
       yoffset = mar_yfrac*0.2
@@ -4855,7 +4854,9 @@ contmap = hash()
 ;        Save some things for later
          plotdat_nadem_fitweq = plotdat
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_top[*,1],opos=truepos,$
@@ -4863,7 +4864,7 @@ contmap = hash()
                  missing_color='white',/noerase
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -4904,7 +4905,9 @@ contmap = hash()
                         rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
 
-      mapscl = bytscl(rebin(mapsnr,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = bytscl(rebin(mapsnr[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                       min=plotdat[0],max=plotdat[1])
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_top[*,2],opos=truepos,$
@@ -4912,7 +4915,7 @@ contmap = hash()
               missing_color='white',/noerase
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
              /nodata,/noerase
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                        center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
       xoffset = pan_xfrac*0.05
       yoffset = mar_yfrac*0.2
@@ -5010,7 +5013,9 @@ contmap = hash()
 ;     Save some things for later
       plotdat_nadem_empflux = plotdat
 
-      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                       min=plotdat[0],max=plotdat[1])
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_mid[*,0],opos=truepos,$
@@ -5018,7 +5023,7 @@ contmap = hash()
               missing_color='white',/noerase
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
              /nodata,/noerase
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                        center_nuclei_kpc_x,center_nuclei_kpc_y,/noxlab
       xoffset = pan_xfrac*0.05
       yoffset = mar_yfrac*0.2
@@ -5092,7 +5097,9 @@ contmap = hash()
          map_nadem_fitflux_errlo = maperrlo
          map_nadem_fitflux_errhi = maperrhi
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_mid[*,1],opos=truepos,$
@@ -5100,7 +5107,7 @@ contmap = hash()
                  missing_color='white',/noerase
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                           center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -5141,7 +5148,9 @@ contmap = hash()
                         rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
 
-      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                       min=plotdat[0],max=plotdat[1])
       cgloadct,65,/reverse
       cgimage,mapscl,/keep,pos=pos_mid[*,2],opos=truepos,$
@@ -5149,7 +5158,7 @@ contmap = hash()
               missing_color='white',/noerase
       cgplot,[0],xsty=5,ysty=5,position=truepos,$
              /nodata,/noerase
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,$
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,$
                        center_nuclei_kpc_x,center_nuclei_kpc_y,/nolab
       xoffset = pan_xfrac*0.05
       yoffset = mar_yfrac*0.2
@@ -5230,7 +5239,9 @@ contmap = hash()
                            rquant=rangequant,matquant=ranlab,$
                            rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,65,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,0],opos=truepos,$
@@ -5238,7 +5249,7 @@ contmap = hash()
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                           center_nuclei_kpc_y,/noxlab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -5287,7 +5298,9 @@ contmap = hash()
                            rquant=rangequant,matquant=ranlab,$
                            rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,74,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,1],opos=truepos,$
@@ -5301,7 +5314,7 @@ contmap = hash()
          cgcontour,maptmp,dindgen(dx)+0.5,dindgen(dy)+0.5,$
                    /overplot,color=0,c_thick=4,$
                    levels=[1d]
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                           center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -5351,7 +5364,9 @@ contmap = hash()
                            rquant=rangequant,matquant=ranlab,$
                            rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,74,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,2],opos=truepos,$
@@ -5365,7 +5380,7 @@ contmap = hash()
          cgcontour,maptmp,dindgen(dx)+0.5,dindgen(dy)+0.5,$
                    /overplot,color=0,c_thick=4,$
                    levels=[1d]
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                           center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -5414,7 +5429,9 @@ contmap = hash()
                            rquant=rangequant,matquant=ranlab,$
                            rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
 
-         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+         mapscl = bytscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                dxwin*samplefac,dywin*samplefac,/sample),$
                          min=plotdat[0],max=plotdat[1])
          cgloadct,74,/reverse
          cgimage,mapscl,/keep,pos=pos_bot[*,3],opos=truepos,$
@@ -5422,7 +5439,7 @@ contmap = hash()
                  missing_color='white'
          cgplot,[0],xsty=5,ysty=5,position=truepos,$
                 /nodata,/noerase
-         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,$
+         ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,$
                           center_nuclei_kpc_y,/nolab
          xoffset = pan_xfrac*0.05
          yoffset = mar_yfrac*0.2
@@ -5454,550 +5471,6 @@ contmap = hash()
 
       cgps_close
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; W_eq (empirical)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;
-;      if maxnademncomp_act gt 0 then ny=3 else ny=1
-;
-;      cgps_open,initdat.mapdir+initdat.label+'NaDempweq.eps',charsize=1,/encap,$
-;         /inches,xs=plotquantum*2,ys=plotquantum*ny*aspectrat,/qui
-;
-;      pos = cglayout([2,ny],ixmar=[2,2],iymar=[2,2],oxmar=[0,0],oymar=[0,0],$
-;         xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-;      cbform = '(I0)'
-;
-;;
-;;     ABSORPTION
-;;
-;      map = nadcube.weq[*,*,0]
-;      igd = where(map ge initmaps.nadabsweq_snrthresh*nadcube.weq[*,*,1] AND $
-;                  map gt 0d AND map ne bad)
-;      ibd = where(map lt initmaps.nadabsweq_snrthresh*nadcube.weq[*,*,1] OR $
-;                  map eq 0d OR map eq bad)
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDabs' AND $
-;                           rangequant eq 'empweq',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points
-;      map[ibd] = bad
-;
-;;     Save some things for later
-;      zran_empweqabs = zran
-;      map_empweqabs = map
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;                      min=zran[0],max=zran[1])
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,0],opos=truepos,$
-;         missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;;         /nodata,/noerase,title='W$\down eq$(NaD abs, $\angstrom$)'
-;         /nodata,/noerase,title=textoidl('W_{eq}^{abs}')+' ($\angstrom$)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;;     Error
-;      err = nadcube.weq[*,*,1]
-;      map[igd] /= err[igd]
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDabs' AND $
-;            rangequant eq 'weqsnr',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,10d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,1],opos=truepos,$
-;         /noerase,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title=textoidl('W_{eq}^{abs}/\deltaW')
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;;
-;;     EMISSION
-;;
-;
-;      if ny gt 1 then begin
-;
-;      map = nadcube.weq[*,*,2]
-;      igd = where(abs(map) ge initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] AND $
-;                  abs(map) gt 0d AND map ne bad)
-;      ibd = where(abs(map) lt initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] OR $
-;                  map eq 0d OR map eq bad)
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDem' AND $
-;            rangequant eq 'weq',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points
-;      map[ibd] = bad
-;
-;;     Save some things for later
-;      zran_empweqem = zran
-;      map_empweqem = map
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,65
-;      cgimage,mapscl,/keep,pos=pos[*,2],opos=truepos,$
-;         /noerase,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title=textoidl('W_{eq}^{em}')+' ($\angstrom$)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;;     Error
-;      err = nadcube.weq[*,*,3]
-;      map[igd] /= -err[igd]
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDem' AND $
-;            rangequant eq 'weqsnr',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,3],opos=truepos,$
-;         /noerase,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title=textoidl('W_{eq}^{em}/\deltaW')
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;
-;
-;;     Flux
-;      cbform = '(D0.2)'
-;      map = nadcube.emflux[*,*,0]
-;      igd = where(abs(nadcube.weq[*,*,2]) ge $
-;                  initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] AND $
-;                  abs(map) gt 0d AND map ne bad)
-;      ibd = where(abs(nadcube.weq[*,*,2]) lt $
-;                  initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] OR $
-;                  map eq 0d OR map eq bad)
-;
-;      if tag_exist(initmaps,'fluxfactor') then $
-;         map[igd] *= initmaps.fluxfactor
-;         
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDem' AND $
-;            rangequant eq 'flux',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;      
-;;     replace bad points
-;      map[ibd] = bad
-;
-;;     Save some things for later
-;      zran_empfluxem = zran
-;      map_empfluxem = map
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,4],opos=truepos,$
-;         /noerase,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,$
-;         title=textoidl('I^{em} / 10^{-16}')
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;      endif
-;
-;      cgps_close
-;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; W_eq (fits)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;      if maxnademncomp_act gt 0 then ny=3 else ny=1
-;
-;      cgps_open,initdat.mapdir+initdat.label+'NaDfitweq.eps',charsize=1,/encap,$
-;         /inches,xs=plotquantum*2,ys=plotquantum*ny*aspectrat,/qui
-;
-;      pos = cglayout([2,ny],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
-;         xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-;      cbform = '(I0)'
-;
-;;
-;;     ABSORPTION
-;;
-;      map = nadfit.weqabs[*,*,0]
-;      maperrlo = nadfit.weqabserr[*,*,0]
-;      maperrhi = nadfit.weqabserr[*,*,1]
-;      maperravg = (maperrlo + maperrhi) / 2d
-;      maperrlo_emp = nadcube.weq[*,*,1]
-;      maperrhi_emp = nadcube.weq[*,*,1]
-;      igd = where(map gt 0d AND $
-;                  map ne bad AND $
-;                  map ge initmaps.nadabsweq_snrthresh*maperravg)
-;      ibd = where(map eq 0d OR $
-;                  map eq bad OR $
-;                  map lt initmaps.nadabsweq_snrthresh*maperravg)
-;      igd_nadfitabsweq = igd
-;      ibd_nadfitabsweq = ibd
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDabs' AND $
-;                           rangequant eq 'fitweq',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;      zran_fitweqabs = zran
-;
-;;     replace bad points
-;      map[ibd] = bad
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;                      min=zran[0],max=zran[1])
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,0],opos=truepos,$
-;         missing_value=bad,missing_index=255,missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title=textoidl('W_{eq}^{abs}')+' ($\angstrom$)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      ifsf_plotcompass,xarr_kpc,yarr_kpc
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;      ibderr = where(map eq 0d OR map eq bad OR $
-;                     map_empweqabs eq 0d OR map_empweqabs eq bad)
-;      maperrlo[ibderr] = 0d
-;      maperrhi[ibderr] = 0d
-;      maperrlo_emp[ibderr] = 0d
-;      maperrhi_emp[ibderr] = 0d
-;
-;      igd_empweqabs = where(map_empweqabs ne bad)
-;      xran = [0d,max([map[igd],map_empweqabs[igd_empweqabs]])*1.1d]
-;      yran = xran
-;      cgplot,map_empweqabs,map,/xsty,/ysty,$
-;         xran=xran,yran=yran,psym=3,pos=pos[*,1],$
-;         xtit=textoidl('W_{eq}^{abs} (empirical)'),$
-;         ytit=textoidl('W_{eq}^{abs} (fit)'),$
-;         /noerase,aspect=1d,$
-;         chars=0.8,err_width=0,err_color='Gray',/err_clip,$
-;         err_xlow=maperrlo_emp,err_xhigh=maperrhi_emp,$
-;         err_ylow=maperrlo,err_yhigh=maperrhi
-;      cgoplot,map_empweqabs,map,psym=16,symsize=0.4
-;      cgoplot,xran,xran
-;      inz = where(map ne 0d AND map ne bad AND $
-;                  map_empweqabs ne 0d AND map_empweqabs ne bad)
-;      weq_rms = sqrt(mean((map[inz]-map_empweqabs[inz])^2d))
-;      cgoplot,xran-weq_rms,xran,linesty=3
-;      cgoplot,xran+weq_rms,xran,linesty=3
-;;
-;;     EMISSION
-;;
-;
-;      if ny gt 1 then begin
-;
-;      map = nadfit.weqem[*,*,0]
-;      maperrlo = nadfit.weqemerr[*,*,0]
-;      maperrhi = nadfit.weqemerr[*,*,1]
-;      maperravg = (maperrlo + maperrhi)/2d
-;      maperrlo_emp = nadcube.weq[*,*,3]
-;      maperrhi_emp = nadcube.weq[*,*,3]
-;;      igd = where(abs(map) gt 0d AND map ne bad)
-;;      ibd = where(map eq 0d OR map eq bad)
-;      igd = where(abs(map) gt 0d AND $
-;                  map ne bad)
-;      ibd = where(map eq 0d OR $
-;                  map eq bad)
-;      igd_nadfitemweq = igd
-;      ibd_nadfitemweq = ibd
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDem' AND $
-;            rangequant eq 'weq',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,2d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points
-;      map[ibd] = 0d
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,65
-;      cgimage,mapscl,/keep,pos=pos[*,2],opos=truepos,$
-;         /noerase,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title=textoidl('W_{eq}^{em}')+' ($\angstrom$)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;      ibderr = where(map eq 0d OR map eq bad OR $
-;                     map_empweqem eq 0d OR map_empweqem eq bad)
-;      maperrlo[ibderr] = 0d
-;      maperrhi[ibderr] = 0d
-;      maperrlo_emp[ibderr] = 0d
-;      maperrhi_emp[ibderr] = 0d
-;
-;      igd_empweqem = where(map_empweqem ne bad)
-;      xran = [min([map[igd],map_empweqem[igd_empweqem]])*1.1d,0d]
-;      yran = xran
-;      cgplot,map_empweqem,map,/xsty,/ysty,xran=xran,yran=yran,psym=3,$
-;         pos=pos[*,3],/noerase,aspect=1d,$
-;         xtit=textoidl('W_{eq}^{em} (empirical)'),$
-;         ytit=textoidl('W_{eq}^{em} (fit)'),$    
-;         chars=0.8d,err_color='Gray',err_width=0,/err_clip,$
-;         err_xlow=maperrlo_emp,err_xhigh=maperrhi_emp,$
-;         err_ylow=maperrlo,err_yhigh=maperrhi
-;      cgoplot,map_empweqem,map,psym=16,symsize=0.4d
-;      cgoplot,xran,xran
-;      inz = where(map ne 0d AND map ne bad AND $
-;                  map_empweqem ne 0d AND map_empweqem ne bad)
-;      weq_rms = sqrt(mean((map[inz]-map_empweqem[inz])^2d))
-;      cgoplot,xran-weq_rms,xran,linesty=3
-;      cgoplot,xran+weq_rms,xran,linesty=3
-;
-;
-;;     Flux
-;      cbform = '(D0.2)'
-;      map = nadfit.totfluxem[*,*,0]
-;      maperrlo = nadfit.totfluxemerr[*,*,0]
-;      maperrhi = nadfit.totfluxemerr[*,*,1]
-;      maperrlo_emp = nadcube.emflux[*,*,1]
-;      maperrhi_emp = nadcube.emflux[*,*,1]
-;;      igd = where(abs(map) gt 0d AND map ne bad)
-;;      ibd = where(map eq 0d OR map eq bad)
-;      igd = igd_nadfitemweq
-;      ibd = ibd_nadfitemweq
-;
-;      if tag_exist(initmaps,'fluxfactor') then $
-;         map[igd] *= initmaps.fluxfactor
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDem' AND $
-;            rangequant eq 'flux',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [0,max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,initmaps.nademflux_cbint,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;      
-;;     replace bad points
-;      map[ibd] = bad
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,4],opos=truepos,$
-;         /noerase,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title='I$\upem$ / 10$\up-16$'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;      igderr = where(map ne 0d AND map ne bad AND $
-;                     map_empfluxem ne 0d AND map_empfluxem ne bad)
-;      ibderr = where(map eq 0d OR map eq bad OR $
-;                     map_empfluxem eq 0d OR map_empfluxem eq bad)
-;      maperrlo[ibderr] = 0d
-;      maperrhi[ibderr] = 0d
-;      maperrlo_emp[ibderr] = 0d
-;      maperrhi_emp[ibderr] = 0d
-;      if tag_exist(initmaps,'fluxfactor') then begin
-;         maperrlo[igderr] *= initmaps.fluxfactor
-;         maperrhi[igderr] *= initmaps.fluxfactor
-;         maperrlo_emp[igderr] *= initmaps.fluxfactor
-;         maperrhi_emp[igderr] *= initmaps.fluxfactor
-;      endif
-;
-;      igd_empfluxem = where(map_empfluxem ne bad)
-;      xyran = [0d,max([map[igd],map_empfluxem[igd_empfluxem]])*1.1d]
-;      cgplot,map_empfluxem,map,/xsty,/ysty,xran=xyran,yran=xyran,psym=3,$
-;         pos=pos[*,5],xtit='I$\upem$ / 10$\up-16$ (empirical)',$
-;         ytit='I$\upem$ / 10$\up-16$ (fit)',/noerase,aspect=1d,$
-;         chars=0.8d,err_color='Gray',err_width=0,/err_clip,$
-;         err_xlow=maperrlo_emp,err_xhigh=maperrhi_emp,$
-;         err_ylow=maperrlo,err_yhigh=maperrhi
-;      cgoplot,map_empfluxem,map,psym=16,symsize=0.4d
-;      cgoplot,xyran,xyran
-;      inz = where(map ne 0d AND map ne bad AND $
-;                  map_empfluxem ne 0d AND map_empfluxem ne bad)
-;      weq_rms = sqrt(mean((map[inz]-map_empfluxem[inz])^2d))
-;      cgoplot,xyran-weq_rms,xyran,linesty=3
-;      cgoplot,xyran+weq_rms,xyran,linesty=3
-;
-;      endif
-;
-;      cgps_close
-;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; components (fits)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -6017,13 +5490,15 @@ contmap = hash()
       dzran = zran[1]-zran[0]
       cbform = '(I0)'
 
-      mapscl = cgimgscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
+      mapscl = cgimgscl(rebin(map[plotwin[0]-1:plotwin[2]-1,$
+                                         plotwin[1]-1:plotwin[3]-1],$
+                                         dxwin*samplefac,dywin*samplefac,/sample),$
                         minval=zran[0],maxval=zran[1],ncolors=3)
       cgloadct,8,/brewer,ncolors=3
       cgimage,mapscl,pos=pos[*,0]
       cgplot,[0],xsty=5,ysty=5,pos=pos[*,0],$
          /nodata,/noerase ;,title=textoidl('N_{comp}^{abs}')
-      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
+      ifsf_plotaxesnuc,xwinran_kpc,ywinran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
       cbpos=[pos[2,0],pos[1,0],pos[2,0]+0.02,pos[3,0]]
       ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
          (dzran - zran[1]),format=cbform)
@@ -6033,675 +5508,6 @@ contmap = hash()
              align=0.5
          
       cgps_close
-      
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; velocity (empirical)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;      if maxnademncomp_act gt 0 then ny=3 else ny=1
-;
-;      cgps_open,initdat.mapdir+initdat.label+'NaDempvel.eps',charsize=1,/encap,$
-;         /inches,xs=plotquantum*3,ys=plotquantum*ny*aspectrat,/qui
-;
-;      pos = cglayout([3,ny],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
-;         xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-;      cbform = '(I0)'
-;
-;;
-;;     ABSORPTION
-;;
-;      map = nadcube.vel[*,*,0]
-;      igd = where(nadcube.weq[*,*,0] ge initmaps.nadabsweq_snrthresh*nadcube.weq[*,*,1] $
-;                  AND map gt 0d AND map ne bad)
-;      ibd = where(nadcube.weq[*,*,0] lt initmaps.nadabsweq_snrthresh*nadcube.weq[*,*,1] $
-;                  OR map eq 0d OR map eq bad)
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDabs' AND $
-;            rangequant eq 'empvwidth',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,200d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points with "bad"
-;      map[ibd] = bad
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,0],opos=truepos,$
-;         noerase=i ne 0,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title='$\Delta$v(NaD abs, km/s)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;      map = nadcube.vel[*,*,1]
-;      igd = where(nadcube.weq[*,*,0] ge initmaps.nadabsweq_snrthresh*nadcube.weq[*,*,1] $
-;                  AND map ne bad)
-;      ibd = where(nadcube.weq[*,*,0] lt initmaps.nadabsweq_snrthresh*nadcube.weq[*,*,1] $
-;                  OR map eq bad)
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDabs' AND $
-;            rangequant eq 'empvavg',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points with "bad"
-;      map[ibd] = bad
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,74,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,1],opos=truepos,$
-;         noerase=i ne 0,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title='<v>(NaD abs, km/s)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;
-;      map = nadcube.vel[*,*,2]
-;      igd = where(nadcube.weq[*,*,0] ge initmaps.nadabsweq_snrthresh*nadcube.weq[*,*,1] $
-;                  AND map ne bad)
-;      ibd = where(nadcube.weq[*,*,0] lt initmaps.nadabsweq_snrthresh*nadcube.weq[*,*,1] $
-;                  OR map eq bad)
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDabs' AND $
-;            rangequant eq 'empvmax',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points with "bad"
-;      map[ibd] = bad
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,74,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,2],opos=truepos,$
-;         noerase=i ne 0,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title='v$\downmax$(NaD abs, km/s)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;;
-;;     EMISSION
-;;
-;
-;      if ny gt 1 then begin
-;
-;      map = nadcube.vel[*,*,3]
-;      igd = where(abs(nadcube.weq[*,*,2]) ge $
-;                  initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] $
-;                  AND map gt 0d AND map ne bad)
-;      ibd = where(abs(nadcube.weq[*,*,2]) lt $
-;                  initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] $
-;                  OR map eq 0d OR map eq bad)
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDem' AND $
-;            rangequant eq 'empvelwid',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,200d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points with "bad"
-;      map[ibd] = bad
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,65,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,3],opos=truepos,$
-;         noerase=i ne 0,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title='$\Delta$v(NaD em, km/s)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;      map = nadcube.vel[*,*,4]
-;      igd = where(abs(nadcube.weq[*,*,2]) ge $
-;                  initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] $
-;                  AND map ne bad)
-;      ibd = where(abs(nadcube.weq[*,*,2]) lt $
-;                  initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] $
-;                  OR map eq bad)
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDem' AND $
-;            rangequant eq 'empvelavg',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points with "bad"
-;      map[ibd] = bad
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,74,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,4],opos=truepos,$
-;         noerase=i ne 0,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title='<v>(NaD em, km/s)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;      map = nadcube.vel[*,*,5]
-;      igd = where(abs(nadcube.weq[*,*,2]) ge $
-;                  initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] $
-;                  AND map ne bad)
-;      ibd = where(abs(nadcube.weq[*,*,2]) lt $
-;                  initmaps.nademweq_snrthresh*nadcube.weq[*,*,3] $
-;                  OR map eq bad)
-;
-;;     Set up range
-;;     Check for manual range first ...
-;      hasrange = 0
-;      if hasrangefile then begin
-;         ithisline = where(rangeline eq 'NaDem' AND $
-;            rangequant eq 'empvelmax',ctthisline)
-;         if ctthisline eq 1 then begin
-;            zran = [rangelo[ithisline],rangehi[ithisline]]
-;            dzran = zran[1]-zran[0]
-;            ncbdiv = rangencbdiv[ithisline]
-;            ncbdiv = ncbdiv[0]
-;            hasrange = 1
-;         endif
-;      endif
-;;     otherwise set it automagically.
-;      if ~hasrange then begin
-;         zran = [min(map[igd]),max(map[igd])]
-;         divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-;         ncbdiv = divarr[0]
-;         dzran = zran[1]-zran[0]
-;      endif
-;
-;;     replace bad points with "bad"
-;      map[ibd] = bad
-;
-;      mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;         min=zran[0],max=zran[1])
-;      cgloadct,74,/reverse
-;      cgimage,mapscl,/keep,pos=pos[*,5],opos=truepos,$
-;         noerase=i ne 0,missing_value=bad,missing_index=255,$
-;         missing_color='white'
-;      cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;         /nodata,/noerase,title='v$\downmax$(NaD em, km/s)'
-;      ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;      cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;      ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;         (dzran - zran[1]),format=cbform)
-;      cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;         ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;      endif
-;
-;      cgps_close
-;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; velocity (fits)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;      nx = 3
-;      nyabs=0
-;      if maxnadabsncomp_act gt 0 then begin
-;         if donadabsonecomp then nyabs=1
-;         if donadabsmulticomp then nyabs+=maxnadabsncomp_act
-;      endif
-;      nyem=0
-;      if maxnademncomp_act gt 0 then begin
-;         if donademonecomp then nyem=1
-;         if donademmulticomp then nyem+=maxnademncomp_act
-;      endif
-;      ny = nyabs+nyem
-;
-;      cgps_open,initdat.mapdir+initdat.label+'NaDfitvel.eps',charsize=1,/encap,$
-;                /inches,xs=plotquantum*nx,ys=plotquantum*ny*aspectrat,/qui
-;
-;      pos = cglayout([nx,ny],ixmar=[2,3],iymar=[2,2],oxmar=[2,0],oymar=[0,2],$
-;                     xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-;      cbform = '(I0)'
-;      abslab = ['Abs (1 Comp)']
-;      if nyabs gt 1 then $
-;         for i=1,nyabs-1 do $
-;            abslab = [abslab,string('Abs (',i,' of ',nyabs-1,' Comp)',$
-;                                    format=('(A0,I0,A0,I0,A0)'))]
-;      emlab = ['Em (1 Comp)']
-;      if nyem gt 1 then $
-;         for i=1,nyem-1 do $
-;            emlab = [emlab,string('Em (',i,' of ',nyem-1,' Comp)',$
-;                                  format=('(A0,I0,A0,I0,A0)'))]
-;
-;;
-;;     ABSORPTION
-;;
-;      for i=0,nyabs-1 do begin
-;;        sigma
-;         map = nadabssig[*,*,i]
-;;         igd = where(map ne bad)
-;;         ibd = where(map eq bad)
-;         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
-;         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
-;         if ctgd_thiscomp gt 0 then $
-;            igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp) $
-;         else igd=igd_nadfitabsweq
-;         if ctbd_thiscomp gt 0 then $
-;            ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp) $
-;         else ibd = ibd_nadfitabsweq
-;         map[ibd] = bad
-;;        Set up range
-;         ranlab = 'fitc'+string(i,format='(I0)')+'vsig'
-;         if hasrangefile then begin
-;            ithisline = where(rangeline eq 'NaDabs' AND $
-;                              rangequant eq ranlab,ctthisline)
-;            if ctthisline eq 1 then auto=0b
-;         endif else auto=1b
-;         plotdat = $
-;            ifsf_plotrange(auto=auto,$
-;                           mapgd=map[igd],divinit=100d,ncbdivmax=ncbdivmax,$
-;                           rline=rangeline,matline='NaDabs',$
-;                           rquant=rangequant,matquant=ranlab,$
-;                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
-;         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;                         min=plotdat[0],max=plotdat[1])
-;         cgloadct,65,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,0+i*nx],opos=truepos,$
-;                 noerase=i ne 0,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         if i eq 0 then begin
-;            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
-;                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
-;                  '$\sigma$ (km/s)',chars=1.25,align=0.5
-;            ifsf_plotcompass,xarr_kpc,yarr_kpc
-;         endif
-;         cgtext,xran_kpc[0]-0.17*(xran_kpc[1]-xran_kpc[0]),$
-;                (yran_kpc[0]+yran_kpc[1])/2d,$
-;                abslab[i],align=0.5,orient=90d,chars=1.25
-;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-;                            (plotdat[2] - plotdat[1]),format=cbform)
-;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-;                    ticknames=ticknames,/ver,/right,charsize=0.6
-;         
-;;        v50
-;         map = nadabsvel[*,*,i]
-;;         igd = where(map ne bad)
-;;         ibd = where(map eq bad)
-;         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
-;         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
-;         if ctgd_thiscomp gt 0 then $
-;            igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp) $
-;         else igd=igd_nadfitabsweq
-;         if ctbd_thiscomp gt 0 then $
-;            ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp) $
-;         else ibd = ibd_nadfitabsweq
-;         map[ibd] = bad
-;;        Set up range
-;         ranlab = 'fitc'+string(i,format='(I0)')+'v%50'
-;         if hasrangefile then begin
-;            ithisline = where(rangeline eq 'NaDabs' AND $
-;                              rangequant eq ranlab,ctthisline)
-;            if ctthisline eq 1 then auto=0b
-;         endif else auto=1b
-;         plotdat = $
-;            ifsf_plotrange(auto=auto,$
-;                           mapgd=map[igd],divinit=200d,ncbdivmax=ncbdivmax,$
-;                           rline=rangeline,matline='NaDabs',$
-;                           rcomp=rangecomp,matquant=ranlab,$
-;                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
-;         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;                         min=plotdat[0],max=plotdat[1])
-;;         cgloadct,22,/brewer,/reverse
-;         cgloadct,74,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,1+i*nx],opos=truepos,$
-;                 /noerase,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         if i eq 0 then $
-;            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
-;                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
-;                  'v$\down50$ (km/s)',chars=1.25,align=0.5
-;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-;                            (plotdat[2] - plotdat[1]),format=cbform)
-;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-;                    ticknames=ticknames,/ver,/right,charsize=0.6
-;;        v98
-;         map = nadabsv98[*,*,i]
-;;         igd = where(map ne bad)
-;;         ibd = where(map eq bad)
-;         igd_thiscomp = where(map ne bad,ctgd_thiscomp)
-;         ibd_thiscomp = where(map eq bad,ctbd_thiscomp)
-;         if ctgd_thiscomp gt 0 then $
-;            igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp) $
-;         else igd=igd_nadfitabsweq
-;         if ctbd_thiscomp gt 0 then $
-;            ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp) $
-;         else ibd = ibd_nadfitabsweq
-;         map[ibd] = bad
-;;        Set up range
-;         ranlab = 'fitc'+string(i,format='(I0)')+'v%98'
-;         if hasrangefile then begin
-;            ithisline = where(rangeline eq 'NaDabs' AND $
-;                              rangequant eq ranlab,ctthisline)
-;            if ctthisline eq 1 then auto=0b
-;         endif else auto=1b
-;         plotdat = $
-;            ifsf_plotrange(auto=auto,$
-;                           mapgd=map[igd],divinit=200d,ncbdivmax=ncbdivmax,$
-;                           rline=rangeline,matline='NaDabs',$
-;                           rcomp=rangecomp,matquant=ranlab,$
-;                           rncbdiv=rangencbdiv,rlo=rangelo,rhi=rangehi)
-;         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;            min=plotdat[0],max=plotdat[1])
-;;         cgloadct,22,/brewer,/reverse
-;         cgloadct,74,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,2+i*nx],opos=truepos,$
-;                 /noerase,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         if i eq 0 then $
-;            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
-;                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
-;                  'v$\down98$ (km/s)',chars=1.25,align=0.5
-;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-;                            (plotdat[2] - plotdat[1]),format=cbform)
-;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-;                    ticknames=ticknames,/ver,/right,charsize=0.6
-;;
-;      endfor
-;;
-;;     EMISSION
-;;
-;      for i=0,nyem-1 do begin
-;;        sigma
-;         map = nademsig[*,*,i]
-;;         igd = where(map ne bad)
-;;         ibd = where(map eq bad)
-;         igd_thiscomp = where(map ne bad)
-;         ibd_thiscomp = where(map eq bad)
-;         igd = cgsetintersection(igd_nadfitemweq,igd_thiscomp)
-;         ibd = cgsetunion(ibd_nadfitemweq,ibd_thiscomp)
-;         map[ibd] = bad
-;         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=200d,$
-;                                  ncbdivmax=ncbdivmax)
-;         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;            min=plotdat[0],max=plotdat[1])
-;         cgloadct,65,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,nyabs*nx+i*nx],opos=truepos,$
-;                 /noerase,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         cgtext,xran_kpc[0]-0.17*(xran_kpc[1]-xran_kpc[0]),$
-;                (yran_kpc[0]+yran_kpc[1])/2d,$
-;                emlab[i],align=0.5,orient=90d,chars=1.25
-;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-;                            (plotdat[2] - plotdat[1]),format=cbform)
-;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-;                    ticknames=ticknames,/ver,/right,charsize=0.6
-;;        v50
-;         map = nademvel[*,*,i]
-;;         igd = where(map ne bad)
-;;         ibd = where(map eq bad)
-;         igd_thiscomp = where(map ne bad)
-;         ibd_thiscomp = where(map eq bad)
-;         igd = cgsetintersection(igd_nadfitemweq,igd_thiscomp)
-;         ibd = cgsetunion(ibd_nadfitemweq,ibd_thiscomp)
-;         map[ibd] = bad
-;         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=200d,$
-;                                  ncbdivmax=ncbdivmax)
-;         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;            min=plotdat[0],max=plotdat[1])
-;         cgloadct,22,/brewer,/reverse
-;;         cgloadct,65,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,1+nyabs*nx+i*nx],opos=truepos,$
-;                 /noerase,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-;                            (plotdat[2] - plotdat[1]),format=cbform)
-;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-;                    ticknames=ticknames,/ver,/right,charsize=0.6
-;;        v98
-;         map = nademv98[*,*,i]
-;;         igd = where(map ne bad)
-;;         ibd = where(map eq bad)
-;         igd_thiscomp = where(map ne bad)
-;         ibd_thiscomp = where(map eq bad)
-;         igd = cgsetintersection(igd_nadfitemweq,igd_thiscomp)
-;         ibd = cgsetunion(ibd_nadfitemweq,ibd_thiscomp)
-;         map[ibd] = bad
-;         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=200d,$
-;                                  ncbdivmax=ncbdivmax)
-;         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;            min=plotdat[0],max=plotdat[1])
-;         cgloadct,22,/brewer,/reverse
-;;         cgloadct,65,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,2+nyabs*nx+i*nx],opos=truepos,$
-;                 /noerase,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-;                            (plotdat[2] - plotdat[1]),format=cbform)
-;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-;                    ticknames=ticknames,/ver,/right,charsize=0.6
-;;
-;      endfor
-;
-;      cgps_close
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; tau and C_f
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;      nx = 2
-;      ny = 1
-;;      if donadabsonecomp then ny=1
-;      if donadabsmulticomp then ny+=maxnadabsncomp_act
-;
-;      cgps_open,initdat.mapdir+initdat.label+'NaDfit_taucf.eps',charsize=1,/encap,$
-;                /inches,xs=plotquantum*nx,ys=plotquantum*ny*aspectrat,/qui
-;
-;      pos = cglayout([nx,ny],ixmar=[2,3],iymar=[2,2],oxmar=[2,0],oymar=[0,2],$
-;                     xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-;      abslab = ['Abs (1 Comp)']
-;      if nyabs gt 1 then $
-;         for i=1,nyabs do $
-;            abslab = [abslab,string('Abs (',i,' of ',nyabs,' Comp)',$
-;                                    format=('(A0,I0,A0,I0,A0)'))]
-;
-;      for i=0,ny-1 do begin
-;;        tau
-;         map = nadabstau[*,*,i]
-;;         igd = where(map ne bad)
-;;         ibd = where(map eq bad)
-;         igd_thiscomp = where(map ne bad)
-;         ibd_thiscomp = where(map eq bad)
-;         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
-;         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
-;         map[ibd]=bad
-;         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=0.5d,$
-;                                  ncbdivmax=ncbdivmax)
-;         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;                         min=plotdat[0],max=plotdat[1])
-;         cgloadct,65,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,0+i*nx],opos=truepos,$
-;                 noerase=i ne 0,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         if i eq 0 then begin
-;            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
-;                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
-;                  '$\tau$',chars=1.25,align=0.5
-;            ifsf_plotcompass,xarr_kpc,yarr_kpc
-;         endif
-;         cgtext,xran_kpc[0]-0.17*(xran_kpc[1]-xran_kpc[0]),$
-;                (yran_kpc[0]+yran_kpc[1])/2d,$
-;                abslab[i],align=0.5,orient=90d,chars=1.25
-;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-;                            (plotdat[2] - plotdat[1]),format=cbform)
-;         cbform = '(I0)'
-;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-;                    ticknames=ticknames,/ver,/right,charsize=0.6
-;         
-;;        C_f
-;         map = nadabscf[*,*,i]
-;;         igd = where(map ne bad)
-;;         ibd = where(map eq bad)
-;         igd_thiscomp = where(map ne bad)
-;         ibd_thiscomp = where(map eq bad)
-;         igd = cgsetintersection(igd_nadfitabsweq,igd_thiscomp)
-;         ibd = cgsetunion(ibd_nadfitabsweq,ibd_thiscomp)
-;         map[ibd]=bad
-;         plotdat = ifsf_plotrange(/auto,mapgd=map[igd],divinit=0.2d,$
-;                                  ncbdivmax=ncbdivmax)
-;         mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;                         min=plotdat[0],max=plotdat[1])
-;         cgloadct,65,/reverse
-;         cgimage,mapscl,/keep,pos=pos[*,1+i*nx],opos=truepos,$
-;                 /noerase,missing_value=bad,missing_index=255,$
-;                 missing_color='white'
-;         cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                /nodata,/noerase
-;         ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;         if i eq 0 then $
-;            cgtext,(xran_kpc[0]+xran_kpc[1])/2d,$
-;                   yran_kpc[1]+0.1*(yran_kpc[1]-yran_kpc[0]),$
-;                  'C$\downf$',chars=1.25,align=0.5
-;         cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;         ticknames = string(dindgen(plotdat[3]+1)*plotdat[2]/double(plotdat[3]) - $
-;                            (plotdat[2] - plotdat[1]),format=cbform)
-;         cbform = '(D0.1)'
-;         cgcolorbar,position=cbpos,divisions=plotdat[3],$
-;                    ticknames=ticknames,/ver,/right,charsize=0.6
-;      endfor
-;
-;      cgps_close
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; end NaD plots
@@ -6710,133 +5516,6 @@ contmap = hash()
    endif
 
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Outflow maps
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;
-;   if tag_exist(initmaps,'compof') AND $
-;    ~ tag_exist(initmaps,'noemlinfit') then begin
-;
-;;     Quantities to plot
-;      if tag_exist(initmaps,'cvdf_oftags') then tags=initmaps.cvdf_oftags $
-;      else tags=['f','sig','v50','v84','v98']
-;      if tag_exist(initmaps,'cvdf_oftagtypes') then $
-;         tagtypes=initmaps.cvdf_oftagtypes $
-;      else tagtypes=['flux','vel','vel','vel','vel']
-;      if tag_exist(initmaps,'cvdf_oftitles') then $
-;         titles=initmaps.cvdf_oftitles $
-;      else titles = ['F$\downtot$','$\sigma$','v$\down50$',$
-;                     'v$\down84$','v$\down98$']
-;
-;;     Size of plot grid
-;      if tag_exist(initmaps,'cvdf_ofnpx') then npx=initmaps.cvdf_ofnpx $
-;      else npx=3
-;      if tag_exist(initmaps,'cvdf_ofnpy') then npy=initmaps.cvdf_ofnpy $
-;      else npy=2
-;      
-;;     Loop through emission lines
-;      foreach line,lines_with_doublets do begin
-;
-;         linelab = ifsf_linesyntax(line)
-;         cgps_open,initdat.mapdir+initdat.label+linelab+'_of_c.eps',charsize=1,/encap,$
-;                   /inches,xs=plotquantum*npx,ys=plotquantum*npy*aspectrat,/qui
-;         pos = cglayout([npx,npy],ixmar=[3,3],iymar=[3,3],oxmar=[0,0],oymar=[0,0],$
-;                        xgap=0,ygap=0,unit=!D.X_PX_CM/3.0)
-;
-;;        loop through plot types
-;         for j=0,n_elements(tags)-1 do begin
-;
-;            iplot = j ; plot index
-;;           Get map and scale
-;            itag = where(strcmp(ofpars_tags,tags[j],/fold_case) eq 1,cttag)
-;            if cttag ne 0 then begin
-;
-;            map = ofpars[line].(itag)
-;            ibd = where(map eq bad AND ~ finite(map),ctbd)
-;            inan = where(~finite(map),ctnan)
-;            igd = where(map ne bad AND map ne 0 AND finite(map),ctgd)
-;
-;            title=titles[j]
-;            
-;            if ctgd gt 0 then begin
-;               
-;               if tagtypes[j] eq 'flux' then begin
-; 
-;                  cbform = '(D0.1)' ; colorbar syntax
-;               
-;                  if tag_exist(initmaps,'fluxfactor') then $
-;                     map[igd] *= initmaps.fluxfactor
-;                                 
-;                  zran=[0,1]
-;                  dzran = 1
-;                  ncbdiv = 5
-;                  zmax_flux = max(map[igd])
-;
-;                  if hasrangefile then begin
-;                     ithisline = where(line eq rangeline AND $
-;                                       'of_'+tags[j] eq rangequant,ctthisline)
-;                     if ctthisline eq 1 then zmax_flux = rangelo[ithisline]
-;                  endif
-;                
-;                  map[igd] = map[igd]/zmax_flux[0]
-;                  title += ' ('+string(zmax_flux,format='(E0.2)')+')'
-;                  cgloadct,65,/reverse
-;
-;               endif else begin
-;       
-;                  cbform = '(I0)' ; colorbar syntax
-;                  hasrange = 0
-;                  if hasrangefile then begin
-;                     ithisline = where(line eq rangeline AND $
-;                                       'of_'+tags[j] eq rangequant,ctthisline)
-;                     if ctthisline eq 1 then begin
-;                        zran = [rangelo[ithisline],rangehi[ithisline]]
-;                        dzran = zran[1]-zran[0]
-;                        ncbdiv = rangencbdiv[ithisline]                   
-;                        ncbdiv = ncbdiv[0]
-;                        hasrange = 1
-;                     endif
-;                  endif
-;                  if ~hasrange then begin
-;                     zran = [min(map[igd]),max(map[igd])]
-;                     divarr = ifsf_cbdiv(zran,100d,ncbdivmax)
-;                     ncbdiv = divarr[0]
-;                     dzran = zran[1]-zran[0]
-;                  endif
-;
-;                  cgloadct,74,/reverse
-; 
-;               endelse
-; 
-;               if ctnan gt 0 then map[inan] = bad
-;               mapscl = bytscl(rebin(map,dx*samplefac,dy*samplefac,/sample),$
-;                               min=zran[0],max=zran[1])
-;
-;;              Plot image
-;               cgimage,mapscl,/keep,pos=pos[*,iplot],opos=truepos,$
-;                       noerase=iplot ne 0,missing_value=bad,missing_index=255,$
-;                       missing_color='white'
-;               cgplot,[0],xsty=5,ysty=5,position=truepos,$
-;                         /nodata,/noerase,title=title
-;               ifsf_plotaxesnuc,xran_kpc,yran_kpc,center_nuclei_kpc_x,center_nuclei_kpc_y
-;;              Colorbar
-;               cbpos=[truepos[2],truepos[1],truepos[2]+0.01,truepos[3]]
-;               ticknames = string(dindgen(ncbdiv+1)*dzran/double(ncbdiv) - $
-;                                  (dzran - zran[1]),format=cbform)
-;               cgcolorbar,position=cbpos,divisions=ncbdiv,$
-;                          ticknames=ticknames,/ver,/right,charsize=0.6
-;
-;            endif
-;            endif
-;            
-;         endfor
-; 
-;         cgps_close
-;
-;      endforeach
-;
-;   endif
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

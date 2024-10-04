@@ -62,9 +62,10 @@
 ;      2021dec17, DSNR, added [OIII]/[OII] and [OII]3729/3726;
 ;                       optionally output linear errors
 ;      2022jul16, DSNR, tweaked treatment of log errors in low S/N limit
+;      2024sep26, DSNR, added ebvuse toggle
 ;
 ; :Copyright:
-;    Copyright (C) 2014--2022 David S. N. Rupke
+;    Copyright (C) 2014--2024 David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -83,7 +84,8 @@
 ;-
 function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
                          lronly=lronly,errlo=errlo,errhi=errhi,rv=rv,$
-                         fcnebv=fcnebv,caseb=caseb,lrlist=lrlist,errlin=errlin
+                         fcnebv=fcnebv,caseb=caseb,lrlist=lrlist,errlin=errlin,$
+                         ebvuse=ebvuse
 
 
    if ~ keyword_set(rv) then rv=3.1d
@@ -97,6 +99,7 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
       caseb['HbetaHgamma'] = 2.13d
       caseb['HbetaHdelta'] = 3.86d
    endif
+   
    
    loge = alog10(exp(1))
 
@@ -151,17 +154,30 @@ function ifsf_lineratios,flux,fluxerr,linelist,noerr=noerr,ebvonly=ebvonly,$
 
       doebv=1b
       
-      dohahb=0b
-      if flux.haskey('Halpha') AND flux.haskey('Hbeta') then begin
+      ; choose Balmer ratio for E(B-V) based on what's available
+      ; or ebvuse toggle
+      ; if ebvuse not set, choose based on available lines  
+      if ~ keyword_set(ebvuse) then ebvuse=''
+      if (flux.haskey('Halpha') $
+         AND flux.haskey('Hbeta')) $
+         OR ebvuse eq 'hahb' $
+         then begin
          line1 = 'Halpha'
          line2 = 'Hbeta'
-      endif else if flux.haskey('Hbeta') AND flux.haskey('Hgamma') then begin
+      endif else if (flux.haskey('Hbeta') $
+         AND flux.haskey('Hgamma')) $
+         OR ebvuse eq 'hbhg' $
+         then begin
          line1 = 'Hbeta'
          line2 = 'Hgamma'
-      endif else if flux.haskey('Hbeta') AND flux.haskey('Hdelta') then begin
+      endif else if (flux.haskey('Hbeta') $
+         AND flux.haskey('Hdelta')) $
+         OR ebvuse eq 'hbhd' $
+         then begin
          line1 = 'Hbeta'
          line2 = 'Hdelta'
       endif
+      
 
 ;     Compute E(B-V) under Case B assumptions
       igdebv = cgsetintersection(igd[line1],igd[line2])
