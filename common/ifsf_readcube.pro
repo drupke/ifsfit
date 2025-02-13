@@ -98,7 +98,7 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
                        datext=datext,varext=varext,dqext=dqext,$
                        vormap=vormap,error=error,waveext=waveext,$
                        invvar=invvar,zerodq=zerodq,linearize=linearize,$
-                       gooddq=gooddq,fluxnorm=fluxnorm
+                       gooddq=gooddq,fluxnorm=fluxnorm,nslice=nslice
 
   if ~ keyword_set(quiet) then print,'IFSF_READCUBE: Loading data.'
 
@@ -117,15 +117,24 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
 
 ; Read fits file.
   if datext_use ne 0 then begin
-     phu = mrdfits(infile,0,header_phu,silent=quiet)
+     if keyword_set(nslice) then $
+        phu = readfits(infile,header_phu,nslice=nslice,exten_no=0,silent=quiet) $
+     else $
+        phu = mrdfits(infile,0,header_phu,silent=quiet)
   endif else begin
      phu = 0b
      header_phu = ''
   endelse
-  dat = mrdfits(infile,datext_use,header_dat,silent=quiet)
+  if keyword_set(nslice) then $
+     dat = readfits(infile,header_dat,nslice=nslice,exten_no=datext_use,silent=quiet) $
+  else $
+     dat = mrdfits(infile,datext_use,header_dat,silent=quiet)
   if varext_use gt 0 then begin
      novar=0b
-     var = mrdfits(infile,varext_use,header_var,silent=quiet)
+     if keyword_set(nslice) then $
+        var = readfits(infile,header_var,nslice=nslice,exten_no=varext_use,silent=quiet) $
+     else $
+        var = mrdfits(infile,varext_use,header_var,silent=quiet)
      if n_elements(var) eq 1 then begin
         if var[0] eq -1 then begin
            novar=1b
@@ -146,7 +155,10 @@ function ifsf_readcube,infile,header=header,quiet=quiet,oned=oned,$
      endif
   endelse
   if dqext_use ge 0 then begin
-     dq = mrdfits(infile,dqext_use,header_dq,silent=quiet)
+     if keyword_set(nslice) then $
+        dq = readfits(infile,header_dq,nslice=nslice,exten_no=dqext_use,silent=quiet) $
+     else $
+        dq = mrdfits(infile,dqext_use,header_dq,silent=quiet)
      if n_elements(dq) eq 1 then begin
         if dq[0] eq -1 then begin
            nodq=1b

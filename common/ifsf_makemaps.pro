@@ -2736,7 +2736,7 @@ contmap = hash()
       contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
       contmap[stelvelmask_comp] ne bad,ctgd)
    ibd = where(stel_z eq bad or $
-      contmap[stelvelmask_comp] - stelvelmask_vals gt 0d or $
+      contmap[stelvelmask_comp] - stelvelmask_vals le 0d or $
       contmap[stelvelmask_comp] eq bad or $
       ~finite(contmap[stelvelmask_comp]),ctbd)
  
@@ -2909,7 +2909,7 @@ contmap = hash()
          contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
          contmap[stelvelmask_comp] ne bad,ctgd)
       ibd = where(map eq bad or $
-         contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
+         contmap[stelvelmask_comp] - stelvelmask_vals le 0d and $
          contmap[stelvelmask_comp] eq bad or $
          ~finite(contmap[stelvelmask_comp]),ctbd)
       if ctbd gt 0 then begin
@@ -3022,7 +3022,7 @@ contmap = hash()
          contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
          contmap[stelvelmask_comp] ne bad,ctgd)
       ibd = where(map eq bad or $
-         contmap[stelvelmask_comp] - stelvelmask_vals gt 0d and $
+         contmap[stelvelmask_comp] - stelvelmask_vals le 0d and $
          contmap[stelvelmask_comp] eq bad or $
          ~finite(contmap[stelvelmask_comp]),ctbd)
       if ctbd gt 0 then begin

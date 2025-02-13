@@ -107,6 +107,11 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
      w_doublet1 = linelist['MgII2796']*(1d +zsys)
      w_doublet2 = linelist['MgII2803']*(1d +zsys)
   END
+  IF (doublet eq 'CaII') THEN BEGIN
+    ; Observed-frame wavelengths
+    w_doublet1 = linelist['CaIIK']*(1d +zsys)
+    w_doublet2 = linelist['CaIIH']*(1d +zsys)
+  END
   IF (doublet eq 'FeIIUV1') THEN BEGIN
      ; Observed-frame wavelengths
      w_doublet1 = linelist['FeII2585']*(1d +zsys)
@@ -163,7 +168,7 @@ pro ifsf_pltdoublet,gal,wave,relativeflux,continuum,flux,param,doublet,$
 ; Printing plot data
   if ~keyword_set(init) then begin
 
-     output=directoryname+'/'+gal+'/'+gal+doublet+'_fit_data'
+     output=directoryname+gal+doublet+'_fit_data'
      openw, lun, output+'.txt',/GET_LUN
      FOR M =0, N_ELEMENTS(wave)-1 DO $
         printf, lun, wave[M], modflux[M], continuum[M], flux[M], $

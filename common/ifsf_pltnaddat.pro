@@ -74,16 +74,17 @@
 pro ifsf_pltnaddat,normdat,fitpars,z,outfile,pltran=pltran,$
                    fitranlo=fitranlo,fitranhi=fitranhi,$
                    autoindices=autoindices,emwid=emwid,iabsoff=iabsoff,$
-                   yran=yran
+                   yran=yran,vacuum=vacuum
 
    if ~ keyword_set(iabsoff) then iabsoff = 4l
    if ~ keyword_set(emwid) then emwid = 20d 
+   if ~ keyword_set(vacuum) then vacuum = 0b
 
    if ~ keyword_set(pltran) then pltran = (1d +z)*[5810d,5960d]
    if ~ keyword_set(fitranlo) then fitranlo = (1d +z)*[5810d,5865d]
    if ~ keyword_set(fitranhi) then fitranhi = (1d +z)*[5905d,5960d]
 
-   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],/quiet)
+   linelist = ifsf_linelist(['NaD1','NaD2','HeI5876'],vacuum=vacuum,/quiet)
    nad1 = (1d + z)*linelist['NaD1']
    nad2 = (1d + z)*linelist['NaD2']
    hei = (1d + z)*linelist['HeI5876']

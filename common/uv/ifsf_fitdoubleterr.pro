@@ -116,7 +116,8 @@ function ifsf_fitdoubleterr,argsfit,ncomp,wave,vels,modflux,err,cont,parinit,$
    first_parinit=first_parinit,fitfcn=fitfcn,niter=niter,nsplit=nsplit,$
    absfix=absfix,emfix=emfix,quiet=quiet,$
    noplot=noplot,weqerr=weqerr,emfluxerr=emfluxerr,$
-   plotonly=plotonly,vwtavgerr=vwtavgerr,vwtrmserr=vwtrmserr
+   plotonly=plotonly,vwtavgerr=vwtavgerr,vwtrmserr=vwtrmserr,$
+   maxiter=maxiter
 
    bad = 1d99
    plotquantum = 2.5 ; in inches
@@ -126,6 +127,7 @@ function ifsf_fitdoubleterr,argsfit,ncomp,wave,vels,modflux,err,cont,parinit,$
    if ~ keyword_set(nsplit) then nsplit = 1
    if ~ keyword_set(quiet) then quiet=0
    if ~ keyword_set(noplot) then noplot=0
+   if ~ keyword_set(maxiter) then maxiter=100
    if ncomp[0] gt 0 AND ~ keyword_set(absfix) then $
       absfix=bytarr(ncomp[0],4)
    if ncomp[1] gt 0 AND ~ keyword_set(emfix) then $
@@ -187,7 +189,7 @@ function ifsf_fitdoubleterr,argsfit,ncomp,wave,vels,modflux,err,cont,parinit,$
                modflux_use = modfluxinit + rans[*,k]*err
 
                param = Mpfitfun(fitfcn,wave,modflux_use,err,$
-                  parinfo=parinituse,perror=perror,maxiter=100,$
+                  parinfo=parinituse,perror=perror,maxiter=maxiter,$
                   bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,$
                   nfev=nfev,niter=niter_mpfit,status=status,quiet=quiet,$
                   npegged=npegged,ftol=1D-6,errmsg=errmsg,$
@@ -230,7 +232,7 @@ function ifsf_fitdoubleterr,argsfit,ncomp,wave,vels,modflux,err,cont,parinit,$
                'resolve_routine, '+string(39B)+'mpfit'+string(39B)+', /EITHER, /NO_RECOMPILE',$
                'modflux_use = modfluxinit + rans[*,i]*err',$
                'param = Mpfitfun(fitfcn,wave,modflux_use,err,'+$
-               '                 parinfo=parinituse,perror=perror,maxiter=100,'+$
+               '                 parinfo=parinituse,perror=perror,maxiter='+string(maxiter,format='(I0)')+','+$
                '                 bestnorm=chisq,covar=covar,yfit=specfit,dof=dof,'+$
                '                 nfev=nfev,niter=niter_mpfit,status=status,quiet=quiet,'+$
                '                 functargs=argsfit,'+$

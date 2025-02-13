@@ -13,16 +13,14 @@
 ;    all spaxels.
 ;
 ; :Params:
-;    table: in, required, type=string
-;      Table containing input redshifts.
 ;    dir: in, required, type=string
 ;      Directory path where spectra data is located and where results 
 ;      are to be output.
 ;    galshort: in, required, type=string
 ;      Shorthand for galaxy to fit.
 ;    doublet: in, required, type=string
-;      Doublet profiles to fit. Currently can fit OVI and NV doublets.
-;      Captilization is required.
+;      Doublet profiles to fit. Captilization is required.
+;    fcngalinfo: in, required, type=string
 ;
 ; :Keywords:
 ;    cols: in, optional, type=intarr, default=all
@@ -74,7 +72,7 @@
 ;                       RMS
 ;    
 ; :Copyright:
-;    Copyright (C) 2015--2018 Anthony To, David S. N. Rupke
+;    Copyright (C) 2015--2025 Anthony To, David S. N. Rupke
 ;
 ;    This program is free software: you can redistribute it and/or
 ;    modify it under the terms of the GNU General Public License as
@@ -102,6 +100,7 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
    c = 299792.458d
 
    IF (doublet eq 'MgII') THEN linename = 'MgII2803'
+   IF (doublet eq 'CaII') THEN linename = 'CaIIH'
    IF (doublet eq 'NV') THEN linename = 'NV1242'
    IF (doublet eq 'OVI') THEN linename = 'OVI1037'
    IF (doublet eq 'PV') THEN linename = 'PV1128'
@@ -132,6 +131,7 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
    linelist = $
       ifsf_linelist(['OVI1031','OVI1037','Lyalpha','Lybeta',$
          'NV1238','NV1242','PV1117','PV1128','MgII2796','MgII2803',$
+         'CaIIH','CaIIK',$
          'FeII2585','FeII2599','FeII2373','FeII2382'],$
          _extra=argslinelist)
 
@@ -160,11 +160,11 @@ pro ifsf_fitdoublet,dir,galshort,doublet,fcngalinfo,$
    oned=1
    nz = 1
    cube = {err: initstr.error, $
-                  dat : initstr.relativeflux, $
-                  wave : initstr.wavelength, $ 
-                  cont: initstr.continuum, $
-                  flux: initstr.flux $   
-                 }
+           dat : initstr.relativeflux, $
+           wave : initstr.wavelength, $ 
+           cont: initstr.continuum, $
+           flux: initstr.flux $   
+           }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Loop through spaxels

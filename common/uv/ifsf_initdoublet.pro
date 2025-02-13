@@ -97,6 +97,9 @@ function ifsf_initdoublet,doublet,initdoubletabs,initdoubletem,siglimdoubletabs,
    endif else if doublet eq 'MgII' then begin
       LogLF = 3.236d - 2.933d
       linename = 'MgII2802'
+    endif else if doublet eq 'CaII' then begin
+      LogLF = 3.397d - 3.096d
+      linename = 'CaIIH'
    endif else if doublet eq 'FeIIUV1' then begin
          LogLF = 2.793d - 2.252d
          linename = 'FeII2585'

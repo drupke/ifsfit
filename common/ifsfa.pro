@@ -1162,7 +1162,7 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
            if ctgd gt 0 then begin
 ;             Create output data cube
               if firstnadnorm then begin
-                 ilo = value_locate(cube.wave,fitranlo[0])+1
+                 ilo = value_locate(cube.wave,fitranlo[0]) ;+1 ; not sure if this is needed??? 2025feb03
                  ihi = value_locate(cube.wave,fitranhi[1])
                  dat_normnadwave = cube.wave[ilo:ihi]
                  nz = ihi-ilo+1
@@ -1269,16 +1269,21 @@ pro ifsfa,initproc,cols=cols,rows=rows,noplots=noplots,oned=oned,$
               nadcube.errcor[i,j] = naderrcor
               nadcube.normpars[i,j,*] = fitpars_normnad
 ;             Plot data
+              if tag_exist(initnad, 'argslinelist') then $
+                 if tag_exist(initnad.argslinelist, 'vacuum') then $
+                     vacuum = 1b $
+              else vacuum = 0b
               if not keyword_set(noplots) then $
                  if tag_exist(initnad,'argspltnormnad') then $
                     ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
                                    outfile+'_nad_norm',autoindices=weq[*,1],$
                                    emwid=emwid,iabsoff=iabsoff,$
+                                   vacuum=vacuum,$
                                    _extra=initnad.argspltnormnad $
                  else $
                     ifsf_pltnaddat,normnad,fitpars_normnad,struct.zstar,$
                                    outfile+'_nad_norm',autoindices=weq[*,1],$
-                                   emwid=emwid,iabsoff=iabsoff
+                                   emwid=emwid,iabsoff=iabsoff,vacuum=vacuum
            endif
 
         endif
