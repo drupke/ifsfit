@@ -195,7 +195,7 @@ function ifsf_fitspec,lambda,flux,err,dq,zstar,linelist,linelistz,$
      templatelambdaz = reform(template.lambda,n_elements(template.lambda))
      if ~ tag_exist(initdat,'keepstarz') then $
         templatelambdaz *= 1d + zstar
-     if vacuum then airtovac,templatelambdaz
+     ;if vacuum then airtovac,templatelambdaz
      if tag_exist(initdat,'waveunit') then $
         templatelambdaz *= initdat.waveunit
   endif else begin
